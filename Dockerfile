@@ -11,7 +11,18 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     unzip \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+
+# ==================================================
+# NODE.JS + NPM
+# ==================================================
+
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && node --version \
+    && npm --version
 
 
 # ==================================================
@@ -35,6 +46,7 @@ RUN docker-php-ext-install \
 # ==================================================
 
 RUN a2dismod mpm_event mpm_worker mpm_worker_event 2>/dev/null || true
+
 RUN a2enmod mpm_prefork
 RUN a2enmod rewrite
 
@@ -49,8 +61,7 @@ COPY . .
 
 
 # ==================================================
-# CREATE LARAVEL DIRECTORIES
-# IMPORTANT: THIS MUST BE BEFORE COMPOSER
+# LARAVEL DIRECTORIES
 # ==================================================
 
 RUN mkdir -p \
@@ -71,6 +82,15 @@ RUN COMPOSER_ALLOW_SUPERUSER=1 composer install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction
+
+
+# ==================================================
+# NPM / VITE
+# ==================================================
+
+RUN npm install
+
+RUN npm run build
 
 
 # ==================================================
@@ -117,15 +137,23 @@ RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 
 # ==================================================
-# VERIFY APACHE
+# VERIFY
 # ==================================================
 
 RUN echo "========================================"
-RUN echo "ENABLED MPM MODULES:"
+RUN echo "VITE BUILD:"
+RUN ls -lah /var/www/html/public/build || true
+
+RUN echo "========================================"
+RUN echo "VITE MANIFEST:"
+RUN test -f /var/www/html/public/build/manifest.json
+
+RUN echo "========================================"
+RUN echo "APACHE MPM:"
 RUN ls -la /etc/apache2/mods-enabled/ | grep mpm || true
 
 RUN echo "========================================"
-RUN echo "APACHE CONFIG TEST:"
+RUN echo "APACHE CONFIG:"
 RUN apache2ctl configtest
 
 RUN echo "========================================"
