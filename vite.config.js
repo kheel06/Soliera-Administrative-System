@@ -19,7 +19,7 @@ export default defineConfig({
     ],
     build: {
         target: 'es2022',
-        manifest: true,
+        manifest: 'manifest.json',
         outDir: 'public/build',
         emptyOutDir: true,
         rollupOptions: {
