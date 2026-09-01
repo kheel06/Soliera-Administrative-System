@@ -166,8 +166,8 @@ RUN echo "========================================"
 EXPOSE 8080
 
 
-# ==================================================
-# START
-# ==================================================
+# ====================================================
+# START===
+# =====================================================
 
 CMD ["bash", "-c", "set -e; PORT=${PORT:-8080}; echo \"PORT=$PORT\"; a2dismod mpm_event mpm_worker mpm_worker_event 2>/dev/null || true; a2enmod mpm_prefork; sed -i \"s/^Listen .*/Listen ${PORT}/\" /etc/apache2/ports.conf; sed -i \"s/<VirtualHost \\*:80>/<VirtualHost *:${PORT}>/\" /etc/apache2/sites-available/000-default.conf; apache2ctl configtest; exec apache2-foreground"]
