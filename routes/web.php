@@ -1530,7 +1530,6 @@ Route::get('/fix-audit-logs', function () {
         ], 500);
     }
 });
-
 Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',

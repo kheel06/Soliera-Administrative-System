@@ -33,25 +33,28 @@ RUN docker-php-ext-install \
 # Apache MPM
 # --------------------------------------------------
 
-# Remove all enabled MPM modules
+# Remove all MPM modules that may be enabled
 RUN rm -f /etc/apache2/mods-enabled/mpm_*.load \
           /etc/apache2/mods-enabled/mpm_*.conf
 
-# Enable ONLY prefork
+# Enable ONLY prefork MPM
 RUN a2enmod mpm_prefork
 
-# Enable rewrite
+# Enable Apache rewrite
 RUN a2enmod rewrite
 
 # --------------------------------------------------
-# Laravel
+# Laravel working directory
 # --------------------------------------------------
 WORKDIR /var/www/html
 
+# --------------------------------------------------
+# Copy Laravel application
+# --------------------------------------------------
 COPY . .
 
 # --------------------------------------------------
-# Laravel directories
+# Create Laravel directories
 # MUST EXIST BEFORE composer install
 # --------------------------------------------------
 RUN mkdir -p \
@@ -62,7 +65,7 @@ RUN mkdir -p \
     storage/logs
 
 # --------------------------------------------------
-# Permissions
+# Set Laravel permissions
 # --------------------------------------------------
 RUN chown -R www-data:www-data \
     bootstrap/cache \
@@ -72,17 +75,21 @@ RUN chown -R www-data:www-data \
     storage
 
 # --------------------------------------------------
-# Composer
+# Install Composer
 # --------------------------------------------------
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# --------------------------------------------------
+# Install PHP dependencies
+# --------------------------------------------------
 RUN COMPOSER_ALLOW_SUPERUSER=1 composer install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction
 
 # --------------------------------------------------
-# Apache Laravel DocumentRoot
+# Configure Apache DocumentRoot
+# Laravel must use /public
 # --------------------------------------------------
 RUN sed -i 's!/var/www/html!/var/www/html/public!g' \
     /etc/apache2/sites-available/000-default.conf
@@ -106,16 +113,25 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 storage bootstrap/cache
 
 # --------------------------------------------------
-# Verify Apache during BUILD
+# Apache ServerName
+# Prevent AH00558 warning
+# --------------------------------------------------
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
+# --------------------------------------------------
+# Verify Apache configuration during BUILD
 # --------------------------------------------------
 RUN echo "===== ENABLED MPM MODULES =====" \
     && ls -la /etc/apache2/mods-enabled/ | grep mpm || true \
     && echo "===== APACHE CONFIG TEST =====" \
     && apache2ctl configtest
 
+# --------------------------------------------------
+# Railway
+# --------------------------------------------------
 EXPOSE 80
 
 # --------------------------------------------------
-# FORCE MPM FIX AT RUNTIME
+# START APACHE USING RAILWAY'S PORT
 # --------------------------------------------------
-CMD ["bash", "-c", "rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf && a2enmod mpm_prefork && exec apache2-foreground"]
+CMD ["bash", "-c", "rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf && a2enmod mpm_prefork && sed -i \"s/^Listen .*/Listen ${PORT}/\" /etc/apache2/ports.conf && sed -i \"s/<VirtualHost \\*:80>/<VirtualHost *:${PORT}>/\" /etc/apache2/sites-available/000-default.conf && exec apache2-foreground"]
