@@ -1,7 +1,7 @@
 FROM php:8.3-apache
 
 # --------------------------------------------------
-# Install system dependencies
+# System dependencies
 # --------------------------------------------------
 RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
@@ -20,7 +20,7 @@ RUN docker-php-ext-configure gd \
     --with-jpeg
 
 # --------------------------------------------------
-# Install PHP extensions
+# PHP extensions
 # --------------------------------------------------
 RUN docker-php-ext-install \
     gd \
@@ -32,23 +32,27 @@ RUN docker-php-ext-install \
 # --------------------------------------------------
 # Apache MPM
 # --------------------------------------------------
+
+# Remove all enabled MPM modules
 RUN rm -f /etc/apache2/mods-enabled/mpm_*.load \
           /etc/apache2/mods-enabled/mpm_*.conf
 
-RUN a2enmod mpm_prefork rewrite
+# Enable ONLY prefork
+RUN a2enmod mpm_prefork
+
+# Enable rewrite
+RUN a2enmod rewrite
 
 # --------------------------------------------------
-# Laravel working directory
+# Laravel
 # --------------------------------------------------
 WORKDIR /var/www/html
 
-# --------------------------------------------------
-# Copy application
-# --------------------------------------------------
 COPY . .
 
 # --------------------------------------------------
-# Create Laravel directories BEFORE composer install
+# Laravel directories
+# MUST EXIST BEFORE composer install
 # --------------------------------------------------
 RUN mkdir -p \
     bootstrap/cache \
@@ -58,31 +62,27 @@ RUN mkdir -p \
     storage/logs
 
 # --------------------------------------------------
-# Set permissions BEFORE composer install
+# Permissions
 # --------------------------------------------------
 RUN chown -R www-data:www-data \
     bootstrap/cache \
-    storage
-
-RUN chmod -R 775 \
+    storage \
+    && chmod -R 775 \
     bootstrap/cache \
     storage
 
 # --------------------------------------------------
-# Install Composer
+# Composer
 # --------------------------------------------------
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# --------------------------------------------------
-# Install PHP dependencies
-# --------------------------------------------------
 RUN COMPOSER_ALLOW_SUPERUSER=1 composer install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction
 
 # --------------------------------------------------
-# Configure Apache for Laravel
+# Apache Laravel DocumentRoot
 # --------------------------------------------------
 RUN sed -i 's!/var/www/html!/var/www/html/public!g' \
     /etc/apache2/sites-available/000-default.conf
@@ -100,14 +100,22 @@ RUN printf '%s\n' \
 RUN a2enconf laravel
 
 # --------------------------------------------------
-# Final permissions
+# Final Laravel permissions
 # --------------------------------------------------
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 storage bootstrap/cache
 
 # --------------------------------------------------
-# Verify Apache
+# Verify Apache during BUILD
 # --------------------------------------------------
-RUN apache2ctl configtest
+RUN echo "===== ENABLED MPM MODULES =====" \
+    && ls -la /etc/apache2/mods-enabled/ | grep mpm || true \
+    && echo "===== APACHE CONFIG TEST =====" \
+    && apache2ctl configtest
 
 EXPOSE 80
+
+# --------------------------------------------------
+# FORCE MPM FIX AT RUNTIME
+# --------------------------------------------------
+CMD ["bash", "-c", "rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf && a2enmod mpm_prefork && exec apache2-foreground"]
