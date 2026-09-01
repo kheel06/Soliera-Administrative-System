@@ -36,17 +36,24 @@ RUN docker-php-ext-install \
 
 
 # ==================================================
-# APACHE MPM
+# APACHE
 # ==================================================
 
-# Remove EVERY enabled MPM module.
-RUN rm -f /etc/apache2/mods-enabled/mpm_*.load \
-          /etc/apache2/mods-enabled/mpm_*.conf
+# The official PHP Apache image uses prefork for mod_php.
+# Explicitly disable all other MPMs.
 
-# Enable ONLY PHP-compatible prefork MPM.
+RUN a2dismod mpm_event mpm_worker mpm_worker_event 2>/dev/null || true
+
+RUN rm -f \
+    /etc/apache2/mods-enabled/mpm_event.* \
+    /etc/apache2/mods-enabled/mpm_worker.* \
+    /etc/apache2/mods-enabled/mpm_worker_event.*
+
+
+# Enable ONLY prefork
 RUN a2enmod mpm_prefork
 
-# Enable Laravel URL rewriting.
+# Laravel URL rewriting
 RUN a2enmod rewrite
 
 
@@ -72,19 +79,6 @@ RUN mkdir -p \
 
 
 # ==================================================
-# LARAVEL PERMISSIONS
-# ==================================================
-
-RUN chown -R www-data:www-data \
-    bootstrap/cache \
-    storage
-
-RUN chmod -R 775 \
-    bootstrap/cache \
-    storage
-
-
-# ==================================================
 # COMPOSER
 # ==================================================
 
@@ -94,6 +88,18 @@ RUN COMPOSER_ALLOW_SUPERUSER=1 composer install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction
+
+
+# ==================================================
+# LARAVEL PERMISSIONS
+# ==================================================
+
+RUN chown -R www-data:www-data \
+    /var/www/html
+
+RUN chmod -R 775 \
+    storage \
+    bootstrap/cache
 
 
 # ==================================================
@@ -127,18 +133,7 @@ RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 
 # ==================================================
-# FINAL PERMISSIONS
-# ==================================================
-
-RUN chown -R www-data:www-data /var/www/html
-
-RUN chmod -R 775 \
-    storage \
-    bootstrap/cache
-
-
-# ==================================================
-# VERIFY APACHE CONFIG DURING BUILD
+# VERIFY APACHE DURING BUILD
 # ==================================================
 
 RUN echo "========================================"
@@ -163,4 +158,28 @@ EXPOSE 8080
 # START APACHE
 # ==================================================
 
-CMD ["bash", "-c", "PORT=${PORT:-8080}; sed -i \"s/^Listen .*/Listen ${PORT}/\" /etc/apache2/ports.conf; sed -i \"s/<VirtualHost \\*:80>/<VirtualHost *:${PORT}>/\" /etc/apache2/sites-available/000-default.conf; exec apache2-foreground"]
+CMD ["bash", "-c", "\
+set -e; \
+PORT=${PORT:-8080}; \
+echo '========================================'; \
+echo 'RAILWAY PORT:' ${PORT}; \
+echo '========================================'; \
+echo 'Cleaning Apache MPM modules...'; \
+a2dismod mpm_event mpm_worker mpm_worker_event 2>/dev/null || true; \
+rm -f /etc/apache2/mods-enabled/mpm_event.*; \
+rm -f /etc/apache2/mods-enabled/mpm_worker.*; \
+rm -f /etc/apache2/mods-enabled/mpm_worker_event.*; \
+a2enmod mpm_prefork; \
+echo '========================================'; \
+echo 'ENABLED MPM MODULES:'; \
+ls -la /etc/apache2/mods-enabled/ | grep mpm || true; \
+echo '========================================'; \
+echo 'Configuring Apache port...'; \
+sed -i \"s/^Listen .*/Listen ${PORT}/\" /etc/apache2/ports.conf; \
+sed -i \"s/<VirtualHost \\*:80>/<VirtualHost *:${PORT}>/\" /etc/apache2/sites-available/000-default.conf; \
+echo '========================================'; \
+echo 'APACHE CONFIG TEST:'; \
+apache2ctl configtest; \
+echo '========================================'; \
+exec apache2-foreground \
+"]
