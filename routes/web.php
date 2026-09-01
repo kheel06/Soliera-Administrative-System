@@ -1531,4 +1531,10 @@ Route::get('/fix-audit-logs', function () {
     }
 });
 
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+    ]);
+});
+
 require __DIR__ . '/auth.php';
