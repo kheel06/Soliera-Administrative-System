@@ -32,7 +32,7 @@ class VisitorController extends Controller
     {
         $this->middleware(function ($request, $next) {
             $role = auth()->user()->role ?? null;
-           
+
             return $next($request);
         })->only(['logs', 'reports', 'exportExcel', 'exportPdf']);
 
@@ -46,26 +46,26 @@ class VisitorController extends Controller
         $visitors = Visitor::with('facility')->latest()->get();
         $facilities = Facility::all();
         $users = User::all();
-        
+
         // Get pending exit visitors (overdue)
         $pendingExitVisitors = Visitor::where('pending_exit', true)
             ->whereNull('time_out')
             ->with('facility')
             ->latest('pending_exit_at')
             ->get();
-        
+
         // Get visitors approaching timeout (within 10 minutes)
         $approachingTimeoutVisitors = $this->getApproachingTimeoutVisitors();
-        
+
         // Get active tab from request parameter
         $validTabs = ['current', 'scheduled', 'monitoring'];
         $tabParam = $request->get('tab');
         $activeTab = in_array($tabParam, $validTabs) ? $tabParam : 'current';
-        
+
         return view('visitor.index', compact(
-            'visitors', 
-            'facilities', 
-            'users', 
+            'visitors',
+            'facilities',
+            'users',
             'activeTab',
             'pendingExitVisitors',
             'approachingTimeoutVisitors'
@@ -85,24 +85,27 @@ class VisitorController extends Controller
 
     public function store(Request $request)
     {
+        \Log::emergency('ENTERING STORE METHOD - START');
+        \Log::emergency('ALL INPUTS:', $request->all());
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
+            'email' => 'nullable|email|max:255',
             'contact' => 'required|string|max:255',
             'purpose' => 'required|string|max:1000',
             'facility_id' => 'nullable',
             'host_employee' => 'nullable|string|max:255',
+            'host_id' => 'nullable|exists:users,id',
             'department' => 'nullable|string|max:255',
-            'company' => 'nullable|string|max:255',
             'id_type' => 'nullable|string|max:255',
-            'id_number' => 'nullable|string|max:255',
             'vehicle_plate' => 'nullable|string|max:255',
             'time_in' => 'nullable|date',
+            'nda_signed' => 'nullable|string',
+            'room' => 'nullable|string|max:255',
         ]);
 
         // Generate pass ID
         $passId = $this->generatePassId();
-        
+
         // Combine expected date and time into a proper datetime
         $expectedDateTimeOut = null;
         if ($request->expected_date_out && $request->expected_time_out) {
@@ -114,24 +117,48 @@ class VisitorController extends Controller
 
         // Calculate pass validity based on expected time out
         $validity = $this->calculatePassValidity($request);
-        
+
+        // Determine host name if host_id provided but host_employee empty
+        $hostEmployee = $request->host_employee;
+        if (!$hostEmployee && $request->host_id) {
+            $host = \App\Models\User::find($request->host_id);
+            if ($host) {
+                $hostEmployee = $host->name;
+            }
+        }
+
+        // Determine status and time_in
+        $timeIn = $request->time_in;
+        $status = $timeIn ? 'active' : 'registered';
+
+        // Handle profile photo
+        $profilePhotoUrl = null;
+        // Check if profile_photo key exists and has content (base64 string from camera)
+        \Log::info('Visitor Checkin Inputs:', $request->all());
+        if ($request->has('profile_photo') && !empty($request->profile_photo)) {
+            $profilePhotoUrl = $this->storeProfilePhoto($request->profile_photo);
+            \Log::info('Profile photo processed: ' . ($profilePhotoUrl ? 'Success' : 'Failed'));
+        } else {
+            \Log::info('No profile photo in request.');
+        }
+
         $visitorData = [
             'name' => $request->name,
             'email' => $request->email,
             'contact' => $request->contact,
             'purpose' => $request->purpose,
             'facility_id' => $request->facility_id,
-            'host_employee' => $request->host_employee,
-            'company' => $request->company,
+            'host_employee' => $hostEmployee,
+            'host_id' => $request->host_id,
             'department' => $request->department,
             'id_type' => $request->id_type,
-            'id_number' => $request->id_number,
             'vehicle_plate' => $request->vehicle_plate,
-            'arrival_date' => $request->arrival_date,
-            'arrival_time' => $request->arrival_time,
+            'profile_photo_url' => $profilePhotoUrl,
+            'arrival_date' => $request->arrival_date ?? ($timeIn ? \Carbon\Carbon::parse($timeIn)->toDateString() : null),
+            'arrival_time' => $request->arrival_time ?? ($timeIn ? \Carbon\Carbon::parse($timeIn)->toTimeString() : null),
             'expected_date_out' => $request->expected_date_out,
             'expected_time_out' => $expectedDateTimeOut,
-            'time_in' => null, // Not checked in yet - will be set when they actually check in
+            'time_in' => $timeIn,
             'pass_id' => $passId,
             'pass_type' => 'visitor',
             'pass_validity' => '24_hours',
@@ -139,21 +166,28 @@ class VisitorController extends Controller
             'pass_valid_until' => $validity['valid_until'],
             'access_level' => null,
             'escort_required' => 'no',
-            'status' => 'registered', // Changed from 'active' to 'registered'
+            'status' => $status,
+            'nda_signed' => $request->has('nda_signed'),
+            'room' => $request->room,
         ];
-        
+
         $visitor = Visitor::create($visitorData);
-        
+
         // Generate digital pass data
         $this->generateDigitalPass($visitor);
-        
-        // Log the registration activity
-        $this->logVisitorActivity($visitor, 'register', 'Visitor registered and pass generated');
-        
+
+        // Log the registration/checkin activity
+        $action = $timeIn ? 'checkin' : 'register';
+        $message = $timeIn ? 'Visitor checked in and pass generated' : 'Visitor registered and pass generated';
+        $this->logVisitorActivity($visitor, $action, $message);
+
+        // Send notification
+        \App\Services\SystemNotificationService::notifyVisitorAction($action, $visitor);
+
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Visitor registered and pass issued! Please check them in when they arrive.',
+                'message' => $message,
                 'visitor' => $visitor->load('facility'),
                 'pass_data' => $visitor->pass_data,
                 'validity_info' => [
@@ -163,9 +197,9 @@ class VisitorController extends Controller
                 ]
             ]);
         }
-        
-        // After normal form submit, go to the "New Visitor" page (table view)
-        return redirect()->route('visitor.create')->with('success', 'Visitor registered and added to the New Visitors queue.');
+
+        // After normal form submit, redirect to badges page for printing
+        return redirect()->route('visitors.badges')->with('print_badge', $visitor->id)->with('success', $message);
     }
 
     /**
@@ -192,8 +226,9 @@ class VisitorController extends Controller
             'scheduled_time' => 'nullable|date_format:H:i',
             'status' => 'nullable|string',
             'agree' => 'accepted',
+            'room' => 'nullable|string|max:255',
         ]);
-        
+
         // Handle ID image upload
         $idDocumentPath = null;
         if ($request->hasFile('id_image')) {
@@ -214,7 +249,7 @@ class VisitorController extends Controller
 
         // Check if this is a pre-scheduled visit
         $isPrescheduled = $request->visit_type === 'preschedule' || $request->status === 'scheduled';
-        
+
         if ($isPrescheduled) {
             \Log::info('Creating pre-scheduled visitor', [
                 'name' => $validated['name'],
@@ -223,7 +258,7 @@ class VisitorController extends Controller
                 'scheduled_time' => $request->scheduled_time,
                 'visit_type' => $request->visit_type
             ]);
-            
+
             // For pre-scheduled visits, create visitor with scheduled status
             $visitor = Visitor::create([
                 'name' => $validated['name'],
@@ -231,7 +266,7 @@ class VisitorController extends Controller
                 'contact' => $validated['contact'],
                 'phone' => $validated['contact'], // Also store in phone field
                 'purpose' => $validated['purpose'],
-                'facility_id' => $request->facility_id ? (int)$request->facility_id : null,
+                'facility_id' => $request->facility_id ? (int) $request->facility_id : null,
                 'host_employee' => $request->host_employee,
                 'department' => $request->department,
                 'company' => $request->company,
@@ -251,6 +286,7 @@ class VisitorController extends Controller
                 'access_level' => null,
                 'escort_required' => 'no',
                 'status' => 'scheduled',
+                'room' => $request->room,
             ]);
 
             \Log::info('Pre-scheduled visitor created successfully', [
@@ -262,7 +298,10 @@ class VisitorController extends Controller
 
             // Generate digital pass for scheduled date
             $this->generateDigitalPass($visitor);
-            
+
+            // Send notification
+            \App\Services\SystemNotificationService::notifyVisitorAction('scheduled', $visitor);
+
             // Send email with QR pass and code
             $this->sendScheduledVisitorEmail($visitor);
 
@@ -280,7 +319,7 @@ class VisitorController extends Controller
                 'contact' => $validated['contact'],
                 'phone' => $validated['contact'], // Also store in phone field
                 'purpose' => $validated['purpose'],
-                'facility_id' => $request->facility_id ? (int)$request->facility_id : null,
+                'facility_id' => $request->facility_id ? (int) $request->facility_id : null,
                 'host_employee' => $request->host_employee,
                 'department' => $request->department,
                 'company' => $request->company,
@@ -301,11 +340,15 @@ class VisitorController extends Controller
                 'access_level' => null,
                 'escort_required' => 'no',
                 'status' => 'registered',
+                'room' => $request->room,
             ];
 
             $visitor = Visitor::create($visitorData);
 
             $this->generateDigitalPass($visitor);
+
+            // Send notification
+            \App\Services\SystemNotificationService::notifyVisitorAction('register', $visitor);
 
             return response()->json([
                 'success' => true,
@@ -322,10 +365,10 @@ class VisitorController extends Controller
     {
         try {
             $accessCode = $this->ensureAccessCode($visitor);
-            
+
             // Send email
             Mail::to($visitor->email)->send(new \App\Mail\ScheduledVisitorMail($visitor, $accessCode));
-            
+
         } catch (\Exception $e) {
             \Log::error('Failed to send scheduled visitor email: ' . $e->getMessage());
         }
@@ -354,9 +397,9 @@ class VisitorController extends Controller
         ]);
 
         $visitor = Visitor::where('access_code', $request->access_code)
-                         ->where('pass_id', $request->pass_id)
-                         ->where('status', 'scheduled')
-                         ->first();
+            ->where('pass_id', $request->pass_id)
+            ->where('status', 'scheduled')
+            ->first();
 
         if (!$visitor) {
             return response()->json([
@@ -413,10 +456,10 @@ class VisitorController extends Controller
 
         $visitor = Visitor::findOrFail($id);
         $visitor->update($request->all());
-        
+
         // Send notification
         \App\Services\SystemNotificationService::notifyVisitorAction('updated', $visitor);
-        
+
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
@@ -424,7 +467,7 @@ class VisitorController extends Controller
                 'visitor' => $visitor->load('facility')
             ]);
         }
-        
+
         return redirect()->route('visitor.show', $id)->with('success', 'Visitor log updated!');
     }
 
@@ -433,17 +476,17 @@ class VisitorController extends Controller
         $visitor = Visitor::findOrFail($id);
         $visitorName = $visitor->name;
         $visitor->delete();
-        
+
         // Send notification
-        \App\Services\SystemNotificationService::notifyVisitorAction('deleted', (object)['name' => $visitorName, 'id' => $id]);
-        
+        \App\Services\SystemNotificationService::notifyVisitorAction('deleted', (object) ['name' => $visitorName, 'id' => $id]);
+
         if (request()->ajax()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Visitor deleted successfully!'
             ]);
         }
-        
+
         return redirect()->route('visitor.index')->with('success', 'Visitor log deleted!');
     }
 
@@ -451,7 +494,7 @@ class VisitorController extends Controller
     public function searchVisitors(Request $request): JsonResponse
     {
         $query = $request->get('query', '');
-        
+
         $visitors = Visitor::with('facility')
             ->where('name', 'like', "%{$query}%")
             ->orWhere('company', 'like', "%{$query}%")
@@ -459,7 +502,7 @@ class VisitorController extends Controller
             ->orWhere('contact', 'like', "%{$query}%")
             ->latest()
             ->get();
-            
+
         return response()->json($visitors);
     }
 
@@ -467,7 +510,7 @@ class VisitorController extends Controller
     {
         try {
             $visitor = Visitor::with(['facility', 'facilityReservation'])->findOrFail($id);
-            
+
             $digitalPass = null;
             if ($visitor->facilityReservation && $visitor->facilityReservation->digital_pass_data) {
                 foreach ($visitor->facilityReservation->digital_pass_data as $pass) {
@@ -477,10 +520,10 @@ class VisitorController extends Controller
                     }
                 }
             }
-            
+
             $visitorArray = $visitor->toArray();
             $visitorArray['digital_pass'] = $digitalPass; // Add digital pass data to the response
-            
+
             return response()->json([
                 'success' => true,
                 'visitor' => $visitorArray
@@ -496,26 +539,40 @@ class VisitorController extends Controller
 
     private function storeProfilePhoto(string $photoData): ?string
     {
-        if (!preg_match('/^data:image\/(\w+);base64,/', $photoData, $matches)) {
+        \Log::emergency('ENTERING storeProfilePhoto. Data length: ' . strlen($photoData));
+        // Check for base64 header
+        if (strpos($photoData, 'base64,') === false) {
+            \Log::error('storeProfilePhoto: No base64 header found.');
             return null;
         }
 
-        $type = strtolower($matches[1]);
+        // Parse type
+        $type = 'jpg';
+        if (preg_match('/^data:image\/(\w+);base64,/', $photoData, $matches)) {
+            $type = strtolower($matches[1]);
+        }
+
         $allowed = ['jpg', 'jpeg', 'png'];
         if (!in_array($type, $allowed)) {
             $type = 'jpg';
         }
 
-        $photoData = substr($photoData, strpos($photoData, ',') + 1);
-        $photoData = base64_decode($photoData);
-        if ($photoData === false) {
+        // Get actual data
+        $content = substr($photoData, strpos($photoData, ',') + 1);
+        $decodedData = base64_decode($content);
+
+        if ($decodedData === false) {
+            \Log::error('storeProfilePhoto: Base64 decode failed.');
             return null;
         }
 
         $fileName = 'visitor_photos/' . Str::uuid() . '.' . $type;
-        Storage::disk('public')->put($fileName, $photoData);
+        Storage::disk('public')->put($fileName, $decodedData);
 
-        return Storage::url($fileName);
+        $url = Storage::url($fileName);
+        \Log::info('storeProfilePhoto: Saved to ' . $url);
+
+        return $url;
     }
 
     // Renamed from checkIn to store, as it performs a store operation.
@@ -530,6 +587,7 @@ class VisitorController extends Controller
             'facility_id' => 'nullable|exists:facilities,id',
             'company' => 'nullable|string|max:255',
             'host_employee' => 'nullable|string|max:255',
+            'room' => 'nullable|string|max:255',
         ]);
 
         $visitor = Visitor::create([
@@ -539,12 +597,16 @@ class VisitorController extends Controller
             'facility_id' => $request->facility_id,
             'company' => $request->company,
             'host_employee' => $request->host_employee,
+            'room' => $request->room,
             'time_in' => now(),
             'status' => 'active',
         ]);
 
         // Log the check-in activity
         $this->logVisitorActivity($visitor, 'checkin', 'Visitor checked in');
+
+        // Send notification
+        \App\Services\SystemNotificationService::notifyVisitorAction('checkin', $visitor);
 
         return response()->json([
             'success' => true,
@@ -563,6 +625,9 @@ class VisitorController extends Controller
 
         // Log the check-out activity
         $this->logVisitorActivity($visitor, 'checkout', 'Visitor checked out');
+
+        // Send notification
+        \App\Services\SystemNotificationService::notifyVisitorAction('checked_out', $visitor);
 
         // Send a graceful checkout email if address is available
         try {
@@ -583,7 +648,7 @@ class VisitorController extends Controller
     public function checkInExisting($id): JsonResponse
     {
         $visitor = Visitor::findOrFail($id);
-        
+
         if ($visitor->time_in) {
             return response()->json([
                 'success' => false,
@@ -595,7 +660,7 @@ class VisitorController extends Controller
         if ($visitor->status === 'scheduled' && $visitor->scheduled_date) {
             $scheduledDate = \Carbon\Carbon::parse($visitor->scheduled_date)->format('Y-m-d');
             $today = now()->format('Y-m-d');
-            
+
             if ($scheduledDate !== $today) {
                 return response()->json([
                     'success' => false,
@@ -612,6 +677,9 @@ class VisitorController extends Controller
         // Log the check-in activity
         $this->logVisitorActivity($visitor, 'checkin', 'Visitor checked in');
 
+        // Send notification
+        \App\Services\SystemNotificationService::notifyVisitorAction('checkin', $visitor);
+
         return response()->json([
             'success' => true,
             'message' => 'Visitor checked in successfully!',
@@ -627,7 +695,7 @@ class VisitorController extends Controller
                 ->whereNull('time_out')    // Must not be checked out
                 ->latest()
                 ->get();
-                
+
             return response()->json($visitors);
         } catch (\Exception $e) {
             return response()->json([
@@ -645,7 +713,7 @@ class VisitorController extends Controller
             ->whereDate('created_at', now()->toDateString()) // Registered today
             ->latest()
             ->get();
-            
+
         return response()->json($visitors);
     }
 
@@ -735,7 +803,7 @@ class VisitorController extends Controller
             $timeRange = $data['timeRange'] ?? 'This Week';
             $statistics = $data['statistics'] ?? [];
             $analytics = $data['analytics'] ?? [];
-            
+
             // Create a comprehensive report
             $reportData = [
                 'Report Information' => [
@@ -778,12 +846,12 @@ class VisitorController extends Controller
                     ...array_map(fn($item) => [$item], $analytics['summary']['recommendations'] ?? [])
                 ]
             ];
-            
+
             // Generate Excel file
             $filename = 'visitor-analytics-report-' . strtolower(str_replace(' ', '-', $timeRange)) . '-' . now()->format('Y-m-d') . '.xlsx';
-            
+
             return Excel::download(new \App\Exports\VisitorReportExport($reportData), $filename);
-            
+
         } catch (\Exception $e) {
             \Log::error('Export report error: ' . $e->getMessage());
             return response()->json(['error' => 'Failed to generate report'], 500);
@@ -801,14 +869,14 @@ class VisitorController extends Controller
         // Retrieve AI classification result from the document task
         $documentTask = $reservation->tasks()->where('task_type', 'document_classification')->first();
         $aiClassification = $documentTask ? ($documentTask->details['ai_classification'] ?? null) : null;
-        
+
         return view('visitor.manage_reservation_visitors', compact('reservation', 'visitorTask', 'visitors', 'aiClassification'));
     }
 
     public function performExtractionFromReservation(\App\Models\FacilityReservation $reservation)
     {
         $visitorTask = $reservation->tasks()->where('task_type', 'visitor_coordination')->firstOrFail();
-        
+
         if ($visitorTask->status !== 'pending') {
             return redirect()->back()->with('error', 'Visitor extraction is not pending for this reservation task.');
         }
@@ -823,14 +891,14 @@ class VisitorController extends Controller
 
         // Update task status, which will trigger the ProcessVisitorExtractionJob via WorkflowService
         $this->workflowService->updateTaskStatus($visitorTask, 'in_progress', 'Visitor data extraction initiated by VM team.');
-        
+
         return redirect()->back()->with('success', 'Visitor data extraction process started. Please refresh to see updates.');
     }
 
     public function performApprovalFromReservation(\App\Models\FacilityReservation $reservation)
     {
         $visitorTask = $reservation->tasks()->where('task_type', 'visitor_coordination')->firstOrFail();
-        
+
         if ($visitorTask->status !== 'pending' && $visitorTask->status !== 'in_progress') {
             return redirect()->back()->with('error', 'Visitor approval is not pending or in progress for this task.');
         }
@@ -841,7 +909,7 @@ class VisitorController extends Controller
 
         // Update task status to completed, which will trigger GenerateDigitalPasses via WorkflowService
         $this->workflowService->updateTaskStatus($visitorTask, 'completed', 'Visitors approved by VM team.');
-        
+
         return redirect()->back()->with('success', 'Visitors approved! Digital passes are being generated and security team will be notified.');
     }
 
@@ -943,10 +1011,8 @@ class VisitorController extends Controller
      */
     private function generateQRCode(string $passId, ?string $accessCode = null): string
     {
-        $payload = json_encode([
-            'pass_id' => $passId,
-            'code' => $accessCode,
-        ]);
+        // Use strictly the pass_id as the QR code content
+        $payload = $passId;
 
         $qrService = 'https://api.qrserver.com/v1/create-qr-code/';
         $params = http_build_query([
@@ -982,7 +1048,7 @@ class VisitorController extends Controller
     {
         $now = now();
         $diffHours = $validUntil->diffInHours($now);
-        
+
         if ($diffHours <= 0) {
             return 'Expired';
         } elseif ($diffHours < 24) {
@@ -990,7 +1056,7 @@ class VisitorController extends Controller
         } else {
             $diffDays = floor($diffHours / 24);
             $remainingHours = $diffHours % 24;
-            
+
             if ($remainingHours === 0) {
                 return $diffDays . ' Day' . ($diffDays > 1 ? 's' : '');
             } else {
@@ -1004,14 +1070,39 @@ class VisitorController extends Controller
      */
     private function logVisitorActivity(Visitor $visitor, string $action, string $notes = null): void
     {
-        VisitorCheckinLog::create([
-            'visitor_id' => $visitor->id,
-            'checked_in_by' => auth()->id(),
-            'action' => $action,
-            'notes' => $notes,
-            'visitor_data' => $visitor->toArray(),
-            'action_time' => now()
-        ]);
+        // Get authenticated user ID, but validate it exists in database
+        $userId = auth()->id();
+
+        // If user ID doesn't exist or user doesn't exist in database, use first available user as fallback
+        if (!$userId || !\App\Models\User::where('id', $userId)->exists()) {
+            // Get the first available user as fallback
+            $fallbackUser = \App\Models\User::first();
+            if (!$fallbackUser) {
+                // If no users exist at all, log error and skip creating the log entry
+                \Log::warning('Cannot log visitor activity: No valid user found. Visitor ID: ' . $visitor->id . ', Action: ' . $action);
+                return;
+            }
+            $userId = $fallbackUser->id;
+            \Log::warning('Using fallback user for visitor activity log. Auth ID was: ' . auth()->id() . ', Using user ID: ' . $userId);
+        }
+
+        try {
+            VisitorCheckinLog::create([
+                'visitor_id' => $visitor->id,
+                'checked_in_by' => $userId,
+                'action' => $action,
+                'notes' => $notes,
+                'visitor_data' => $visitor->toArray(),
+                'action_time' => now()
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Log the error but don't break the main flow
+            \Log::error('Failed to create visitor checkin log: ' . $e->getMessage(), [
+                'visitor_id' => $visitor->id,
+                'user_id' => $userId,
+                'action' => $action
+            ]);
+        }
     }
 
     /**
@@ -1028,10 +1119,11 @@ class VisitorController extends Controller
 
         $passData = $visitor->pass_data ?? [];
         $accessCode = $this->ensureAccessCode($visitor);
-        $qrCodeUrl = $passData['qr_code'] ?? null;
 
-        if (!$qrCodeUrl) {
-            $qrCodeUrl = $this->generateQRCode($visitor->pass_id, $accessCode);
+        // Always regenerate QR code to ensure it matches the latest format (pass_id based)
+        $qrCodeUrl = $this->generateQRCode($visitor->pass_id, $accessCode);
+
+        if (($passData['qr_code'] ?? '') !== $qrCodeUrl) {
             $passData['qr_code'] = $qrCodeUrl;
             $visitor->update(['pass_data' => $passData]);
         }
@@ -1144,70 +1236,70 @@ class VisitorController extends Controller
     {
         try {
             \Log::info('Getting monitoring visitors...');
-            
+
             // Include all visitors (with or without pass) so newly registered, unapproved entries appear as Pending
             $visitors = Visitor::with(['facility'])
                 ->orderByDesc('created_at')
                 ->get();
-                
+
             \Log::info('Found ' . $visitors->count() . ' visitors with passes');
-            
+
             $mappedVisitors = $visitors->map(function ($visitor) {
-                    // Determine display status with robust rules:
-                    // - If not checked in yet (no time_in), always Pending
-                    // - If checked out (has time_out), Completed
-                    // - If pending exit flag is set, Pending Exit
-                    // - If explicitly registered/pending_approval, Pending
-                    // - If revoked, Revoked
-                    // - If expired by validity, Expired
-                    // - Else, Active
-                    if (is_null($visitor->time_in)) {
-                        $status = 'Pending';
-                    } elseif (!is_null($visitor->time_out)) {
-                        $status = 'Completed';
-                    } elseif ($visitor->pending_exit) {
-                        $status = 'Pending Exit';
-                    } elseif (in_array($visitor->status, ['registered', 'pending_approval'])) {
-                        $status = 'Pending';
-                    } elseif ($visitor->status === 'revoked') {
-                        $status = 'Revoked';
-                    } elseif ($visitor->pass_valid_until && \Carbon\Carbon::now()->gt($visitor->pass_valid_until)) {
-                        $status = 'Expired';
-                    } else {
-                        $status = 'Active';
-                    }
+                // Determine display status with robust rules:
+                // - If not checked in yet (no time_in), always Pending
+                // - If checked out (has time_out), Completed
+                // - If pending exit flag is set, Pending Exit
+                // - If explicitly registered/pending_approval, Pending
+                // - If revoked, Revoked
+                // - If expired by validity, Expired
+                // - Else, Active
+                if (is_null($visitor->time_in)) {
+                    $status = 'Pending';
+                } elseif (!is_null($visitor->time_out)) {
+                    $status = 'Completed';
+                } elseif ($visitor->pending_exit) {
+                    $status = 'Pending Exit';
+                } elseif (in_array($visitor->status, ['registered', 'pending_approval'])) {
+                    $status = 'Pending';
+                } elseif ($visitor->status === 'revoked') {
+                    $status = 'Revoked';
+                } elseif ($visitor->pass_valid_until && \Carbon\Carbon::now()->gt($visitor->pass_valid_until)) {
+                    $status = 'Expired';
+                } else {
+                    $status = 'Active';
+                }
 
-                    // Debug logging for status determination
-                    \Log::info("Visitor {$visitor->name} (ID: {$visitor->id}) - time_in: {$visitor->time_in}, time_out: {$visitor->time_out}, status: {$status}");
+                // Debug logging for status determination
+                \Log::info("Visitor {$visitor->name} (ID: {$visitor->id}) - time_in: {$visitor->time_in}, time_out: {$visitor->time_out}, status: {$status}");
 
-                    return [
-                        'id' => $visitor->id,
-                        'name' => $visitor->name,
-                        'email' => $visitor->email,
-                        'contact' => $visitor->contact,
-                        'id_type' => $visitor->id_type,
-                        'id_number' => $visitor->id_number,
-                        'company' => $visitor->company ?? 'N/A',
-                        'purpose' => $visitor->purpose ?? 'N/A',
-                        'host_employee' => $visitor->host_employee ?? 'N/A',
-                        'department' => $visitor->department ?? 'N/A',
-                        'check_in_time' => $visitor->arrival_date && $visitor->arrival_time ? \Carbon\Carbon::parse(\Carbon\Carbon::parse($visitor->arrival_date)->format('Y-m-d') . ' ' . \Carbon\Carbon::parse($visitor->arrival_time)->format('H:i:s'))->format('M j, Y g:i A') : 'N/A',
-                        'actual_check_in_time' => $visitor->time_in ? \Carbon\Carbon::parse($visitor->time_in)->format('M j, Y g:i A') : 'N/A',
-                        'actual_check_out_time' => $visitor->time_out ? \Carbon\Carbon::parse($visitor->time_out)->format('M j, Y g:i A') : 'N/A',
-                        // Expected date out: separate date field
-                        'expected_date_out' => $visitor->expected_date_out ? \Carbon\Carbon::parse($visitor->expected_date_out)->format('M j, Y') : 'N/A',
-                        // Expected time out: use the actual expected_time_out field
-                        'expected_time_out' => $visitor->expected_time_out ? \Carbon\Carbon::parse($visitor->expected_time_out)->format('g:i A') : 'N/A',
-                        'vehicle_plate' => $visitor->vehicle_plate ?? 'N/A',
-                        'status' => $status,
-                        'pass_id' => $visitor->pass_id,
-                        'facility_name' => $visitor->facility ? $visitor->facility->name : 'N/A',
-                        'pending_exit' => $visitor->pending_exit,
-                        'pending_exit_at' => $visitor->pending_exit_at ? \Carbon\Carbon::parse($visitor->pending_exit_at)->format('M j, Y g:i A') : null,
-                        'time_in' => $visitor->time_in,
-                        'time_out' => $visitor->time_out
-                    ];
-                });
+                return [
+                    'id' => $visitor->id,
+                    'name' => $visitor->name,
+                    'email' => $visitor->email,
+                    'contact' => $visitor->contact,
+                    'id_type' => $visitor->id_type,
+                    'id_number' => $visitor->id_number,
+                    'company' => $visitor->company ?? 'N/A',
+                    'purpose' => $visitor->purpose ?? 'N/A',
+                    'host_employee' => $visitor->host_employee ?? 'N/A',
+                    'department' => $visitor->department ?? 'N/A',
+                    'check_in_time' => $visitor->arrival_date && $visitor->arrival_time ? \Carbon\Carbon::parse(\Carbon\Carbon::parse($visitor->arrival_date)->format('Y-m-d') . ' ' . \Carbon\Carbon::parse($visitor->arrival_time)->format('H:i:s'))->format('M j, Y g:i A') : 'N/A',
+                    'actual_check_in_time' => $visitor->time_in ? \Carbon\Carbon::parse($visitor->time_in)->format('M j, Y g:i A') : 'N/A',
+                    'actual_check_out_time' => $visitor->time_out ? \Carbon\Carbon::parse($visitor->time_out)->format('M j, Y g:i A') : 'N/A',
+                    // Expected date out: separate date field
+                    'expected_date_out' => $visitor->expected_date_out ? \Carbon\Carbon::parse($visitor->expected_date_out)->format('M j, Y') : 'N/A',
+                    // Expected time out: use the actual expected_time_out field
+                    'expected_time_out' => $visitor->expected_time_out ? \Carbon\Carbon::parse($visitor->expected_time_out)->format('g:i A') : 'N/A',
+                    'vehicle_plate' => $visitor->vehicle_plate ?? 'N/A',
+                    'status' => $status,
+                    'pass_id' => $visitor->pass_id,
+                    'facility_name' => $visitor->facility ? $visitor->facility->name : 'N/A',
+                    'pending_exit' => $visitor->pending_exit,
+                    'pending_exit_at' => $visitor->pending_exit_at ? \Carbon\Carbon::parse($visitor->pending_exit_at)->format('M j, Y g:i A') : null,
+                    'time_in' => $visitor->time_in,
+                    'time_out' => $visitor->time_out
+                ];
+            });
 
             return response()->json([
                 'success' => true,
@@ -1231,7 +1323,7 @@ class VisitorController extends Controller
     {
         try {
             \Log::info('Getting visitor pass for ID: ' . $id);
-            
+
             $visitor = Visitor::findOrFail($id);
             \Log::info('Visitor found: ' . $visitor->name . ', Pass ID: ' . ($visitor->pass_id ?? 'NULL'));
 
@@ -1248,7 +1340,7 @@ class VisitorController extends Controller
             $validForHours = $visitor->pass_validity ?? 24;
             $checkInTime = $visitor->time_in ? \Carbon\Carbon::parse($visitor->time_in) : null;
             $issuedAt = $visitor->pass_valid_from ? \Carbon\Carbon::parse($visitor->pass_valid_from) : $visitor->created_at;
-            
+
             // Determine pass status - handle all cases including expired passes
             $status = 'Active';
             if ($visitor->status === 'checked_out') {
@@ -1306,34 +1398,179 @@ class VisitorController extends Controller
     }
 
     /**
-     * Download visitor pass
+     * Download visitor pass as PDF
      */
     public function downloadVisitorPass($id)
     {
         try {
             $visitor = Visitor::findOrFail($id);
-            
+
             if (!$visitor->pass_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No pass found for this visitor'
-                ], 404);
+                return redirect()->back()->with('error', 'No pass found for this visitor');
             }
 
-            // For now, return a simple response indicating the download would work
-            // In a real implementation, you would generate and return a PDF or image
-            return response()->json([
-                'success' => true,
-                'message' => 'Pass download initiated',
-                'download_url' => route('visitor.pass.download', $visitor->id)
-            ]);
+            // Ensure QR code is available and up to date
+            $passData = $visitor->pass_data ?? [];
+            $accessCode = $this->ensureAccessCode($visitor);
+            $qrCodeUrl = $this->generateQRCode($visitor->pass_id, $accessCode);
+
+            if (($passData['qr_code'] ?? '') !== $qrCodeUrl) {
+                $passData['qr_code'] = $qrCodeUrl;
+                $visitor->update(['pass_data' => $passData]);
+            }
+
+            // Prepare QR Code as Base64 to ensure it renders in PDF
+            $qrUrl = $visitor->pass_data['qr_code'] ?? $qrCodeUrl;
+            $qrBase64 = null;
+            try {
+                // Fetch the image content
+                $qrContent = file_get_contents($qrUrl);
+                if ($qrContent !== false) {
+                    $qrBase64 = 'data:image/png;base64,' . base64_encode($qrContent);
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to fetch QR code for PDF: ' . $e->getMessage());
+                // Fallback or leave null, view handles it
+            }
+
+            // Also handle profile photo if it's a URL
+            $profilePhotoBase64 = null;
+            if ($visitor->profile_photo_url) {
+                try {
+                    // Check if it's already a data URI
+                    if (str_starts_with($visitor->profile_photo_url, 'data:')) {
+                        $profilePhotoBase64 = $visitor->profile_photo_url;
+                    } else {
+                        // Check if URL is full URL but local (e.g. http://localhost:8000/storage/...)
+                        $appUrl = config('app.url');
+                        $cleanUrl = $visitor->profile_photo_url;
+
+                        // If it's a full URL inside our app, try to make it relative or use file path
+                        if ($appUrl && str_starts_with($cleanUrl, $appUrl)) {
+                            // Try to map to public path
+                            $relativePath = str_replace($appUrl, '', $cleanUrl);
+                            // If it starts with /storage, map to storage path or public path
+                        }
+
+                        // Try fetching as URL first (curl/file_get_contents)
+                        // If it's a local full URL, file_get_contents might fail if DNS/port issues
+                        // So we prioritize converting to local path if possible
+
+                        $fetched = false;
+                        $photoContent = null;
+
+                        // Case 1: Convert URL to local public path if possible
+                        // Parse URL path
+                        $path = parse_url($cleanUrl, PHP_URL_PATH);
+                        // $path might be /storage/visitor_photos/...
+
+                        if ($path && file_exists(public_path($path))) {
+                            $photoContent = file_get_contents(public_path($path));
+                            $fetched = true;
+                        }
+                        // Case 2: Storage path fallback (directly in storage/app/public)
+                        elseif ($path && str_starts_with($path, '/storage/')) {
+                            $storageRelative = substr($path, 9); // remove /storage/
+                            if (Storage::disk('public')->exists($storageRelative)) {
+                                $photoContent = Storage::disk('public')->get($storageRelative);
+                                $fetched = true;
+                            }
+                        }
+
+                        // Case 3: Try remote fetch if not found locally
+                        if (!$fetched) {
+                            $photoContent = @file_get_contents($cleanUrl);
+                        }
+
+                        if ($photoContent) {
+                            $ext = pathinfo($path ?? 'image.jpg', PATHINFO_EXTENSION) ?: 'jpg';
+                            $profilePhotoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode($photoContent);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to fetch profile photo for PDF: ' . $e->getMessage());
+                }
+            }
+
+            $pdf = Pdf::loadView('visitors.pass_pdf', compact('visitor', 'qrBase64', 'profilePhotoBase64'));
+            // Set paper size to A4 Portrait - card centered on page like reference
+            $pdf->setPaper('a4', 'portrait');
+
+            return $pdf->stream('visitor-pass-' . $visitor->pass_id . '.pdf');
 
         } catch (\Exception $e) {
             \Log::error('Error downloading visitor pass: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Unable to download pass'
-            ], 500);
+            return redirect()->back()->with('error', 'Unable to generate pass PDF');
+        }
+    }
+
+    /**
+     * Display printable visitor pass HTML page (triggers print dialog)
+     */
+    public function printVisitorPass($id)
+    {
+        try {
+            $visitor = Visitor::findOrFail($id);
+
+            // Generate QR code URL (same as downloadVisitorPass)
+            $qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($visitor->pass_id);
+
+            // Fetch QR code as base64
+            $qrBase64 = null;
+            try {
+                $qrContent = @file_get_contents($qrCodeUrl);
+                if ($qrContent !== false) {
+                    $qrBase64 = 'data:image/png;base64,' . base64_encode($qrContent);
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to fetch QR code for print: ' . $e->getMessage());
+            }
+
+            // Get profile photo as base64
+            $profilePhotoBase64 = null;
+            if ($visitor->profile_photo_url) {
+                try {
+                    // Check if it's already a data URI
+                    if (str_starts_with($visitor->profile_photo_url, 'data:')) {
+                        $profilePhotoBase64 = $visitor->profile_photo_url;
+                    } else {
+                        // Clean the URL
+                        $cleanUrl = html_entity_decode($visitor->profile_photo_url);
+                        $fetched = false;
+
+                        // Parse URL path
+                        $path = parse_url($cleanUrl, PHP_URL_PATH);
+
+                        if ($path && file_exists(public_path($path))) {
+                            $photoContent = file_get_contents(public_path($path));
+                            $fetched = true;
+                        } elseif ($path && str_starts_with($path, '/storage/')) {
+                            $storageRelative = substr($path, 9);
+                            if (Storage::disk('public')->exists($storageRelative)) {
+                                $photoContent = Storage::disk('public')->get($storageRelative);
+                                $fetched = true;
+                            }
+                        }
+
+                        if (!$fetched) {
+                            $photoContent = @file_get_contents($cleanUrl);
+                        }
+
+                        if (isset($photoContent) && $photoContent) {
+                            $ext = pathinfo($path ?? 'image.jpg', PATHINFO_EXTENSION) ?: 'jpg';
+                            $profilePhotoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode($photoContent);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to fetch profile photo for print: ' . $e->getMessage());
+                }
+            }
+
+            return view('visitors.pass_print', compact('visitor', 'qrBase64', 'profilePhotoBase64'));
+
+        } catch (\Exception $e) {
+            \Log::error('Error displaying print pass: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Unable to display pass for printing');
         }
     }
 
@@ -1343,7 +1580,7 @@ class VisitorController extends Controller
     public function approveVisitor(Request $request, $id)
     {
         $visitor = Visitor::findOrFail($id);
-        
+
         // Check if ID verification is required and completed
         // Approve and auto check-in
         $visitor->update([
@@ -1389,7 +1626,7 @@ class VisitorController extends Controller
             \Log::error('Failed sending visitor approved email: ' . $e->getMessage());
         }
 
-        return redirect()->back()->with('success', 'Visitor approved, auto-checked in, and pass emailed.');
+        return redirect()->route('visitor.logs.index')->with('success', 'Visitor approved, auto-checked in, and pass emailed.');
     }
 
     /**
@@ -1405,14 +1642,14 @@ class VisitorController extends Controller
 
         return redirect()->back()->with('success', 'Visitor declined.');
     }
-    
+
     /**
      * Get visitors approaching their timeout (within 10 minutes)
      */
     private function getApproachingTimeoutVisitors()
     {
         $now = \Carbon\Carbon::now();
-        
+
         return Visitor::where('time_in', '!=', null)
             ->where('time_out', null)
             ->where('expected_time_out', '!=', null)
@@ -1422,8 +1659,9 @@ class VisitorController extends Controller
             ->filter(function ($visitor) use ($now) {
                 try {
                     $expectedCheckout = $this->parseExpectedCheckoutTime($visitor);
-                    if (!$expectedCheckout) return false;
-                    
+                    if (!$expectedCheckout)
+                        return false;
+
                     $minutesRemaining = $now->diffInMinutes($expectedCheckout, false);
                     return $minutesRemaining <= 10 && $minutesRemaining > 0;
                 } catch (\Exception $e) {
@@ -1489,9 +1727,10 @@ class VisitorController extends Controller
 
             // Create Legal Case
             $legalCase = LegalCase::create([
-                'case_title' => "Visitor Violation – {$visitor->name}",
+                'case_title' => $data['violation_type'] ? ucwords(str_replace('_', ' ', $data['violation_type'])) : "Visitor Violation",
                 'case_description' => $data['description'],
                 'case_type' => 'visitor_violation',
+                'employee_involved' => $visitor->name,
                 'priority' => $data['priority'],
                 'status' => 'pending',
                 'workflow_stage' => 'filing',
@@ -1506,7 +1745,7 @@ class VisitorController extends Controller
                     'visitor_email' => $visitor->email,
                     'visitor_contact' => $visitor->contact ?? $visitor->phone,
                     'visitor_pass_id' => $visitor->pass_id,
-                    'reported_by' => auth()->user()->Fname . ' ' . auth()->user()->Lname ?? 'System',
+                    'reported_by' => auth()->user()->name ?? auth()->user()->employee_name ?? 'System',
                     'reported_at' => now()->toIso8601String(),
                 ],
             ]);
@@ -1546,7 +1785,7 @@ class VisitorController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * Parse expected checkout time for a visitor
      */
@@ -1624,7 +1863,7 @@ class VisitorController extends Controller
     {
         try {
             \Log::info('Getting scheduled visitors...');
-            
+
             $scheduledVisitors = Visitor::where('status', 'scheduled')
                 ->whereNotNull('scheduled_date')
                 ->orderBy('scheduled_date')
@@ -1647,13 +1886,13 @@ class VisitorController extends Controller
     }
 
     /**
-* Cancel a visitor (removed restriction - any visitor can be cancelled)
+     * Cancel a visitor (removed restriction - any visitor can be cancelled)
      */
     public function cancelScheduledVisitor($id)
     {
         try {
             $visitor = Visitor::findOrFail($id);
-            
+
             // Remove status restriction - allow any visitor to be cancelled
             $visitor->update(['status' => 'cancelled']);
 
@@ -1698,7 +1937,7 @@ class VisitorController extends Controller
     {
         try {
             $visitor = Visitor::findOrFail($id);
-            
+
             if ($visitor->status !== 'scheduled') {
                 return response()->json([
                     'success' => false,
@@ -1727,7 +1966,7 @@ class VisitorController extends Controller
     {
         try {
             $visitor = Visitor::findOrFail($id);
-            
+
             if ($visitor->status !== 'cancelled') {
                 return response()->json([
                     'success' => false,
@@ -1750,13 +1989,13 @@ class VisitorController extends Controller
     }
 
     /**
-* Decline a visitor (removed restriction - any visitor can be declined)
+     * Decline a visitor (removed restriction - any visitor can be declined)
      */
     public function declineScheduledVisitor($id)
     {
         try {
             $visitor = Visitor::findOrFail($id);
-            
+
             // Remove status restriction - allow any visitor to be declined
             $visitor->update(['status' => 'declined']);
 
@@ -1837,7 +2076,7 @@ class VisitorController extends Controller
     public function verifyId(Request $request, $id)
     {
         $visitor = Visitor::findOrFail($id);
-        
+
         $request->validate([
             'verification_method' => 'required|in:upload,scan,manual',
             'verification_notes' => 'nullable|string|max:1000',
@@ -1865,7 +2104,7 @@ class VisitorController extends Controller
     public function rejectId(Request $request, $id)
     {
         $visitor = Visitor::findOrFail($id);
-        
+
         $request->validate([
             'rejection_reason' => 'required|string|max:1000'
         ]);
@@ -1882,4 +2121,4 @@ class VisitorController extends Controller
             'message' => 'ID verification rejected'
         ]);
     }
-} 
+}

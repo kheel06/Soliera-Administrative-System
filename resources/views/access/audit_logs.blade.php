@@ -1,41 +1,32 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Audit Trail & Transaction - Soliera</title>
+  <title>Audit Logs - Soliera</title>
+  @include('partials.favicon')
   <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   @vite(['resources/css/soliera.css'])
   <style>
-    /* Fix for module badges to ensure full text visibility */
-    .module-badge {
-      display: inline-block;
-      white-space: nowrap;
-      min-width: fit-content;
-      padding: 0.25rem 0.75rem;
-      font-size: 0.75rem;
-      line-height: 1.2;
-      border-radius: 0.375rem;
-      background-color: #3b82f6;
-      color: white;
-      font-weight: 500;
-    }
-    
-    /* Ensure table cell has enough space for the badge */
-    .module-cell {
-      min-width: 120px;
-      max-width: 150px;
+    /* Line clamp for activity description */
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
   </style>
 </head>
+
 <body class="bg-base-100">
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     @include('partials.sidebarr')
-    
+
     <!-- Main content -->
     <div class="flex flex-col flex-1 overflow-hidden">
       <!-- Header -->
@@ -58,288 +49,295 @@
         @endif
 
         <!-- Page Header -->
-        <div class="mb-8">
-          <div class="mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2" style="color: var(--color-charcoal-ink);">Audit Trail & Transaction</h1>
-            <p class="text-gray-600" style="color: var(--color-charcoal-ink); opacity: 0.8;">Monitor and track all system activities and user actions including login/logout</p>
+        <div class="mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="activity" class="w-6 h-6 text-[#F7B32B]"></i>
+              </div>
+              <div>
+                <h1 class="text-2xl font-bold text-gray-800">Audit Trail & Transaction</h1>
+                <p class="text-gray-500 text-sm">Monitor and track all system activities and user actions</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <a href="{{ route('access.audit_logs.export') }}"
+                class="btn btn-sm bg-gradient-to-r from-[#F7B32B] to-[#f59e0b] text-gray-800 border-none hover:shadow-md transition-all gap-2">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Export
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          @php
+            // Get totals from database (not from paginated collection)
+            $totalLogs = \App\Models\AccessLog::count();
+            $todayLogs = \App\Models\AccessLog::where('created_at', '>=', now()->startOfDay())->count();
+            $loginLogs = \App\Models\AccessLog::where('action', 'Login')->count();
+            $uniqueUsers = \App\Models\AccessLog::distinct('user_id')->count('user_id');
+          @endphp
+
+          <!-- Total Logs -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Logs</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ number_format($totalLogs) }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="scroll-text" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
           </div>
 
-          <!-- Record Count -->
-          <div class="text-sm text-gray-500 mb-6">
-            Total {{ $logs->count() }} records
+          <!-- Today's Activity -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Today's Activity</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ number_format($todayLogs) }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="calendar-check" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Total Logins -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Logins</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ number_format($loginLogs) }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="log-in" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Users -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Active Users</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ number_format($uniqueUsers) }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="users" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Audit Logs Table -->
-        <x-table-card :title="'Audit Logs'">
-          @slot('headerAction')
-            <a href="{{ route('access.audit_logs.export') }}" 
-               class="btn btn-sm transition-all duration-200 cursor-pointer hover:scale-105"
-               style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;"
-               onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-               onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
-              <i data-lucide="download" class="w-4 h-4 mr-1" style="fill: none;"></i>Export
-            </a>
-          @endslot
-          
-          <!-- Filters Row -->
-          <div class="mb-6 flex items-center gap-4 flex-wrap">
-            <!-- Search Bar -->
-            <div class="relative flex-1 min-w-[200px]">
-              <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-              <input type="text" 
-                     id="searchInput"
-                     placeholder="Search logs..." 
-                     class="input input-bordered input-sm w-full pl-10 pr-4 bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-300">
-            </div>
-
-            <!-- Department Filter -->
-            <div class="flex items-center gap-2">
-              <select id="departmentFilter" class="select select-bordered select-sm w-40">
-                <option value="">All Departments</option>
-                <option value="Soliera Restaurant">Soliera Restaurant</option>
-                <option value="Management">Management</option>
-                <option value="Reception">Reception</option>
-                <option value="Housekeeping">Housekeeping</option>
-                <option value="Restaurant">Restaurant</option>
-                <option value="Legal">Legal</option>
-                <option value="IT">IT</option>
-                <option value="Finance">Finance</option>
-              </select>
-            </div>
-
-            <!-- Action Filter -->
-            <div class="flex items-center gap-2">
-              <select id="actionFilter" class="select select-bordered select-sm w-40">
-                <option value="">All Actions</option>
-                <option value="Login">Login</option>
-                <option value="Logout">Logout</option>
-                <option value="save_legal_draft">Save Legal Draft</option>
-                <option value="document_view">Document View</option>
-                <option value="Document_uploaded">Document Uploaded</option>
-                <option value="Access_control_check">Access Control Check</option>
-                <option value="Profile_updated">Profile Updated</option>
-                <option value="Table_added">Table Added</option>
-                <option value="Facility_reserved">Facility Reserved</option>
-                <option value="Visitor_registered">Visitor Registered</option>
-                <option value="Report_generated">Report Generated</option>
-                <option value="Settings_updated">Settings Updated</option>
-                <option value="Data_exported">Data Exported</option>
-                <option value="Notification_sent">Notification Sent</option>
-                <option value="Backup_created">Backup Created</option>
-                <option value="Permission_granted">Permission Granted</option>
-                <option value="File_deleted">File Deleted</option>
-              </select>
-            </div>
-
-            <!-- Date Range Filter -->
-            <div class="flex items-center gap-2">
-              <input type="date" id="dateFilter" class="input input-bordered input-sm w-32">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <!-- Table Header -->
+          <div class="bg-[#001F54] px-6 py-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h3 class="text-lg font-semibold text-white flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <i data-lucide="scroll-text" class="w-4 h-4 text-[#F7B32B]"></i>
+                </div>
+                Audit Logs
+              </h3>
             </div>
           </div>
-            <table class="table table-zebra w-full">
-              <thead>
-                <tr class="bg-gray-50">
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">LOG ID</th>
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">DEPARTMENT</th>
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">EMPLOYEE</th>
-                  <th class="text-left py-3 px-4 font-medium text-gray-700" style="min-width: 120px;">MODULES</th>
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">ACTION</th>
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">ACTIVITY</th>
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">DATE</th>
-                </tr>
-              </thead>
-              <tbody>
-                @forelse($logs as $log)
-                  <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="py-3 px-4">
-                      <span class="font-mono text-sm text-gray-600">#{{ $log->id }}</span>
-                    </td>
-                    <td class="py-3 px-4">
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm text-gray-600">{{ $log->user->dept_name ?? 'Soliera Restaurant' }}</span>
-                        <span class="text-xs text-gray-400">ID: {{ $log->user->Dept_no ?? '0' }}</span>
-                      </div>
-                    </td>
-                    <td class="py-3 px-4">
-                      <div class="flex items-center space-x-3">
-                        <div class="w-8 h-8 rounded-full bg-blue-900 flex items-center justify-center">
-                          <i data-lucide="user" class="w-4 h-4 text-white"></i>
-                        </div>
-                        <div>
-                          <div class="font-medium text-gray-900">{{ $log->user->employee_name ?? 'Unknown User' }}</div>
-                          <div class="text-sm text-gray-500">{{ $log->user->role ?? 'No role' }}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="py-3 px-4 module-cell">
-                      @php
-                        $moduleMap = [
-                          'Login' => 'Authentication',
-                          'Logout' => 'Authentication',
-                          'save_legal_draft' => 'Legal Management',
-                          'document_view' => 'Document Management',
-                          'Document_uploaded' => 'Document Management',
-                          'Access_control_check' => 'Security',
-                          'Profile_updated' => 'User Management',
-                          'Table_added' => 'Table Management',
-                          'Facility_reserved' => 'Facility Management',
-                          'Visitor_registered' => 'Visitor Management',
-                          'Report_generated' => 'Reporting',
-                          'Settings_updated' => 'System Administration',
-                          'Data_exported' => 'Data Management',
-                          'Notification_sent' => 'Communication',
-                          'Backup_created' => 'System Administration',
-                          'Permission_granted' => 'User Management',
-                          'File_deleted' => 'File Management'
-                        ];
-                        $module = $moduleMap[$log->action] ?? 'System';
-                      @endphp
-                      <span class="module-badge">{{ $module }}</span>
-                    </td>
-                    <td class="py-3 px-4">
-                      <div class="flex items-center gap-2">
-                        <i data-lucide="trending-up" class="w-4 h-4 text-gray-500"></i>
-                        <span class="text-sm text-gray-600">{{ $log->action }}</span>
-                      </div>
-                    </td>
-                    <td class="py-3 px-4">
-                      <span class="text-sm text-gray-600">{{ $log->description }}</span>
-                    </td>
-                    <td class="py-3 px-4">
-                      <span class="text-sm text-gray-600">{{ \Carbon\Carbon::parse($log->created_at)->format('M d, Y H:i:s') }}</span>
-                    </td>
-                  </tr>
-                @empty
-                  <tr>
-                    <td colspan="7" class="text-center py-12">
-                      <div class="flex flex-col items-center">
-                        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                          <i data-lucide="activity" class="w-10 h-10 text-gray-400"></i>
-                        </div>
-                        <h3 class="text-lg font-semibold text-gray-600 mb-2">No System Activity Logs Found</h3>
-                        <p class="text-gray-500 text-sm">No system activity logs available at the moment.</p>
-                      </div>
-                    </td>
-                  </tr>
-                @endforelse
-              </tbody>
-            </table>
-          
-          <!-- Pagination or Load More -->
-          @if($logs->count() > 10)
-            <div class="mt-6 flex justify-center">
-              <button onclick="loadMoreLogs()" 
-                      class="btn btn-sm transition-all duration-200 cursor-pointer hover:scale-105"
-                      style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;"
-                      onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-                      onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
-                <i data-lucide="chevron-down" class="w-4 h-4 mr-1" style="fill: none;"></i>Load More
+
+          <!-- Filters Row -->
+          <div class="p-4 bg-gray-50 border-b border-gray-100">
+            <div class="flex items-center gap-3 flex-wrap">
+              <!-- Search Bar -->
+              <div class="relative flex-1 min-w-[200px]">
+                <i data-lucide="search"
+                  class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" id="searchInput" name="search" value="{{ request('search') }}"
+                  placeholder="Search logs..."
+                  class="input input-bordered input-sm w-full pl-10 pr-4 bg-white border-gray-200 focus:border-[#001F54] focus:ring-1 focus:ring-[#001F54]/20">
+              </div>
+
+              <!-- Department Filter -->
+              <select id="departmentFilter" name="department"
+                class="select select-bordered select-sm bg-white border-gray-200">
+                <option value="">All Departments</option>
+                <option value="Administrative" {{ request('department') == 'Administrative' ? 'selected' : '' }}>
+                  Administrative</option>
+                <option value="Soliera Restaurant" {{ request('department') == 'Soliera Restaurant' ? 'selected' : '' }}>
+                  Soliera Restaurant</option>
+                <option value="Management" {{ request('department') == 'Management' ? 'selected' : '' }}>Management
+                </option>
+                <option value="Reception" {{ request('department') == 'Reception' ? 'selected' : '' }}>Reception</option>
+                <option value="Housekeeping" {{ request('department') == 'Housekeeping' ? 'selected' : '' }}>Housekeeping
+                </option>
+                <option value="Restaurant" {{ request('department') == 'Restaurant' ? 'selected' : '' }}>Restaurant
+                </option>
+                <option value="Legal" {{ request('department') == 'Legal' ? 'selected' : '' }}>Legal</option>
+                <option value="IT" {{ request('department') == 'IT' ? 'selected' : '' }}>IT</option>
+                <option value="Finance" {{ request('department') == 'Finance' ? 'selected' : '' }}>Finance</option>
+              </select>
+
+              <!-- Action Filter -->
+              <select id="actionFilter" name="action" class="select select-bordered select-sm bg-white border-gray-200">
+                <option value="">All Actions</option>
+                <option value="Login" {{ request('action') == 'Login' ? 'selected' : '' }}>Login</option>
+                <option value="Logout" {{ request('action') == 'Logout' ? 'selected' : '' }}>Logout</option>
+                <option value="save_legal_draft" {{ request('action') == 'save_legal_draft' ? 'selected' : '' }}>Save
+                  Legal Draft</option>
+                <option value="document_view" {{ request('action') == 'document_view' ? 'selected' : '' }}>Document View
+                </option>
+                <option value="Document_uploaded" {{ request('action') == 'Document_uploaded' ? 'selected' : '' }}>
+                  Document Uploaded</option>
+                <option value="Access_control_check" {{ request('action') == 'Access_control_check' ? 'selected' : '' }}>
+                  Access Control Check</option>
+                <option value="Profile_updated" {{ request('action') == 'Profile_updated' ? 'selected' : '' }}>Profile
+                  Updated</option>
+                <option value="Table_added" {{ request('action') == 'Table_added' ? 'selected' : '' }}>Table Added
+                </option>
+                <option value="Facility_reserved" {{ request('action') == 'Facility_reserved' ? 'selected' : '' }}>
+                  Facility Reserved</option>
+                <option value="Visitor_registered" {{ request('action') == 'Visitor_registered' ? 'selected' : '' }}>
+                  Visitor Registered</option>
+                <option value="Report_generated" {{ request('action') == 'Report_generated' ? 'selected' : '' }}>Report
+                  Generated</option>
+                <option value="Settings_updated" {{ request('action') == 'Settings_updated' ? 'selected' : '' }}>Settings
+                  Updated</option>
+                <option value="Data_exported" {{ request('action') == 'Data_exported' ? 'selected' : '' }}>Data Exported
+                </option>
+              </select>
+
+              <!-- Date Filter -->
+              <input type="date" id="dateFilter" name="date" value="{{ request('date') }}"
+                class="input input-bordered input-sm bg-white border-gray-200">
+
+              <!-- Clear Filters -->
+              <button onclick="clearFilters()" class="btn btn-sm btn-ghost text-gray-500 hover:text-gray-700 gap-1">
+                <i data-lucide="x" class="w-4 h-4"></i>
+                Clear
               </button>
             </div>
-          @endif
-        </x-table-card>
+          </div>
+
+          <div id="logsTableWrapper" class="relative">
+            <div id="loadingOverlay" class="absolute inset-0 bg-white/50 z-10 flex items-center justify-center hidden">
+              <span class="loading loading-spinner loading-md text-[#001F54]"></span>
+            </div>
+            @include('access.partials.audit_logs_table')
+          </div>
+        </div>
       </main>
     </div>
   </div>
 
   @include('partials.soliera_js')
-  
+
   <script>
     // Initialize Lucide icons
     lucide.createIcons();
-    
-    // Filtering functionality
-    function filterLogs() {
-      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-      const departmentFilter = document.getElementById('departmentFilter').value;
-      const actionFilter = document.getElementById('actionFilter').value;
-      const dateFilter = document.getElementById('dateFilter').value;
-      
-      const rows = document.querySelectorAll('tbody tr');
-      
-      rows.forEach(row => {
-        let showRow = true;
-        
-        // Search filter
-        if (searchTerm) {
-          const text = row.textContent.toLowerCase();
-          if (!text.includes(searchTerm)) {
-            showRow = false;
-          }
-        }
-        
-        // Department filter
-        if (departmentFilter && showRow) {
-          const department = row.querySelector('td:nth-child(2) .text-sm')?.textContent || '';
-          if (!department.includes(departmentFilter)) {
-            showRow = false;
-          }
-        }
-        
-        // Action filter
-        if (actionFilter && showRow) {
-          const action = row.querySelector('td:nth-child(5) .text-sm')?.textContent || '';
-          if (action !== actionFilter) {
-            showRow = false;
-          }
-        }
-        
-        // Date filter
-        if (dateFilter && showRow) {
-          const logDate = row.querySelector('td:last-child .text-sm')?.textContent || '';
-          const rowDate = new Date(logDate);
-          const filterDate = new Date(dateFilter);
-          if (rowDate.toDateString() !== filterDate.toDateString()) {
-            showRow = false;
-          }
-        }
-        
-        // Show/hide row
-        row.style.display = showRow ? '' : 'none';
+
+    let debounceTimer;
+
+    function fetchLogs(page = 1) {
+      const search = document.getElementById('searchInput').value;
+      const department = document.getElementById('departmentFilter').value;
+      const action = document.getElementById('actionFilter').value;
+      const date = document.getElementById('dateFilter').value;
+
+      const overlay = document.getElementById('loadingOverlay');
+      overlay.classList.remove('hidden');
+
+      const params = new URLSearchParams({
+        search: search,
+        department: department,
+        action: action,
+        date: date,
+        page: page
       });
+
+      fetch(`{{ route('access.audit_logs') }}?${params.toString()}`, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+        .then(response => response.text())
+        .then(html => {
+          document.getElementById('logsTableWrapper').innerHTML = `
+          <div id="loadingOverlay" class="absolute inset-0 bg-white/50 z-10 flex items-center justify-center hidden">
+            <span class="loading loading-spinner loading-md text-[#001F54]"></span>
+          </div>
+          ${html}
+        `;
+
+          // Removed header records badge; no need to update count here
+
+          // Re-initialize Lucide icons
+          lucide.createIcons();
+
+          // Update URL without refreshing the page
+          const newUrl = `${window.location.pathname}?${params.toString()}`;
+          window.history.pushState({ path: newUrl }, '', newUrl);
+
+          overlay.classList.add('hidden');
+        })
+        .catch(error => {
+          console.error('Error fetching logs:', error);
+          overlay.classList.add('hidden');
+        });
     }
-    
+
+    function changePage(page) {
+      fetchLogs(page);
+    }
+
     function clearFilters() {
       document.getElementById('searchInput').value = '';
       document.getElementById('departmentFilter').value = '';
       document.getElementById('actionFilter').value = '';
       document.getElementById('dateFilter').value = '';
-      
-      // Show all rows
-      const rows = document.querySelectorAll('tbody tr');
-      rows.forEach(row => {
-        row.style.display = '';
-      });
-    }
 
-
-
-    function loadMoreLogs() {
-      // Implement pagination or load more functionality
-      console.log('Loading more logs...');
+      fetchLogs(1);
     }
 
     // Event listeners
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       const searchInput = document.getElementById('searchInput');
       const departmentFilter = document.getElementById('departmentFilter');
       const actionFilter = document.getElementById('actionFilter');
       const dateFilter = document.getElementById('dateFilter');
-      
+
       if (searchInput) {
-        searchInput.addEventListener('input', filterLogs);
+        searchInput.addEventListener('input', () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => fetchLogs(1), 300);
+        });
       }
+
       if (departmentFilter) {
-        departmentFilter.addEventListener('change', filterLogs);
+        departmentFilter.addEventListener('change', () => fetchLogs(1));
       }
+
       if (actionFilter) {
-        actionFilter.addEventListener('change', filterLogs);
+        actionFilter.addEventListener('change', () => fetchLogs(1));
       }
+
       if (dateFilter) {
-        dateFilter.addEventListener('change', filterLogs);
+        dateFilter.addEventListener('change', () => fetchLogs(1));
       }
+    });
+
+    // Handle browser back/forward buttons
+    window.addEventListener('popstate', function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('search')) document.getElementById('searchInput').value = urlParams.get('search');
+      if (urlParams.has('department')) document.getElementById('departmentFilter').value = urlParams.get('department');
+      if (urlParams.has('action')) document.getElementById('actionFilter').value = urlParams.get('action');
+      if (urlParams.has('date')) document.getElementById('dateFilter').value = urlParams.get('date');
+
+      fetchLogs(urlParams.get('page') || 1);
     });
   </script>
 </body>
+
 </html>

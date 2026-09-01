@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Department Accounts - Soliera</title>
+  <title>Access | Department Accounts</title>
+  @include('partials.favicon')
   <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -37,127 +38,144 @@
         @endif
 
         <!-- Page Header -->
-        <div class="mb-8">
-          <div class="mb-4">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2" style="color: var(--color-charcoal-ink);">Department Accounts</h1>
-            <p class="text-gray-600" style="color: var(--color-charcoal-ink); opacity: 0.8;">Manage and monitor department user accounts across the organization</p>
+        <div class="mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="users" class="w-6 h-6 text-[#F7B32B]"></i>
+              </div>
+              <div>
+                <h1 class="text-2xl font-bold text-gray-800">Department Accounts</h1>
+                <p class="text-gray-500 text-sm">Manage and monitor department user accounts</p>
+              </div>
+            </div>
           </div>
-          <!-- underline divider (matches Visitor Management style) -->
-          <div class="border-b border-gray-200 mb-6"></div>
+        </div>
 
-          <!-- Statistics Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <!-- Total Accounts -->
-            <x-stat-card 
-              title="Total Accounts" 
-              :value="$stats['total'] ?? 0" 
-              icon="fa-users" 
-              iconColor="text-yellow-400" 
-              bgColor="bg-blue-900" />
-            
-            <!-- Active Accounts -->
-            <x-stat-card 
-              title="Active Accounts" 
-              :value="$stats['active'] ?? 0" 
-              icon="fa-check-circle" 
-              iconColor="text-yellow-400" 
-              bgColor="bg-blue-900" />
-            
-            <!-- Inactive Accounts -->
-            <x-stat-card 
-              title="Inactive Accounts" 
-              :value="$stats['inactive'] ?? 0" 
-              icon="fa-clock" 
-              iconColor="text-yellow-400" 
-              bgColor="bg-blue-900" />
+        <!-- Statistics Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <!-- Total Accounts -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Accounts</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1" id="da_total_count">{{ $stats['total'] ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="users" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Accounts -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Active Accounts</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1" id="da_active_count">{{ $stats['active'] ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="user-check" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Inactive Accounts -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Inactive Accounts</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1" id="da_inactive_count">{{ $stats['inactive'] ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="user-x" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Department Accounts Management Section -->
-        <x-table-card :title="'Department Accounts List'">
-          <!-- Department Accounts Table -->
-          <table class="table table-zebra w-full">
-              <thead>
-                <tr class="bg-gray-50">
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">Employee</th>
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">Department</th>
-                  <th class="text-left py-3 px-4 font-medium text-gray-700">Role</th>
-                  <th class="text-center py-3 px-4 font-medium text-gray-700">Status</th>
-                  <th class="text-center py-3 px-4 font-medium text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                @forelse($departmentAccounts as $account)
-                  <tr class="hover:bg-gray-50 transition-colors" data-account-id="{{ $account->Dept_no }}">
-                    <td class="py-3 px-4">
-                      <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-blue-900 flex items-center justify-center">
-                          <i data-lucide="user" class="w-5 h-5 text-white"></i>
-                        </div>
-                        <div>
-                          <div class="font-medium text-gray-900">{{ $account->employee_name ?? 'Unknown' }}</div>
-                          <div class="text-sm text-gray-500">{{ $account->email ?? 'No email' }}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="py-3 px-4">
-                      <span class="badge badge-outline badge-sm">{{ $account->dept_name ?? 'Unknown' }}</span>
-                    </td>
-                    <td class="py-3 px-4">
-                      <span class="text-sm text-gray-600">{{ $account->role ?? 'No role assigned' }}</span>
-                    </td>
-                    <td class="py-3 px-4 text-center">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <!-- Table Header -->
+          <div class="bg-[#001F54] px-6 py-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h3 class="text-lg font-semibold text-white flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <i data-lucide="users" class="w-4 h-4 text-[#F7B32B]"></i>
+                </div>
+                Department Accounts List
+              </h3>
+              <span class="text-sm text-white/80 bg-white/10 px-3 py-1.5 rounded-full">
+                {{ count($departmentAccounts) }} accounts
+              </span>
+            </div>
+          </div>
+
+          <div class="p-6">
+            @if(count($departmentAccounts) === 0)
+              <div class="flex flex-col items-center py-16">
+                <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-4">
+                  <i data-lucide="users" class="w-8 h-8 text-blue-300"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-600 mb-2">No Department Accounts Found</h3>
+                <p class="text-gray-400 text-sm">No department accounts available at the moment.</p>
+              </div>
+            @else
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              @foreach($departmentAccounts as $account)
+              @php
+                $status = strtolower($account->status ?? 'inactive');
+                $badgeClass = $status === 'active' ? 'badge-success' : 'badge-warning';
+              @endphp
+              <div class="dept-account-card group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5" data-account-id="{{ $account->Dept_no }}">
+                <div class="p-4 flex items-start gap-3">
+                  <div class="w-12 h-12 rounded-xl overflow-hidden ring-2 ring-offset-2 ring-offset-white ring-[#001F54] flex-shrink-0">
+                    @if($account->profile_picture)
                       @php
-                        $statusConfig = [
-                          'active' => ['icon' => 'check-circle', 'color' => 'text-success', 'badge' => 'badge-success', 'badgeStyle' => 'background-color: #22c55e; color: white;'],
-                          'inactive' => ['icon' => 'clock', 'color' => 'text-warning', 'badge' => 'badge-warning', 'badgeStyle' => '']
-                        ];
-                        $status = $account->status ?? 'active';
-                        $config = $statusConfig[$status] ?? $statusConfig['active'];
+                        $avatarVersion = '';
+                        if (preg_match('/_(\\d+)\\./', $account->profile_picture, $matches)) {
+                          $avatarVersion = '?v=' . $matches[1];
+                        } else {
+                          $filePath = storage_path('app/public/' . $account->profile_picture);
+                          if (file_exists($filePath)) {
+                            $avatarVersion = '?v=' . filemtime($filePath);
+                          }
+                        }
                       @endphp
-                      <div class="flex items-center justify-center">
-                        <span class="badge {{ $config['badge'] }} badge-sm" style="{{ $config['badgeStyle'] }}">{{ ucfirst($status) }}</span>
+                      <img src="{{ asset('storage/' . $account->profile_picture) }}{{ $avatarVersion }}" alt="{{ $account->employee_name }}" class="w-full h-full object-cover" />
+                    @else
+                      <div class="w-full h-full bg-[#001F54] flex items-center justify-center">
+                        <span class="text-[#F7B32B] font-semibold text-sm">{{ strtoupper(substr($account->employee_name ?? 'U', 0, 1)) }}</span>
                       </div>
-                    </td>
-                    <td class="py-3 px-4 text-center">
-                      <div class="flex items-center justify-center gap-2">
-                        <button onclick="viewAccount({{ $account->Dept_no }})" 
-                                class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110 tooltip" 
-                                data-tip="View Details"
-                                style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
-                                onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-                                onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
-                          <i data-lucide="eye" class="w-4 h-4" style="fill: none;"></i>
-                        </button>
-                        @if(auth()->user()->role === 'Administrator')
-                          <button onclick="openEditModal({{ $account->Dept_no }})" 
-                                  class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110 tooltip" 
-                                  data-tip="Edit Account"
-                                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
-                                  onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-                                  onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
-                            <i data-lucide="edit" class="w-4 h-4" style="fill: none;"></i>
-                          </button>
-                        @endif
+                    @endif
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="min-w-0">
+                        <div class="font-semibold text-gray-800 truncate">{{ $account->employee_name ?? 'Unknown' }}</div>
+                        <div class="text-xs text-blue-600 truncate">{{ $account->email ?? 'No email' }}</div>
                       </div>
-                    </td>
-                  </tr>
-                @empty
-                  <tr>
-                    <td colspan="5" class="text-center py-12">
-                      <div class="flex flex-col items-center">
-                        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                          <i data-lucide="users" class="w-10 h-10 text-gray-400"></i>
-                        </div>
-                        <h3 class="text-lg font-semibold text-gray-600 mb-2">No Department Accounts Found</h3>
-                        <p class="text-gray-500 text-sm">No department accounts available at the moment.</p>
-                      </div>
-                    </td>
-                  </tr>
-                @endforelse
-              </tbody>
-            </table>
-        </x-table-card>
+                      <span class="badge badge-sm {{ $badgeClass }}">{{ ucfirst($status) }}</span>
+                    </div>
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                      <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">{{ $account->dept_name ?? 'Unknown' }}</span>
+                      <span class="text-xs text-gray-600">{{ $account->role ?? 'No role' }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="px-4 pb-4 flex items-center justify-end gap-2">
+                  @if(auth()->user()->role === 'Administrator' || auth()->user()->role === 'Super Admin')
+                  <button onclick="openEditModal({{ $account->Dept_no }})" class="btn btn-xs">
+                    <i data-lucide="edit-2" class="w-4 h-4 mr-1"></i> Edit
+                  </button>
+                  @endif
+                </div>
+              </div>
+              @endforeach
+            </div>
+            @endif
+          </div>
+        </div>
       </main>
     </div>
   </div>
@@ -203,8 +221,8 @@
     <div class="modal-box w-11/12 max-w-2xl animate-scaleIn" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-blue-900 flex items-center justify-center">
-            <i data-lucide="user" class="w-5 h-5 text-white"></i>
+          <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+            <i data-lucide="user" class="w-5 h-5 text-[#F7B32B]"></i>
           </div>
           <h3 class="text-xl font-bold text-gray-800" id="va_title">Employee Details</h3>
         </div>
@@ -427,71 +445,23 @@
 
     // Toast
     function showToast(message, type = 'info', duration = 3000) {
-      // Use global showNotification if available (has progress bar), otherwise use local implementation
-      if (typeof window.showNotification !== 'undefined' && window.showNotification.toString().indexOf('progressBar') !== -1) {
+      // Use global showNotification if available (Soliera theme), otherwise use local fallback
+      if (typeof window.showNotification === 'function') {
         window.showNotification(message, type, duration);
         return;
       }
       
-      // Fallback to local implementation with progress bar
-      if (!document.getElementById('notification-progress-style')) {
-        const style = document.createElement('style');
-        style.id = 'notification-progress-style';
-        style.textContent = `
-          @keyframes progressBar {
-            from { width: 100%; }
-            to { width: 0%; }
-          }
-          @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-
-      const notification = document.createElement('div');
-      const alertType = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-      notification.className = `alert alert-${alertType} fixed bottom-4 right-4 z-[9999] max-w-sm shadow-lg relative overflow-hidden`;
-      notification.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; max-width: 24rem; animation: slideInRight 0.3s ease-out;';
-      
-      const iconMap = { 'success': 'check-circle', 'error': 'alert-circle', 'warning': 'alert-triangle', 'info': 'info' };
-      const icon = iconMap[type] || 'info';
-      
-      notification.innerHTML = `
-        <div class="flex items-center gap-2 px-4 py-3">
-          <i data-lucide="${icon}" class="w-5 h-5"></i>
-          <span>${message}</span>
-        </div>
-        <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-          <div class="notification-progress h-full bg-white/50" style="width: 100%; animation: progressBar ${duration}ms linear forwards;"></div>
-        </div>
-      `;
-      
-      document.body.appendChild(notification);
-      notification.offsetHeight;
-      
-      if (window.lucide && window.lucide.createIcons) {
-        window.lucide.createIcons();
-      }
-      
-      setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transition = 'opacity 0.3s ease-out';
-        setTimeout(() => {
-          if (notification.parentNode) notification.remove();
-        }, 300);
-      }, duration);
+      // Fallback to simple alert if global function not available
+      alert(message);
     }
 
 
     // Event listeners
     document.addEventListener('DOMContentLoaded', function() {
-      // Auto-update card counts based on table rows
       function updateCountsFromTable() {
-        const rows = Array.from(document.querySelectorAll('tbody tr[data-account-id]'));
-        const total = rows.length;
-        const active = rows.filter(r => (r.querySelector('td:nth-child(4) .badge')?.textContent || '').trim().toLowerCase() === 'active').length;
+        const cards = Array.from(document.querySelectorAll('.dept-account-card'));
+        const total = cards.length;
+        const active = cards.filter(c => (c.querySelector('.badge')?.textContent || '').trim().toLowerCase() === 'active').length;
         const inactive = total - active;
 
         const totalEl = document.getElementById('da_total_count');
@@ -502,15 +472,11 @@
         if (inactiveEl) inactiveEl.textContent = inactive;
       }
 
-      // Initial update after DOM is ready
       updateCountsFromTable();
 
-      // Also recalc after async operations we control
       window.__updateDeptCards = updateCountsFromTable;
     });
 
   </script>
 </body>
 </html>
-
-

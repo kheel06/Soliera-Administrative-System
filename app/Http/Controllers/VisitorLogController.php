@@ -13,25 +13,116 @@ use Illuminate\Support\Facades\DB;
 
 class VisitorLogController extends Controller
 {
+    public function checkInForm()
+    {
+        $hosts = \App\Models\User::orderBy('name')->get();
+        $facilities = Facility::all();
+        // Get pre-registered visitors for quick check-in
+        $preRegistered = Visitor::where('status', 'approved')
+            ->whereNull('time_in')
+            ->whereDate('scheduled_date', now())
+            ->get();
+
+        // Get recent check-ins (real data)
+        $recentCheckins = Visitor::whereNotNull('time_in')
+            ->latest('time_in')
+            ->take(5)
+            ->get();
+
+        return view('visitors.check_in', compact('hosts', 'facilities', 'preRegistered', 'recentCheckins'));
+    }
+
+    public function checkOutForm()
+    {
+        // Get currently checked-in visitors
+        $activeVisitors = Visitor::whereNotNull('time_in')
+            ->whereNull('time_out')
+            ->latest('time_in')
+            ->get();
+
+        return view('visitors.check_out', compact('activeVisitors'));
+    }
+
+    public function badges()
+    {
+        $allActive = Visitor::where(function ($query) {
+            $query->whereNotNull('time_in')
+                ->whereNull('time_out');
+        })->orWhere('status', 'approved')
+            ->with('host')
+            ->latest('created_at')
+            ->get();
+
+        // Grouping logic similar to PreRegistrationController
+        $grouped = $allActive->groupBy(function ($item) {
+            // Visitors registered together share these attributes
+            return ($item->company ?? 'single_' . uniqid()) . '_' .
+                $item->host_id . '_' .
+                ($item->scheduled_date ? \Carbon\Carbon::parse($item->scheduled_date)->toDateString() : '') . '_' .
+                ($item->scheduled_time ? \Carbon\Carbon::parse($item->scheduled_time)->toTimeString() : '') . '_' .
+                $item->purpose;
+        });
+
+        $visitors = $grouped->map(function ($members) {
+            $first = $members->first();
+            return (object) [
+                'id' => $first->id,
+                'name' => $first->name,
+                'company' => $first->company,
+                'is_bulk' => $members->count() > 1,
+                'host_employee' => $first->host_employee ?? ($first->host ? $first->host->name : 'N/A'),
+                'host' => $first->host,
+                'host_id' => $first->host_id,
+                'purpose' => $first->purpose,
+                'time_in' => $first->time_in,
+                'expected_time_out' => $first->expected_time_out,
+                'pass_id' => $first->pass_id,
+                'department' => $first->department,
+                'room' => $first->room,
+                'contact' => $first->contact,
+                'phone' => $first->phone,
+                'email' => $first->email,
+                'status' => $first->status,
+                'profile_photo_url' => $first->profile_photo_url,
+                'visitor_count' => $members->count(),
+                'visitors' => $members->map(function ($v) {
+                    return (object) [
+                        'id' => $v->id,
+                        'name' => $v->name,
+                        'phone' => $v->phone ?? $v->contact,
+                        'email' => $v->email,
+                        'pass_id' => $v->pass_id,
+                        'status' => $v->status,
+                        'profile_photo_url' => $v->profile_photo_url
+                    ];
+                }),
+                'scheduled_date' => $first->scheduled_date,
+                'scheduled_time' => $first->scheduled_time,
+            ];
+        })->values();
+
+        return view('visitors.badges', compact('visitors'));
+    }
+
     public function index(Request $request)
     {
         // Get basic statistics
         $stats = $this->getBasicStats();
-        
-        // Get all visitors for the logs table
+
+        // Get all visitors for the logs table - show all visitors (no filtering)
         $perPage = $request->get('per_page', 10);
         $visitors = Visitor::with('facility')
-            ->latest()
+            ->latest('created_at')
             ->paginate($perPage);
-            
+
         // Get facilities for filters
         $facilities = Facility::all();
-        
+
         // Get active tab from request parameter
         $validTabs = ['logs', 'reports'];
         $tabParam = $request->get('tab');
         $activeTab = in_array($tabParam, $validTabs) ? $tabParam : 'logs';
-        
+
         return view('visitor.logs', compact('stats', 'visitors', 'facilities', 'activeTab'));
     }
 
@@ -40,10 +131,10 @@ class VisitorLogController extends Controller
         $timeRange = $request->get('time_range', 'today');
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');
-        
+
         // Set date range based on time range
         $dates = $this->getDateRange($timeRange, $startDate, $endDate);
-        
+
         $analytics = [
             'daily_trends' => $this->getDailyTrends($dates['start'], $dates['end']),
             'visitor_types' => $this->getVisitorTypes($dates['start'], $dates['end']),
@@ -53,27 +144,27 @@ class VisitorLogController extends Controller
             'return_visitors' => $this->getReturnVisitors($dates['start'], $dates['end']),
             'statistics' => $this->getDetailedStats($dates['start'], $dates['end'])
         ];
-        
+
         return response()->json($analytics);
     }
 
     public function getLogs(Request $request): JsonResponse
     {
         $query = Visitor::with('facility');
-        
+
         // Apply filters
         if ($request->has('start_date') && $request->start_date) {
             $query->whereDate('time_in', '>=', $request->start_date);
         }
-        
+
         if ($request->has('end_date') && $request->end_date) {
             $query->whereDate('time_in', '<=', $request->end_date);
         }
-        
+
         if ($request->has('facility_id') && $request->facility_id) {
             $query->where('facility_id', $request->facility_id);
         }
-        
+
         if ($request->has('status') && $request->status) {
             if ($request->status === 'checked_in') {
                 $query->whereNull('time_out');
@@ -81,59 +172,59 @@ class VisitorLogController extends Controller
                 $query->whereNotNull('time_out');
             }
         }
-        
+
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('company', 'like', "%{$search}%")
-                  ->orWhere('purpose', 'like', "%{$search}%")
-                  ->orWhere('host_employee', 'like', "%{$search}%");
+                    ->orWhere('company', 'like', "%{$search}%")
+                    ->orWhere('purpose', 'like', "%{$search}%")
+                    ->orWhere('host_employee', 'like', "%{$search}%");
             });
         }
-        
+
         $perPage = $request->get('per_page', 10);
         $visitors = $query->latest()->paginate($perPage);
-        
+
         return response()->json($visitors);
     }
 
     public function search(Request $request): JsonResponse
     {
         $query = Visitor::with('facility');
-        
+
         // Apply search criteria
         if ($request->has('visitor_name') && $request->visitor_name) {
             $query->where('name', 'like', "%{$request->visitor_name}%");
         }
-        
+
         if ($request->has('company') && $request->company) {
             $query->where('company', 'like', "%{$request->company}%");
         }
-        
+
         if ($request->has('host_employee') && $request->host_employee) {
             $query->where('host_employee', 'like', "%{$request->host_employee}%");
         }
-        
+
         if ($request->has('purpose') && $request->purpose) {
             $query->where('purpose', $request->purpose);
         }
-        
+
         if ($request->has('start_time') && $request->start_time) {
             $query->where('time_in', '>=', $request->start_time);
         }
-        
+
         if ($request->has('end_time') && $request->end_time) {
             $query->where('time_in', '<=', $request->end_time);
         }
-        
+
         // Duration filter
         if ($request->has('duration') && $request->duration) {
             $this->applyDurationFilter($query, $request->duration);
         }
-        
+
         $visitors = $query->latest()->get();
-        
+
         return response()->json($visitors);
     }
 
@@ -145,7 +236,7 @@ class VisitorLogController extends Controller
             'end_date' => 'required|date|after_or_equal:start_date',
             'format' => 'required|in:pdf,excel,csv'
         ]);
-        
+
         // Normalize aliases from UI (daily/weekly/monthly) to internal (today/week/month)
         $range = match ($request->report_type) {
             'daily' => 'today',
@@ -154,7 +245,7 @@ class VisitorLogController extends Controller
             default => $request->report_type,
         };
         $dates = $this->getDateRange($range, $request->start_date, $request->end_date);
-        
+
         // Core datasets used in Reports & Analytics
         $visitors = Visitor::with('facility')
             ->whereBetween('created_at', [$dates['start'], $dates['end']])
@@ -244,9 +335,9 @@ class VisitorLogController extends Controller
             'include_statistics' => true,
             'include_details' => true,
         ];
-        
+
         $filename = 'visitor_report_' . $request->report_type . '_' . now()->format('Y-m-d_H-i-s');
-        
+
         switch ($request->input('format')) {
             case 'pdf':
                 return $this->generatePdfReport($reportData, $filename);
@@ -261,9 +352,9 @@ class VisitorLogController extends Controller
     public function exportLogs(Request $request)
     {
         $visitors = Visitor::with('facility')->latest()->get();
-        
+
         $filename = 'visitor_logs_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
-        
+
         return Excel::download(new \App\Exports\VisitorLogExport($visitors), $filename);
     }
 
@@ -271,7 +362,7 @@ class VisitorLogController extends Controller
     {
         $today = now()->startOfDay();
         $endOfDay = now()->endOfDay();
-        
+
         return [
             'today' => Visitor::whereBetween('created_at', [$today, $endOfDay])->count(),
             'currently_in' => Visitor::whereNotNull('time_in')->whereNull('time_out')->count(),
@@ -315,23 +406,23 @@ class VisitorLogController extends Controller
     {
         $trends = [];
         $current = $start->copy();
-        
+
         while ($current->lte($end)) {
             $dayStart = $current->copy()->startOfDay();
             $dayEnd = $current->copy()->endOfDay();
-            
+
             // Count visitors created on this day (both registered and checked in)
             $count = Visitor::whereBetween('created_at', [$dayStart, $dayEnd])->count();
-            
+
             $trends[] = [
                 'date' => $current->format('Y-m-d'),
                 'label' => $current->format('M d'),
                 'count' => $count
             ];
-            
+
             $current->addDay();
         }
-        
+
         return $trends;
     }
 
@@ -343,7 +434,7 @@ class VisitorLogController extends Controller
             ->get()
             ->pluck('count', 'purpose')
             ->toArray();
-            
+
         return $types;
     }
 
@@ -377,7 +468,9 @@ class VisitorLogController extends Controller
 
         // Map DB values (e.g., hr1) to display labels (e.g., HR1)
         foreach ($rawCounts as $dbValue => $count) {
-            if ($dbValue === null) { continue; }
+            if ($dbValue === null) {
+                continue;
+            }
             $normalized = strtolower(trim($dbValue));
             if (array_key_exists($normalized, $departmentMap)) {
                 $label = $departmentMap[$normalized];
@@ -404,48 +497,48 @@ class VisitorLogController extends Controller
     private function getPeakHours(Carbon $start, Carbon $end): array
     {
         $hours = [];
-        
+
         for ($i = 0; $i < 24; $i++) {
             $count = Visitor::whereBetween('created_at', [$start, $end])
                 ->whereRaw('HOUR(created_at) = ?', [$i])
                 ->count();
-                
+
             $hours[] = [
                 'hour' => $i,
                 'label' => sprintf('%02d:00', $i),
                 'count' => $count
             ];
         }
-        
+
         return $hours;
     }
 
     private function getMostVisitedFacility(Carbon $start, Carbon $end): string
     {
-        $facility = Visitor::whereBetween('visitors.created_at', [$start, $end])
-            ->join('facilities', 'visitors.facility_id', '=', 'facilities.id')
+        $facility = Visitor::whereBetween('visitor.created_at', [$start, $end])
+            ->join('facilities', 'visitor.facility_id', '=', 'facilities.id')
             ->select('facilities.name', DB::raw('count(*) as count'))
             ->groupBy('facilities.id', 'facilities.name')
             ->orderBy('count', 'desc')
             ->first();
-            
+
         return $facility ? $facility->name : 'N/A';
     }
 
     private function getReturnVisitors(Carbon $start, Carbon $end): float
     {
         $totalVisitors = Visitor::whereBetween('created_at', [$start, $end])->count();
-        
+
         if ($totalVisitors === 0) {
             return 0;
         }
-        
+
         $returnVisitors = Visitor::whereBetween('created_at', [$start, $end])
             ->select('name', 'company')
             ->groupBy('name', 'company')
             ->havingRaw('count(*) > 1')
             ->count();
-            
+
         return round(($returnVisitors / $totalVisitors) * 100, 1);
     }
 
@@ -460,7 +553,7 @@ class VisitorLogController extends Controller
             ->whereNotNull('time_in')
             ->whereNotNull('time_out')
             ->count();
-            
+
         return [
             'total_visitors' => $totalVisitors,
             'currently_in' => $currentlyIn,
@@ -472,21 +565,21 @@ class VisitorLogController extends Controller
     private function getAverageDuration(?Carbon $start = null, ?Carbon $end = null): string
     {
         $query = Visitor::whereNotNull('time_out')->whereNotNull('time_in');
-        
+
         if ($start && $end) {
             $query->whereBetween('created_at', [$start, $end]);
         }
-        
+
         $avgMinutes = $query->selectRaw('AVG(TIMESTAMPDIFF(MINUTE, time_in, time_out)) as avg_duration')
             ->value('avg_duration');
-            
+
         if (!$avgMinutes) {
             return '0h';
         }
-        
+
         $hours = floor($avgMinutes / 60);
         $minutes = $avgMinutes % 60;
-        
+
         return $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
     }
 
@@ -495,12 +588,12 @@ class VisitorLogController extends Controller
         $peakHours = $this->getPeakHours(now()->startOfMonth(), now()->endOfMonth());
         $maxCount = max(array_column($peakHours, 'count'));
         $peakHour = collect($peakHours)->firstWhere('count', $maxCount);
-        
+
         if ($peakHour && $maxCount > 0) {
             $hour = $peakHour['hour'];
             return sprintf('%02d:00 - %02d:00', $hour, $hour + 1);
         }
-        
+
         return '9:00 - 11:00';
     }
 
@@ -536,16 +629,16 @@ class VisitorLogController extends Controller
     private function generateCsvReport(array $data, string $filename)
     {
         $csv = fopen('php://temp', 'w');
-        
+
         // Add headers
         fputcsv($csv, ['Name', 'Company', 'Purpose', 'Facility', 'Check In', 'Check Out', 'Duration', 'Host']);
-        
+
         // Add data
         foreach ($data['visitors'] as $visitor) {
-            $duration = $visitor->time_out 
+            $duration = $visitor->time_out
                 ? Carbon::parse($visitor->time_in)->diffForHumans(Carbon::parse($visitor->time_out), true)
                 : 'Still in';
-                
+
             fputcsv($csv, [
                 $visitor->name,
                 $visitor->company ?? 'N/A',
@@ -557,11 +650,11 @@ class VisitorLogController extends Controller
                 $visitor->host_employee ?? 'N/A'
             ]);
         }
-        
+
         rewind($csv);
         $content = stream_get_contents($csv);
         fclose($csv);
-        
+
         return response($content)
             ->header('Content-Type', 'text/csv')
             ->header('Content-Disposition', 'attachment; filename="' . $filename . '.csv"');

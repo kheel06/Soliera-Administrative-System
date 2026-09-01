@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             OrderSeeder::class,
             ReservationSeeder::class,
             RoomSeeder::class,
+            RbacSeeder::class,
         ]);
 
         // Seed sample legal cases for testing
@@ -51,4 +52,4 @@ class DatabaseSeeder extends Seeder
             ]);
         }
     }
-} 
+}

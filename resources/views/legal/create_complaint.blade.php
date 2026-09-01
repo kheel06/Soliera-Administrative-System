@@ -9,8 +9,8 @@
         <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between">
                 <h1 class="text-3xl font-bold text-gray-900">File Employee Complaint</h1>
-                <a href="{{ route('legal.complaints') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
-                    <i class="fas fa-arrow-left mr-2"></i>Back to Complaints
+                <a href="{{ route('legal.complaints') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Complaints
                 </a>
             </div>
         </div>
@@ -169,8 +169,8 @@
                     </div>
                 </div>
                 
-                <button type="button" onclick="addWitness()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
-                    <i class="fas fa-plus mr-2"></i>Add Witness
+                <button type="button" onclick="addWitness()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Witness
                 </button>
             </div>
 
@@ -178,7 +178,7 @@
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div class="flex">
                     <div class="flex-shrink-0">
-                        <i class="fas fa-shield-alt text-blue-400"></i>
+                        <i data-lucide="shield" class="w-5 h-5 text-blue-400"></i>
                     </div>
                     <div class="ml-3">
                         <h3 class="text-sm font-medium text-blue-800">Confidentiality Notice</h3>
@@ -194,8 +194,8 @@
                 <a href="{{ route('legal.complaints') }}" class="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition-colors">
                     Cancel
                 </a>
-                <button type="submit" class="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors">
-                    <i class="fas fa-paper-plane mr-2"></i>Submit Complaint
+                <button type="submit" class="inline-flex items-center justify-center px-6 py-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 text-sm font-medium" style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;" onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'" onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
+                    <i data-lucide="send" class="w-4 h-4 mr-2"></i>Submit Complaint
                 </button>
             </div>
         </form>
@@ -224,4 +224,64 @@ function addWitness() {
 // Set default incident date to today
 document.getElementById('incident_date').value = new Date().toISOString().split('T')[0];
 </script>
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
 @endsection

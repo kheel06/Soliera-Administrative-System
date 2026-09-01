@@ -29,11 +29,14 @@ $iconMap = [
     'fa-shield' => 'shield',
     'fa-alert-triangle' => 'alert-triangle',
     'fa-times-circle' => 'x-circle',
+    'fa-gavel' => 'gavel',
+    'fa-spinner' => 'loader',
+    'fa-dollar-sign' => 'dollar-sign',
 ];
 $lucideIcon = $iconMap[$icon] ?? 'chart';
 @endphp
 
-<div class="bg-white rounded-xl border border-gray-100 p-6 shadow-lg card-hover stat-card hover:shadow-xl transition-all duration-300">
+<div class="bg-white rounded-xl border border-gray-100 p-6 shadow-lg card-hover stat-card hover:shadow-xl transition-all duration-300 min-h-[140px]">
     <div class="flex items-center justify-between">
         <!-- Content on LEFT -->
         <div class="flex-1">
@@ -46,7 +49,7 @@ $lucideIcon = $iconMap[$icon] ?? 'chart';
                         $textColor = $change >= 0 ? 'text-green-500' : 'text-red-500';
                     @endphp
                     <span class="text-sm font-medium flex items-center {{ $textColor }}">
-                        <i class="fa-solid {{ $arrowClass }} mr-1"></i>
+                        <i data-lucide="{{ $change >= 0 ? 'arrow-up' : 'arrow-down' }}" class="w-4 h-4 mr-1"></i>
                         {{ number_format(abs($change), 2) }}%
                     </span>
                     <span class="text-sm text-gray-500 ml-2">{{ $changeLabel }}</span>
@@ -54,9 +57,9 @@ $lucideIcon = $iconMap[$icon] ?? 'chart';
             @endif
         </div>
         
-        <!-- Blue Icon Box on RIGHT -->
-        <div class="w-20 h-20 rounded-xl flex items-center justify-center {{ $bgColor }} flex-shrink-0 ml-4">
-            <i data-lucide="{{ $lucideIcon }}" class="{{ $iconColor }}" style="width: 1.75rem; height: 1.75rem; stroke-width: 2;"></i>
+        <!-- Blue Icon Box on RIGHT (match Super Admin dashboard icon sizing) -->
+        <div class="w-16 h-16 rounded-xl flex items-center justify-center {{ $bgColor }} flex-shrink-0 ml-4">
+            <i data-lucide="{{ $lucideIcon }}" class="{{ $iconColor }}" style="width: 1.5rem; height: 1.5rem; stroke-width: 2;"></i>
         </div>
     </div>
 </div>
@@ -66,6 +69,21 @@ $lucideIcon = $iconMap[$icon] ?? 'chart';
     lucide.createIcons();
 </script>
 @endpush
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

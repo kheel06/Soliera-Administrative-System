@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   @vite(['resources/css/soliera.css'])
 </head>
+
 <body class="bg-gray-50">
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
@@ -34,17 +36,180 @@
           </div>
         @endif
 
-       
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-800">Resource Booking Desk</h2>
+            <p class="text-sm text-gray-600">Manage facility reservations, approvals, and usage.</p>
+          </div>
+          <button id="openReserveFacilityModal" class="btn btn-primary gap-2">
+            <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+            New Reservation
+          </button>
+        </div>
+
+        <!-- Metrics/KPIs -->
+        <!-- Metrics/KPIs -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <!-- Total Reservations -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Reservations</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $reservations->count() }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="calendar" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pending Approvals -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Pending Approvals</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">
+                  {{ $reservations->where('status', 'pending')->count() }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="clock" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Approved -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Approved</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">
+                  {{ $reservations->where('status', 'approved')->count() }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="check-circle" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Denied -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Denied</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $reservations->where('status', 'denied')->count() }}
+                </p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="x-circle" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reservations Table -->
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+          <div class="overflow-x-auto">
+            <table class="table w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th>Facility / Room</th>
+                  <th>Reserved By</th>
+                  <th>Date & Time</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse($reservations as $reservation)
+                  <tr class="hover">
+                    <td>
+                      <div class="font-bold">{{ $reservation->facility->name ?? 'Unknown Facility' }}</div>
+                      <div class="text-xs text-gray-500">{{ $reservation->facility->location ?? '' }}</div>
+                    </td>
+                    <td>
+                      <div class="flex items-center space-x-3">
+                        <div class="avatar placeholder">
+                          <div class="bg-neutral-focus text-neutral-content rounded-full w-8">
+                            <span class="text-xs">{{ substr($reservation->reserver->name ?? 'U', 0, 2) }}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div class="font-bold">{{ $reservation->reserver->name ?? 'Unknown' }}</div>
+                          <div class="text-xs opacity-50">{{ $reservation->reserver->email ?? '' }}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="text-sm">
+                        {{ $reservation->start_time ? \Carbon\Carbon::parse($reservation->start_time)->format('M d, Y') : 'N/A' }}
+                      </div>
+                      <div class="text-xs text-gray-500">
+                        {{ $reservation->start_time ? \Carbon\Carbon::parse($reservation->start_time)->format('h:i A') : '' }}
+                        -
+                        {{ $reservation->end_time ? \Carbon\Carbon::parse($reservation->end_time)->format('h:i A') : '' }}
+                      </div>
+                    </td>
+                    <td>
+                      @php
+                        $statusClass = match ($reservation->status) {
+                          'approved' => 'badge-success',
+                          'pending' => 'badge-warning',
+                          'denied' => 'badge-error',
+                          'completed' => 'badge-info',
+                          default => 'badge-ghost'
+                        };
+                      @endphp
+                      <span class="badge {{ $statusClass }} gap-2">
+                        {{ ucfirst($reservation->status) }}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="flex gap-2">
+                        <a href="{{ route('facility_reservations.show', $reservation->id) }}"
+                          class="btn btn-ghost btn-xs">
+                          View
+                        </a>
+                        @if($reservation->status === 'pending')
+                          <form action="{{ route('facility_reservations.approve', $reservation->id) }}" method="POST"
+                            class="inline">
+                            @csrf
+                            <button type="submit" class="btn btn-success btn-xs text-white" title="Approve">
+                              <i data-lucide="check" class="w-3 h-3"></i>
+                            </button>
+                          </form>
+                          <form action="{{ route('facility_reservations.deny', $reservation->id) }}" method="POST"
+                            class="inline">
+                            @csrf
+                            <button type="submit" class="btn btn-error btn-xs text-white" title="Deny">
+                              <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
+                          </form>
+                        @endif
+                      </div>
+                    </td>
+                  </tr>
+                @empty
+                  <tr>
+                    <td colspan="5" class="text-center py-8 text-gray-500">
+                      No reservations found.
+                    </td>
+                  </tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
+        </div>
 
       </main>
     </div>
   </div>
 
   @include('partials.soliera_js')
-  
+
   <!-- Reserve Facility Modal -->
   <div id="reserveFacilityModal" class="modal">
-    <div class="modal-box w-11/12 max-w-4xl bg-white text-gray-800" data-theme="light" onclick="event.stopPropagation()">
+    <div class="modal-box w-11/12 max-w-4xl bg-white text-gray-800" data-theme="light">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
           <i data-lucide="calendar-plus" class="w-6 h-6 text-blue-500"></i>
@@ -55,18 +220,8 @@
         </button>
       </div>
 
-      @if($errors->any())
-        <div class="alert alert-error mb-6">
-          <i data-lucide="alert-circle" class="w-5 h-5"></i>
-          <ul>
-            @foreach($errors->all() as $error)
-              <li>{{ $error }}</li>
-            @endforeach
-          </ul>
-        </div>
-      @endif
-
-      <form id="reserveFacilityForm" action="{{ route('facility_reservations.store') }}" method="POST" enctype="multipart/form-data">
+      <form id="reserveFacilityForm" action="{{ route('facility_reservations.store') }}" method="POST"
+        enctype="multipart/form-data">
         @csrf
         <!-- Facility Selection -->
         <div class="form-control mb-6">
@@ -114,7 +269,8 @@
               Purpose
             </span>
           </label>
-          <textarea name="purpose" class="textarea textarea-bordered w-full h-24" placeholder="Enter purpose for reservation"></textarea>
+          <textarea name="purpose" class="textarea textarea-bordered w-full h-24"
+            placeholder="Enter purpose for reservation"></textarea>
         </div>
 
         <!-- Document Upload -->
@@ -125,8 +281,10 @@
               Supporting Document (Optional)
             </span>
           </label>
-          <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-            <input type="file" name="document" class="hidden" id="modal-document-upload" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png">
+          <div
+            class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+            <input type="file" name="document" class="hidden" id="modal-document-upload"
+              accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png">
             <label for="modal-document-upload" class="cursor-pointer">
               <i data-lucide="upload-cloud" class="w-12 h-12 text-gray-400 mx-auto mb-4"></i>
               <p class="text-gray-600 mb-2">Click to upload or drag and drop</p>
@@ -155,18 +313,18 @@
       const now = new Date();
       const dateElement = document.getElementById('currentDate');
       const timeElement = document.getElementById('currentTime');
-      
+
       const dateOptions = { weekday: 'short', month: 'short', day: 'numeric' };
       const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
-      
+
       if (dateElement) dateElement.textContent = now.toLocaleDateString('en-US', dateOptions);
       if (timeElement) timeElement.textContent = now.toLocaleTimeString('en-US', timeOptions);
     }
 
     // Initialize everything when page loads
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       updateDateTime();
-      
+
       // Update time every second
       setInterval(updateDateTime, 1000);
 
@@ -175,25 +333,26 @@
       const openBtn = document.getElementById('openReserveFacilityModal');
       const closeBtn = document.getElementById('closeReserveFacilityModal');
       const cancelBtn = document.getElementById('cancelReserveFacility');
-      function openModal(){ modal.classList.add('modal-open'); }
-      function closeModal(){ modal.classList.remove('modal-open'); }
+      function openModal() { modal.classList.add('modal-open'); }
+      function closeModal() { modal.classList.remove('modal-open'); }
       if (openBtn) openBtn.addEventListener('click', openModal);
       if (closeBtn) closeBtn.addEventListener('click', closeModal);
       if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-      if (modal) modal.addEventListener('click', function(e){ if(e.target === modal) closeModal(); });
+      if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
 
       // File preview inside modal
       const fileInput = document.getElementById('modal-document-upload');
-      if (fileInput){
-        fileInput.addEventListener('change', function(e){
+      if (fileInput) {
+        fileInput.addEventListener('change', function (e) {
           const file = e.target.files[0];
           const info = document.getElementById('modal-file-info');
           const name = document.getElementById('modal-file-name');
-          if (file){ name.textContent = file.name; info.classList.remove('hidden'); }
+          if (file) { name.textContent = file.name; info.classList.remove('hidden'); }
           else { info.classList.add('hidden'); }
         });
       }
     });
   </script>
 </body>
+
 </html>

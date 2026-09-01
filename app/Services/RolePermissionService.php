@@ -28,12 +28,54 @@ class RolePermissionService
             'facilities',
             'access'
         ],
+        'Owner/Director' => [
+            'dashboard',
+            'legal',
+            'document',
+            'visitor',
+            'facilities',
+            'access'
+        ],
+        'General Manager' => [
+            'dashboard',
+            'legal',
+            'document',
+            'visitor',
+            'facilities',
+            'access'
+        ],
+        'Admin Manager / Document Controller' => [
+            'dashboard',
+            'legal',
+            'document',
+            'visitor',
+            'facilities',
+            'access'
+        ],
         'Legal Officer' => [
             'dashboard',
+            'legal',
+            'document'
+        ],
+        'Compliance Lead / DPO' => [
+            'dashboard',
+            'document',
+            'visitor',
             'legal'
         ],
+        'Security Supervisor' => [
+            'dashboard',
+            'visitor',
+            'document'
+        ],
+        'Front Office Manager' => [
+            'dashboard',
+            'visitor',
+            'document'
+        ],
         'Receptionist' => [
-            'visitor'
+            'visitor',
+            'dashboard'
         ]
     ];
 
@@ -169,6 +211,28 @@ class RolePermissionService
         if (in_array($role, $availableRoles)) {
             return $role;
         }
+
+        // Direct mappings for old roles to new roles
+        $mappings = [
+            'Owner/Director' => 'Owner',
+            'Admin Manager / Document Controller' => 'Admin Manager',
+            'Administrator' => 'Admin Manager',
+            'Super Admin' => 'Admin Manager',
+            'Legal Officer / Counsel' => 'Legal Officer',
+            'Compliance Lead / DPO' => 'Compliance Lead',
+            'Receptionist' => 'Front Office Manager',
+            'General Manager' => 'Owner', // Fallback for GM to Owner? Or just Admin Manager?
+        ];
+
+        foreach ($mappings as $old => $new) {
+            if (strcasecmp($role, $old) === 0) {
+                \Log::info('RolePermissionService: Mapped old role to new role', [
+                    'original_role' => $role,
+                    'mapped_role' => $new
+                ]);
+                return $new;
+            }
+        }
         
         // Case-insensitive match
         foreach ($availableRoles as $availableRole) {
@@ -177,7 +241,7 @@ class RolePermissionService
             }
         }
         
-        // Partial match (e.g., "legal_officer" matches "Legal Officer")
+        // Partial match fallback
         $normalizedRole = str_replace(['_', '-'], ' ', strtolower($role));
         foreach ($availableRoles as $availableRole) {
             if (strtolower($availableRole) === $normalizedRole) {
@@ -185,103 +249,11 @@ class RolePermissionService
             }
         }
         
-        // More flexible matching - check if role contains key words
-        $roleLower = strtolower($role);
-        foreach ($availableRoles as $availableRole) {
-            $availableRoleLower = strtolower($availableRole);
-            
-            // Check if the role contains key words from available roles
-            $words = explode(' ', $availableRoleLower);
-            $matchCount = 0;
-            foreach ($words as $word) {
-                if (strlen($word) > 2 && strpos($roleLower, $word) !== false) {
-                    $matchCount++;
-                }
-            }
-            
-            // If more than half the words match, consider it a match
-            if ($matchCount > 0 && $matchCount >= count($words) / 2) {
-                \Log::info('RolePermissionService: Partial word match found', [
-                    'original_role' => $role,
-                    'matched_role' => $availableRole,
-                    'match_count' => $matchCount,
-                    'total_words' => count($words)
-                ]);
-                return $availableRole;
-            }
-        }
-        
-        // Special case for "Legal officer" -> "Legal Officer"
-        if (strtolower($role) === 'legal officer') {
-            \Log::info('RolePermissionService: Special case match for Legal officer', [
-                'original_role' => $role,
-                'matched_role' => 'Legal Officer',
-                'normalization_working' => true
-            ]);
-            return 'Legal Officer';
-        }
-        
-        // Special case for "Receptionist" -> "Receptionist"
-        if (strtolower($role) === 'receptionist') {
-            \Log::info('RolePermissionService: Special case match for Receptionist', [
-                'original_role' => $role,
-                'matched_role' => 'Receptionist'
-            ]);
-            return 'Receptionist';
-        }
-        
-        // Special case for "Administrator" -> "Administrator"
-        if (strtolower($role) === 'administrator') {
-            \Log::info('RolePermissionService: Special case match for Administrator', [
-                'original_role' => $role,
-                'matched_role' => 'Administrator',
-                'normalization_working' => true
-            ]);
-            return 'Administrator';
-        }
-        
-        // Additional check for "Administrator" with different casing
-        if (strtolower($role) === 'administrator' || strtolower($role) === 'admin') {
-            \Log::info('RolePermissionService: Administrator role detected', [
-                'original_role' => $role,
-                'matched_role' => 'Administrator',
-                'casing_check' => true
-            ]);
-            return 'Administrator';
-        }
-        
-        // Special case for "Super Admin" -> "Super Admin"
-        if (strtolower($role) === 'super admin') {
-            \Log::info('RolePermissionService: Special case match for Super Admin', [
-                'original_role' => $role,
-                'matched_role' => 'Super Admin'
-            ]);
-            return 'Super Admin';
-        }
-        
         \Log::warning('RolePermissionService: Could not normalize role', [
             'original_role' => $role,
             'available_roles' => $availableRoles
         ]);
         
-        // Fallback: Try to find a close match
-        $roleLower = strtolower($role);
-        foreach ($availableRoles as $availableRole) {
-            $availableRoleLower = strtolower($availableRole);
-            if (strpos($availableRoleLower, $roleLower) !== false || strpos($roleLower, $availableRoleLower) !== false) {
-                \Log::info('RolePermissionService: Fallback match found', [
-                    'original_role' => $role,
-                    'matched_role' => $availableRole,
-                    'fallback_type' => 'partial_string_match'
-                ]);
-                return $availableRole;
-            }
-        }
-        
-        // Last resort: return the original role if it's close enough
-        \Log::warning('RolePermissionService: Using original role as fallback', [
-            'original_role' => $role
-        ]);
         return $role;
     }
 
@@ -322,10 +294,12 @@ class RolePermissionService
         }
 
         $descriptions = [
-            'Super Admin' => 'Full system access and control',
-            'Administrator' => 'System administration and management',
+            'Owner' => 'Executive oversight and approvals',
+            'Admin Manager' => 'Document governance and admin operations',
             'Legal Officer' => 'Legal case management and documentation',
-            'Receptionist' => 'Visitor management and front desk operations'
+            'Compliance Lead' => 'Privacy and compliance governance',
+            'Security Supervisor' => 'Visitor security operations and incident logging',
+            'Front Office Manager' => 'Front office operations and reporting',
         ];
 
         return $descriptions[$userRole] ?? 'Role description not available';

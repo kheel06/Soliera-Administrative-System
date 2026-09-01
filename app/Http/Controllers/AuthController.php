@@ -23,6 +23,16 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
+        // Key for rate limiting: "login-attempts:<ip>:<employee_id>"
+        // Using both IP and Employee ID ensures distinct tracking per user/device
+        $throttleKey = 'login-attempts:' . $request->ip() . ':' . $request->email;
+
+        // Check if user is restricted
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 3)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            return back()->with('error', "Too many failed attempts. Please try again in {$seconds} seconds.")->withInput();
+        }
+
         $employeeId = $request->email;
         $password = $request->password;
 
@@ -32,6 +42,9 @@ class AuthController extends Controller
             ->first();
 
         if (!$user) {
+            // Increment allow attempts before returning error (decay 30 seconds)
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 30);
+
             return back()->withErrors([
                 'email' => 'Employee ID not found.',
             ])->withInput();
@@ -46,10 +59,25 @@ class AuthController extends Controller
             $validPassword = false;
         }
         if (!$validPassword && $password !== ($user->password ?? '')) {
-            return back()->withErrors([
-                'password' => 'Invalid password.',
-            ])->withInput();
+            // Increment allow attempts before returning error (decay 30 seconds)
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 30);
+
+            // Calculate remaining attempts for user warning
+            $attempts = \Illuminate\Support\Facades\RateLimiter::attempts($throttleKey);
+            $remaining = 3 - $attempts;
+
+            $msg = 'Invalid password.';
+            if ($remaining > 0) {
+                $msg .= " You have {$remaining} attempt(s) remaining.";
+            } else {
+                $msg .= " You are now restricted for 30 seconds.";
+            }
+
+            return back()->with('error', $msg)->withInput();
         }
+
+        // Clear restrictions on success
+        \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
 
         // Generate OTP
         $otp = $this->generateOTP();
@@ -97,8 +125,8 @@ class AuthController extends Controller
         ]);
 
         // Combine OTP digits
-        $enteredOTP = $request->otp1 . $request->otp2 . $request->otp3 . 
-                      $request->otp4 . $request->otp5 . $request->otp6;
+        $enteredOTP = $request->otp1 . $request->otp2 . $request->otp3 .
+            $request->otp4 . $request->otp5 . $request->otp6;
 
         // Get stored OTP data
         $otpData = Session::get('login_otp');
@@ -121,15 +149,26 @@ class AuthController extends Controller
         // OTP is valid - create user session
         $user = $otpData['user_data'];
 
-        // Create or update user in users table for Laravel authentication
-        $laravelUser = $this->createOrUpdateLaravelUser($user);
+        // Get DeptAccount model instance
+        $deptAccount = \App\Models\DeptAccount::where('employee_id', $user->employee_id)->first();
 
-        // Login the user
-        Auth::login($laravelUser);
+        if (!$deptAccount) {
+            return redirect()->route('login')->with('error', 'User account not found. Please contact administrator.');
+        }
+
+        // Login using DeptAccount directly (no users table needed)
+        Auth::login($deptAccount);
+        $request->session()->regenerate();
+
+        // Store session ID in cache to prevent concurrent sessions
+        // This must be done AFTER session regeneration
+        $sessionId = $request->session()->getId();
+        $sessionLifetime = config('session.lifetime', 120);
+        \Illuminate\Support\Facades\Cache::put('user_session_' . $deptAccount->Dept_no, $sessionId, now()->addMinutes($sessionLifetime));
 
         // Persist employee_id in session for consistent identity mapping
         Session::put('emp_id', $user->employee_id);
-        
+
         // Store user role in session for RBAC
         Session::put('user_role', $user->role);
 
@@ -138,7 +177,8 @@ class AuthController extends Controller
 
         // Redirect based on user role
         $redirectRoute = $this->getRedirectRouteByRole($user->role);
-        return redirect()->intended($redirectRoute)->with('success', 'Welcome back, ' . $user->name . '!');
+        $userName = $user->employee_name ?? 'Admin';
+        return redirect()->intended($redirectRoute)->with('login_success', 'Login successful! Welcome ' . $userName . '!');
     }
 
     /**
@@ -149,43 +189,47 @@ class AuthController extends Controller
         return str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Create or update user in Laravel users table
-     */
-    private function createOrUpdateLaravelUser($departmentUser)
-    {
-        $user = \App\Models\User::updateOrCreate(
-            ['email' => $departmentUser->employee_id . '@soliera.local'],
-            [
-                'name' => $departmentUser->employee_name ?? ($departmentUser->name ?? 'Unknown User'),
-                'email' => $departmentUser->employee_id . '@soliera.local',
-                'password' => Hash::make(Str::random(16)), // Random password for Laravel auth
-                'role' => $departmentUser->role ?? 'employee',
-                'employee_id' => $departmentUser->employee_id ?? null,
-                'department' => $departmentUser->dept_name ?? ($departmentUser->department ?? 'general'),
-                'email_verified_at' => now(),
-            ]
-        );
-
-        return $user;
-    }
 
     /**
      * Get redirect route based on user role
      */
     private function getRedirectRouteByRole($role)
     {
-        // Role-based redirection after login
-        switch ($role) {
-            case 'Legal Officer':
-                return route('legal.case_deck');
-            case 'Receptionist':
-                return route('visitor.index');
-            case 'Administrator':
-            case 'Super Admin':
-            default:
-                return route('dashboard');
+        // Role-based redirection to the first module in the sidebar
+        $roleLower = strtolower($role);
+
+        // Owner -> Governance Overview
+        if (strpos($roleLower, 'owner') !== false) {
+            return route('executive.overview');
         }
+
+        // Admin Manager -> User Management
+        if (strpos($roleLower, 'admin manager') !== false) {
+            return route('access.users');
+        }
+
+        // Legal Officer -> Contracts Workspace
+        if (strpos($roleLower, 'legal officer') !== false) {
+            return route('legal.contracts.workspace');
+        }
+
+        // Compliance Lead -> Permits
+        if (strpos($roleLower, 'compliance lead') !== false) {
+            return route('compliance.permits');
+        }
+
+        // Security Supervisor -> Visitor Check-in
+        if (strpos($roleLower, 'security supervisor') !== false) {
+            return route('visitors.check_in_form');
+        }
+
+        // Front Office Manager -> Pre-Registrations
+        if (strpos($roleLower, 'front office manager') !== false) {
+            return route('visitors.pre_registrations');
+        }
+
+        // All other roles (Legal, Compliance, Security, Front Office) -> Dashboard
+        return route('home');
     }
 
     /**
@@ -199,11 +243,11 @@ class AuthController extends Controller
             $userName = 'Unknown User';
             $userRole = 'No role';
             $deptNo = null;
-            
+
             if ($currentUser) {
                 $userName = $currentUser->name ?? $currentUser->employee_name ?? 'Unknown User';
                 $userRole = $currentUser->role ?? 'No role';
-                
+
                 // Try to find DeptAccount record
                 $empId = Session::get('emp_id') ?? $currentUser->employee_id;
                 if ($empId) {
@@ -214,7 +258,7 @@ class AuthController extends Controller
                         $userRole = $deptAccount->role;
                     }
                 }
-                
+
                 // If still no DeptAccount, try to create one or use a fallback
                 if (!$deptAccount) {
                     // Create a temporary DeptAccount entry for audit logging
@@ -231,7 +275,7 @@ class AuthController extends Controller
                     $deptNo = $deptAccount->Dept_no;
                 }
             }
-            
+
             // Log the logout action
             if ($deptNo) {
                 AccessLog::create([
@@ -258,6 +302,14 @@ class AuthController extends Controller
      */
     public function showLogin()
     {
-        return view('auth.login');
+        // Generate math captcha for fallback
+        $num1 = rand(1, 10);
+        $num2 = rand(1, 10);
+        $question = "$num1 + $num2";
+        $answer = $num1 + $num2;
+
+        Session::put('math_captcha_answer', $answer);
+
+        return view('auth.login', ['math_captcha_question' => $question]);
     }
 }

@@ -1,250 +1,274 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Archived Documents - Soliera</title>
+  <title>Archived | Soliera</title>
+  @include('partials.favicon')
   <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  @vite(['resources/css/soliera.css'])
+  @vite(['resources/css/app.css', 'resources/css/soliera.css', 'resources/js/app.js'])
   @php
     use Illuminate\Support\Facades\Storage;
   @endphp
 </head>
+
 <body class="bg-base-100">
+  @include('partials.page-loader')
   <div class="flex h-screen overflow-hidden">
     @include('partials.sidebarr')
     <div class="flex flex-col flex-1 overflow-hidden">
       @include('partials.navbar')
       <main class="flex-1 overflow-y-auto p-8">
-        <!-- Success Message for Archived Document -->
-        @if(request('archived'))
-          <div class="alert alert-success mb-6 shadow-lg">
-            <i data-lucide="check-circle" class="w-6 h-6"></i>
-            <span>Document has been successfully archived and is now displayed in the table below.</span>
-          </div>
-        @endif
-        
-        @if(session('success'))
-          <div class="alert alert-success mb-6 shadow-lg">
-            <i data-lucide="check-circle" class="w-6 h-6"></i>
-            <span>{{ session('success') }}</span>
-          </div>
-        @endif
-        
-        <div class="mb-4">
-          <h1 class="text-3xl font-bold" style="color: var(--color-charcoal-ink);">Archived Documents</h1>
-        </div>
-        <!-- underline divider (matches other modules) -->
-        <div class="border-b border-gray-200 mb-6"></div>
+        <!-- Success messages are now shown as toast notifications in bottom-right corner -->
 
-        <!-- Status Summary Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <!-- Page Header -->
+        <div class="mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="archive" class="w-6 h-6 text-[#F7B32B]"></i>
+              </div>
+              <div>
+                <h1 class="text-2xl font-bold text-gray-800">Archived Documents</h1>
+                <p class="text-gray-500 text-sm">Browse and manage your archived document repository</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <!-- Total Documents -->
-          <x-stat-card 
-            title="Total Documents" 
-            :value="$totalCount ?? $documents->total()" 
-            icon="fa-file-text" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
-          
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Documents</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $totalCount ?? $documents->total() }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="file-text" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
           <!-- Received Today -->
-          <x-stat-card 
-            title="Received Today" 
-            :value="$receivedToday ?? 0" 
-            icon="fa-calendar" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
-          
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Received Today</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $receivedToday ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="calendar" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
           <!-- Expired Documents -->
-          <x-stat-card 
-            title="Expired Documents" 
-            :value="$expiredCount ?? 0" 
-            icon="fa-check-circle" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Expired Documents</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $expiredCount ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulation Button (Dev/Demo Tool) -->
+        <div class="flex justify-end mb-6">
+          <button onclick="openSimulateModal()"
+            class="btn bg-[#001F54] hover:bg-[#001F54]/90 text-white border-0 gap-2 shadow-lg hover:shadow-xl transition-all">
+            <i data-lucide="server" class="w-4 h-4 text-[#F7B32B]"></i>
+            <span class="flex flex-col items-start text-xs">
+              <span class="font-bold text-smuppercase">MS Import</span>
+                    <span class="font-normal opacity-70 uppercase tracking-tighter">External Sync</span>
+                </span>
+            </button>
         </div>
 
         <!-- Tabs: List | Reports & Analytics -->
         @php 
-          $validTabs = ['list','reports'];
+                              $validTabs = ['list', 'reports'];
           $tabParam = request('tab');
           $activeTab = in_array($tabParam, $validTabs) ? $tabParam : 'list';
         @endphp
 
-        <div class="mb-3">
-          <nav class="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-            <button id="nav-docs" class="px-2 py-1 rounded {{ $activeTab==='list' ? 'text-blue-800 font-semibold bg-blue-50' : 'text-gray-600 hover:text-blue-600' }}" onclick="switchArchivedTab('list')">
+        <!-- Tab Navigation -->
+        <div class="mb-6">
+          <div class="flex flex-wrap gap-2">
+            <button id="nav-docs" onclick="switchArchivedTab('list')"
+                    class="tab-btn group flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 {{ $activeTab === 'list' ? 'bg-[#001F54] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-[#001F54] hover:text-white hover:border-transparent hover:shadow-md border border-gray-200' }}">
+              <div class="w-7 h-7 rounded-lg transition-colors {{ $activeTab === 'list' ? 'bg-white/20' : 'bg-[#001F54] group-hover:bg-white/20' }} flex items-center justify-center">
+                <i data-lucide="folder" class="w-3.5 h-3.5 text-[#F7B32B]"></i>
+              </div>
               Documents
             </button>
-            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300"></i>
-            <button id="nav-reports" class="px-2 py-1 rounded {{ $activeTab==='reports' ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-600 hover:text-blue-600' }}" onclick="switchArchivedTab('reports')">
+            <button id="nav-reports" onclick="switchArchivedTab('reports')"
+                    class="tab-btn group flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 {{ $activeTab === 'reports' ? 'bg-[#001F54] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-[#001F54] hover:text-white hover:border-transparent hover:shadow-md border border-gray-200' }}">
+              <div class="w-7 h-7 rounded-lg transition-colors {{ $activeTab === 'reports' ? 'bg-white/20' : 'bg-[#001F54] group-hover:bg-white/20' }} flex items-center justify-center">
+                <i data-lucide="bar-chart-2" class="w-3.5 h-3.5 text-[#F7B32B]"></i>
+              </div>
               Reports & Analytics
             </button>
-          </nav>
+          </div>
         </div>
 
         <!-- Complete Archived Documents Table -->
-        <div id="archived-documents-tab" class="card bg-white shadow-xl {{ $activeTab==='list' ? '' : 'hidden' }}">
-          <div class="card-body">
-            <div class="flex items-center justify-between mb-6">
-              <div></div>
-              <div class="flex items-center gap-3">
-                <!-- Search Field -->
-                <div class="relative">
-                  <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
-                  <input type="text" 
-                         id="search-input" 
-                         value="{{ request('search') }}" 
-                         class="input input-bordered input-sm w-64 pl-10 pr-4 bg-white border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                         placeholder="Search documents..."
-                         aria-label="Search archived documents"
-                         autocomplete="off">
-                </div>
-                
-                <!-- Sort By Dropdown Button -->
-                <div class="relative">
-                  <button type="button" 
-                          id="sort-by-button"
-                          onclick="toggleSortDropdown()"
-                          class="inline-flex items-center gap-2 px-4 h-9 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors"
-                          style="font-family: sans-serif; font-size: 14px; justify-content: space-between; min-width: 100px;"
-                          aria-label="Sort documents"
-                          aria-expanded="false">
-                    <span class="text-gray-700">Sort by</span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4B5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M6 9l6 6 6-6"/>
-                    </svg>
-                  </button>
-                  
-                  <!-- Sort Dropdown Menu -->
-                  <div id="sort-dropdown-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                    <div class="py-2">
-                      <button onclick="handleSortChange('title')" class="sort-option w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="title">
-                        <span>Title</span>
-                        <svg class="checkmark w-4 h-4 text-blue-600 hidden" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                      <button onclick="handleSortChange('date')" class="sort-option w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="date">
-                        <span>Date</span>
-                        <svg class="checkmark w-4 h-4 text-blue-600 hidden" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                      <button onclick="handleSortChange('author')" class="sort-option w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="author">
-                        <span>Author</span>
-                        <svg class="checkmark w-4 h-4 text-blue-600 hidden" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                      <button onclick="handleSortChange('category')" class="sort-option active w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="category">
-                        <span>Category</span>
-                        <svg class="checkmark w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                      <button onclick="handleSortChange('type')" class="sort-option w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="type">
-                        <span>Type</span>
-                        <svg class="checkmark w-4 h-4 text-blue-600 hidden" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
+        <div id="archived-documents-tab" class="{{ $activeTab === 'list' ? '' : 'hidden' }}">
             <!-- Filter Chips Container -->
             <div id="filter-chips-container" class="mb-4 flex flex-wrap gap-2 hidden">
               <!-- Filter chips will be dynamically inserted here -->
             </div>
             
-            <x-table-card :title="'Archived Documents'">
+            <!-- Table Container -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <!-- Table Header -->
+              <div class="bg-[#001F54] px-6 py-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <h3 class="text-lg font-semibold text-white flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                      <i data-lucide="archive" class="w-4 h-4 text-[#F7B32B]"></i>
+                    </div>
+                    <div>
+                      <span>Archived Documents</span>
+                    </div>
+                  </h3>
+                  <div class="flex items-center gap-3">
+                    <!-- Search Field -->
+                    <div class="relative w-full sm:w-64">
+                      <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400"></i>
+                      </span>
+                      <input type="text" 
+                             id="search-input" 
+                             value="{{ request('search') }}" 
+                             class="w-full pl-11 pr-4 py-2 bg-white text-gray-800 rounded-lg border-0 text-sm focus:ring-2 focus:ring-blue-300 placeholder-gray-400"
+                             placeholder="Search documents..."
+                             aria-label="Search archived documents"
+                             autocomplete="off">
+                    </div>
+                    
+                    <!-- Sort By Dropdown Button -->
+                    <div class="relative">
+                      <button type="button" 
+                              id="sort-by-button"
+                              onclick="toggleSortDropdown()"
+                              class="inline-flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm"
+                              aria-label="Sort documents"
+                              aria-expanded="false">
+                        <span>Sort by</span>
+                        <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                      </button>
+                      
+                      <!-- Sort Dropdown Menu -->
+                      <div id="sort-dropdown-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                        <div class="py-2">
+                          <button onclick="handleSortChange('title')" class="sort-option w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="title">
+                            <span>Title</span>
+                            <i data-lucide="check" class="checkmark w-4 h-4 text-blue-600 hidden"></i>
+                          </button>
+                          <button onclick="handleSortChange('date')" class="sort-option w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="date">
+                            <span>Date</span>
+                            <i data-lucide="check" class="checkmark w-4 h-4 text-blue-600 hidden"></i>
+                          </button>
+                          <button onclick="handleSortChange('author')" class="sort-option w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="author">
+                            <span>Author</span>
+                            <i data-lucide="check" class="checkmark w-4 h-4 text-blue-600 hidden"></i>
+                          </button>
+                          <button onclick="handleSortChange('category')" class="sort-option active w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="category">
+                            <span>Category</span>
+                            <i data-lucide="check" class="checkmark w-4 h-4 text-blue-600"></i>
+                          </button>
+                          <button onclick="handleSortChange('type')" class="sort-option w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between" data-sort="type">
+                            <span>Type</span>
+                            <i data-lucide="check" class="checkmark w-4 h-4 text-blue-600 hidden"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Table -->
-              <table class="table w-full">
-                <thead class="bg-gray-100">
-                  <tr>
-                    <th class="text-left py-4 px-4 font-semibold text-gray-700">Document Profile</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700">Type</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700">Department</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700">Created</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700">Confidentiality</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700">Retention</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700">Status</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700">Actions</th>
-                  </tr>
-                </thead>
+              <div class="overflow-x-auto">
+                <table class="table w-full">
+                  <thead>
+                    <tr class="bg-gray-50 border-b border-gray-100">
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Document Profile</th>
+                      <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Type</th>
+                      <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Department</th>
+                      <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Created</th>
+                      <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Confidentiality</th>
+                      <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Retention</th>
+                      <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Status</th>
+                      <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Actions</th>
+                    </tr>
+                  </thead>
                 <tbody>
-                  @php
-                    // Debug: Log what we have
-                    \Log::info('Archived view rendering', [
-                      'documents_count' => $documents->count(),
-                      'documents_total' => $documents->total(),
-                      'totalCount' => $totalCount ?? 0,
-                      'receivedToday' => $receivedToday ?? 0,
-                      'current_page' => $documents->currentPage(),
-                      'has_items' => $documents->count() > 0
-                    ]);
-                  @endphp
                   @forelse($documents as $index => $document)
-                    <tr class="hover:bg-gray-50 transition">
+                    <tr class="hover:bg-blue-50/30 transition-colors duration-200 border-b border-gray-100">
                       <!-- Document Profile Column -->
-                      <td class="py-4 px-4">
+                      <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
-                          <div class="rounded-full w-12 h-12 bg-blue-900 flex items-center justify-center">
-                            <span class="text-sm font-bold text-white">
-                              {{ strtoupper(substr($document->title ?? 'UN', 0, 2)) }}
-                            </span>
+                          <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="file-text" class="w-5 h-5 text-[#F7B32B]"></i>
                           </div>
-                          <div>
-                            <div class="font-bold">{{ $document->title ?: 'Untitled Document' }}</div>
-                            <div class="text-sm opacity-50">#{{ $document->id }}</div>
+                          <div class="min-w-0">
+                            <div class="font-medium text-gray-800 text-sm truncate max-w-[200px]">{{ $document->title ?: 'Untitled Document' }}</div>
+                            <div class="text-xs text-gray-400">#{{ $document->id }}</div>
                           </div>
                         </div>
                       </td>
-                      
+
                       <!-- Type Column -->
                       <td class="py-4 px-4 text-center">
-                        <div class="text-sm opacity-80">{{ ucfirst($document->category ?: 'Unknown') }}</div>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {{ ucfirst($document->category ?: 'Unknown') }}
+                        </span>
                       </td>
-                      
+
                       <!-- Department Column -->
                       <td class="py-4 px-4 text-center">
-                        <div class="text-sm opacity-80">{{ $document->department ?: 'Unassigned' }}</div>
+                        <span class="text-sm text-gray-700">{{ $document->department ?: 'Unassigned' }}</span>
                       </td>
-                      
+
                       <!-- Created Column -->
                       <td class="py-4 px-4 text-center">
-                        <div class="text-sm opacity-80">{{ $document->created_at->format('M d, Y') }}</div>
+                        <span class="text-sm text-gray-600">{{ $document->created_at->format('M d, Y') }}</span>
                       </td>
-                      
+
                       <!-- Confidentiality Column -->
                       <td class="py-4 px-4 text-center">
                         @php
                           $confidentialityLevel = $document->confidentiality_level ?? 'internal';
-                          $confidentialityClass = match($confidentialityLevel) {
-                            'restricted' => 'bg-red-500 text-white',
-                            'confidential' => 'bg-orange-500 text-white',
-                            'internal' => 'bg-green-500 text-white',
-                            'public' => 'bg-green-500 text-white',
-                            default => 'bg-gray-500 text-white'
+                          $confidentialityConfig = match ($confidentialityLevel) {
+                            'restricted' => ['bg' => 'bg-red-50', 'text' => 'text-red-700', 'border' => 'border-red-200'],
+                            'confidential' => ['bg' => 'bg-orange-50', 'text' => 'text-orange-700', 'border' => 'border-orange-200'],
+                            'internal' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200'],
+                            'public' => ['bg' => 'bg-sky-50', 'text' => 'text-sky-700', 'border' => 'border-sky-200'],
+                            default => ['bg' => 'bg-gray-50', 'text' => 'text-gray-600', 'border' => 'border-gray-200']
                           };
                         @endphp
-                        <span class="px-2 py-1 rounded-full text-white text-xs {{ $confidentialityClass }}">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $confidentialityConfig['bg'] }} {{ $confidentialityConfig['text'] }} border {{ $confidentialityConfig['border'] }}">
                           {{ ucfirst($confidentialityLevel) }}
                         </span>
                       </td>
-                      
+
                       <!-- Retention Column -->
                       <td class="py-4 px-4 text-center">
                         @php
-                          $retentionPeriod = $document->retention_period ?? match($document->category) {
+                          $retentionPeriod = $document->retention_period ?? match ($document->category) {
                             'contract' => '7 Years',
                             'legal' => '10 Years',
                             'policy' => '5 Years',
@@ -252,73 +276,61 @@
                             default => '2 Years'
                           };
                         @endphp
-                        <div class="text-sm opacity-80">{{ $retentionPeriod }}</div>
+                        <span class="text-sm text-gray-600">{{ $retentionPeriod }}</span>
                       </td>
-                      
+
                       <!-- Status Column -->
                       <td class="py-4 px-4 text-center">
                         @php
                           $status = $document->status ?? 'active';
-                          $statusClass = match($status) {
-                            'expired' => 'bg-red-500 text-white',
-                            'expiring_soon' => 'bg-orange-500 text-white',
-                            'active' => 'bg-green-500 text-white',
-                            'archived' => 'bg-green-500 text-white',
-                            'disposed' => 'bg-gray-500 text-white',
-                            default => 'bg-gray-500 text-white'
+                          $statusConfig = match ($status) {
+                            'expired' => ['bg' => 'bg-red-50', 'text' => 'text-red-700', 'border' => 'border-red-200', 'icon' => 'alert-circle'],
+                            'expiring_soon' => ['bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'icon' => 'clock'],
+                            'active' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'icon' => 'check-circle'],
+                            'archived' => ['bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'icon' => 'archive'],
+                            'disposed' => ['bg' => 'bg-gray-50', 'text' => 'text-gray-600', 'border' => 'border-gray-200', 'icon' => 'trash-2'],
+                            default => ['bg' => 'bg-gray-50', 'text' => 'text-gray-600', 'border' => 'border-gray-200', 'icon' => 'help-circle']
                           };
                         @endphp
-                        <span class="px-2 py-1 rounded-full text-white text-xs {{ $statusClass }}">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {{ $statusConfig['bg'] }} {{ $statusConfig['text'] }} border {{ $statusConfig['border'] }}">
+                          <i data-lucide="{{ $statusConfig['icon'] }}" class="w-3.5 h-3.5"></i>
                           {{ ucfirst($status) }}
                         </span>
                       </td>
 
                       <!-- Actions Column -->
-                      <td class="py-4 px-4 text-center">
-                        <div class="flex items-center justify-center space-x-2">
+                      <td class="py-4 px-4">
+                        <div class="flex items-center justify-center gap-1">
                           <!-- Kebab Menu Button -->
                           <div class="dropdown dropdown-end">
                             <button type="button" 
-                                    class="p-2 rounded-lg transition-all duration-200 hover:scale-110"
-                                    style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:shadow-md"
+                                    style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937;"
                                     title="More options"
                                     tabindex="0">
-                              <i data-lucide="more-vertical" class="w-4 h-4" style="fill: none;"></i>
+                              <i data-lucide="more-vertical" class="w-4 h-4"></i>
                             </button>
-                            <ul class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow-lg border border-gray-200" tabindex="0">
+                            <ul class="dropdown-content menu bg-base-100 rounded-lg z-[1] w-48 p-1.5 shadow-lg border border-gray-200" tabindex="0">
                               <li>
-                                <a onclick="viewDocument({{ $document->id }})" class="flex items-center gap-2">
-                                  <i data-lucide="info" class="w-4 h-4"></i>
+                                <a onclick="viewDocument({{ $document->id }})" class="flex items-center gap-2 text-sm py-2 px-3 rounded-md hover:bg-gray-100">
+                                  <i data-lucide="eye" class="w-4 h-4 text-gray-500"></i>
                                   <span>View details</span>
                                 </a>
                               </li>
                               <li>
-                                <a onclick="downloadDocument({{ $document->id }})" class="flex items-center gap-2">
-                                  <i data-lucide="download" class="w-4 h-4"></i>
+                                <a onclick="downloadDocument({{ $document->id }})" class="flex items-center gap-2 text-sm py-2 px-3 rounded-md hover:bg-gray-100">
+                                  <i data-lucide="download" class="w-4 h-4 text-gray-500"></i>
                                   <span>Download</span>
-                                </a>
-                              </li>
-                              <li>
-                                <a onclick="showShareDialog({{ $document->id }})" class="flex items-center gap-2">
-                                  <i data-lucide="user-plus" class="w-4 h-4"></i>
-                                  <span>Share</span>
-                                </a>
-                              </li>
-                              <li>
-                                <a onclick="showVersionHistory({{ $document->id }})" class="flex items-center gap-2">
-                                  <i data-lucide="clock" class="w-4 h-4"></i>
-                                  <span>Version History</span>
                                 </a>
                               </li>
                             </ul>
                           </div>
-                          
+
                           @if($document->status === 'expired')
                             <button onclick="disposeDocument({{ $document->id }})" 
-                                    class="p-2 rounded-lg transition-all duration-200 hover:scale-110"
-                                    style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:shadow-md bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600"
                                     title="Dispose Document">
-                              <i data-lucide="trash-2" class="w-4 h-4" style="fill: none;"></i>
+                              <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                           @endif
                         </div>
@@ -326,19 +338,19 @@
                     </tr>
                   @empty
                     <tr>
-                      <td colspan="8" class="py-12 text-center">
+                      <td colspan="8" class="py-16 text-center">
                         <div class="flex flex-col items-center">
-                          <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                            <i data-lucide="archive" class="w-10 h-10 text-gray-400"></i>
+                          <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                            <i data-lucide="archive" class="w-10 h-10 text-blue-300"></i>
                           </div>
-                          <h3 class="text-lg font-semibold text-gray-600 mb-2">No Archived Documents Found</h3>
+                          <h3 class="text-lg font-semibold text-gray-700 mb-2">No Archived Documents Found</h3>
                           @if(($totalCount ?? 0) > 0 || ($receivedToday ?? 0) > 0)
                             <p class="text-gray-500 text-sm mb-4">
                               Documents may be filtered out. Try clearing your filters or search.
                             </p>
                             <button onclick="FilterState.clearAll(); FilterState.applyFilters();" 
-                                    class="btn btn-primary btn-sm mt-2">
-                              <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+                                    class="btn btn-sm bg-blue-900 hover:bg-blue-800 text-white border-none">
+                              <i data-lucide="x" class="w-4 h-4 mr-1"></i>
                               Clear All Filters
                             </button>
                           @else
@@ -350,62 +362,60 @@
                   @endforelse
                 </tbody>
               </table>
-            </x-table-card>
-            
-            <!-- Pagination Controls -->
-            <div class="mt-4 bg-white rounded-xl border border-gray-100 shadow-lg px-6 py-4">
-              <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <!-- Items per page -->
-                <div class="flex items-center gap-3">
-                  <span class="text-sm text-gray-600">Items per page:</span>
-                  <div class="relative">
-                    <select 
-                      id="archived-per-page" 
-                      class="appearance-none bg-white border border-gray-300 rounded-md px-3 py-1.5 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
-                      onchange="changeArchivedPerPage(this.value)"
-                    >
-                      <option value="10" {{ ($documents->perPage() ?? 10) == 10 ? 'selected' : '' }}>10</option>
-                      <option value="20" {{ ($documents->perPage() ?? 10) == 20 ? 'selected' : '' }}>20</option>
-                      <option value="50" {{ ($documents->perPage() ?? 10) == 50 ? 'selected' : '' }}>50</option>
-                      <option value="100" {{ ($documents->perPage() ?? 10) == 100 ? 'selected' : '' }}>100</option>
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
-                      <i data-lucide="chevron-down" class="w-4 h-4"></i>
+              <!-- UNIFIED TABLE FOOTER (Pagination) -->
+              <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <!-- Items per page -->
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Items per page:</span>
+                    <div class="relative">
+                      <select 
+                        id="archived-per-page" 
+                        class="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-1.5 pr-8 text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                        onchange="changeArchivedPerPage(this.value)"
+                      >
+                        <option value="10" {{ ($documents->perPage() ?? 10) == 10 ? 'selected' : '' }}>10</option>
+                        <option value="20" {{ ($documents->perPage() ?? 10) == 20 ? 'selected' : '' }}>20</option>
+                        <option value="50" {{ ($documents->perPage() ?? 10) == 50 ? 'selected' : '' }}>50</option>
+                        <option value="100" {{ ($documents->perPage() ?? 10) == 100 ? 'selected' : '' }}>100</option>
+                      </select>
+                      <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                        <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                <!-- Current range display -->
-                <div class="text-sm text-gray-600">
-                  <span id="archived-pagination-range">
-                    @if($documents->total() > 0)
-                      {{ $documents->firstItem() }}-{{ $documents->lastItem() }} of {{ $documents->total() }}
-                  @else
-                      0 of 0
-                  @endif
-                      </span>
-                </div>
+                  
+                  <!-- Current range display -->
+                  <div class="text-xs font-bold text-gray-500">
+                    <span id="archived-pagination-range">
+                      @if($documents->total() > 0)
+                        {{ $documents->firstItem() }}-{{ $documents->lastItem() }} of {{ $documents->total() }}
+                      @else
+                        0 of 0
+                      @endif
+                    </span>
+                  </div>
 
-                <!-- Navigation arrows -->
-                <div class="flex items-center gap-2">
-                  <a 
-                    href="{{ $documents->previousPageUrl() }}"
-                    id="archived-prev-btn"
-                    class="p-2 rounded-md border border-gray-300 text-gray-400 hover:text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors {{ $documents->onFirstPage() ? 'opacity-50 cursor-not-allowed pointer-events-none' : '' }}"
-                  >
-                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
-                  </a>
-                  <a 
-                    href="{{ $documents->nextPageUrl() }}"
-                    id="archived-next-btn"
-                    class="p-2 rounded-md border border-gray-300 text-gray-400 hover:text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors {{ !$documents->hasMorePages() ? 'opacity-50 cursor-not-allowed pointer-events-none' : '' }}"
-                  >
-                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
-                  </a>
-              </div>
+                  <!-- Navigation arrows -->
+                  <div class="flex items-center gap-2">
+                    <a 
+                      href="{{ $documents->previousPageUrl() }}"
+                      id="archived-prev-btn"
+                      class="p-2 rounded-lg border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm {{ $documents->onFirstPage() ? 'opacity-50 cursor-not-allowed pointer-events-none' : '' }}"
+                    >
+                      <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </a>
+                    <a 
+                      href="{{ $documents->nextPageUrl() }}"
+                      id="archived-next-btn"
+                      class="p-2 rounded-lg border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm {{ !$documents->hasMorePages() ? 'opacity-50 cursor-not-allowed pointer-events-none' : '' }}"
+                    >
+                      <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
         </div>
 
         <!-- Document Details Panel (Google Drive Style) -->
@@ -483,12 +493,6 @@
               <div id="details-access-list" style="margin-bottom: 12px;">
                 <!-- Access list will be populated here -->
               </div>
-              <button onclick="showShareDialog(window.currentDocumentId)" style="width: 100%; padding: 10px; background: none; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; font-weight: 500; color: #1a73e8; cursor: pointer; transition: all 0.2s; font-family: 'Roboto', sans-serif;" onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor='transparent'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
-                  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
-                </svg>
-                Share
-              </button>
             </div>
 
             <!-- Details -->
@@ -703,41 +707,588 @@
           <div class="modal-backdrop" onclick="closeFiltersModal()" aria-label="Close filters"></div>
         </div>
 
+        <!-- Simulate Document Modal -->
+        <div id="simulate-modal" class="fixed inset-0 z-[70] hidden flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeSimulateModal()"></div>
+          <div class="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div class="bg-white rounded-2xl shadow-2xl">
+              <!-- Modal Header -->
+              <div class="sticky top-0 bg-gradient-to-r from-[#001F54] to-[#003380] px-6 py-5 rounded-t-2xl border-b border-white/10">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3 min-w-0 flex-1">
+                    <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+                      <i data-lucide="file-plus" class="w-6 h-6 text-[#F7B32B]"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <h3 class="text-lg font-bold text-white uppercase">MS Import</h3>
+                      <p class="text-sm text-white/70 mt-0.5 whitespace-normal">External integration simulation</p>
+                    </div>
+                  </div>
+                  <button onclick="closeSimulateModal()" class="p-2 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0">
+                    <i data-lucide="x" class="w-5 h-5 text-white"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Modal Body -->
+              <form id="simulate-document-form" class="p-6" onsubmit="handleSimulateSubmit(event)">
+                @csrf
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <!-- Document Title -->
+                  <div class="md:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i data-lucide="file-text" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                      Document Title *
+                    </label>
+                    <input type="text" 
+                           name="title" 
+                           id="sim-title"
+                           required
+                           placeholder="e.g., Employee Contract - Marketing Manager"
+                           class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#001F54] focus:border-transparent outline-none transition-all">
+                  </div>
+
+                  <!-- Category/Type -->
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i data-lucide="tag" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                      Document Type *
+                    </label>
+                    <select name="category" 
+                            id="sim-category"
+                            required
+                            class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#001F54] focus:border-transparent outline-none transition-all">
+                      <option value="">Select type...</option>
+                      <option value="contract">Contract</option>
+                      <option value="policy">Policy</option>
+                      <option value="legal_case">Legal Case</option>
+                      <option value="compliance">Compliance</option>
+                      <option value="financial">Financial</option>
+                      <option value="report">Report</option>
+                      <option value="memo">Memo</option>
+                      <option value="agreement">Agreement</option>
+                    </select>
+                  </div>
+
+                  <!-- Department -->
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i data-lucide="building" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                      Department *
+                    </label>
+                    <select name="department" 
+                            id="sim-department"
+                            required
+                            class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#001F54] focus:border-transparent outline-none transition-all">
+                      <option value="">Select department...</option>
+                      <option value="HR1">HR1</option>
+                      <option value="HR2">HR2</option>
+                      <option value="HR3">HR3</option>
+                      <option value="HR4">HR4</option>
+                      <option value="LOGISTIC 1">LOGISTIC 1</option>
+                      <option value="LOGISTIC 2">LOGISTIC 2</option>
+                      <option value="FINANCIAL">FINANCIAL</option>
+                      <option value="CORE 1">CORE 1</option>
+                      <option value="CORE 2">CORE 2</option>
+                    </select>
+                  </div>
+
+                  <!-- Confidentiality Level -->
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i data-lucide="shield" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                      Confidentiality Level *
+                    </label>
+                    <select name="confidentiality_level" 
+                            id="sim-confidentiality"
+                            required
+                            class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#001F54] focus:border-transparent outline-none transition-all">
+                      <option value="">Select level...</option>
+                      <option value="public">🌍 Public</option>
+                      <option value="internal" selected>🏢 Internal</option>
+                      <option value="confidential">🔒 Confidential</option>
+                      <option value="restricted">⛔ Restricted</option>
+                    </select>
+                  </div>
+
+                  <!-- Status (Read-only, set to Archived) -->
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i data-lucide="activity" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                      Status
+                    </label>
+                    <div class="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl flex items-center gap-2">
+                      <span class="text-sm font-medium text-gray-700">📦 Archived</span>
+                    </div>
+                    <input type="hidden" name="status" value="archived">
+                  </div>
+
+                  <!-- Retention Period -->
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                      <i data-lucide="calendar" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                      Retention Period *
+                    </label>
+                    <select name="retention_period" 
+                            id="sim-retention"
+                            required
+                            class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#001F54] focus:border-transparent outline-none transition-all">
+                      <option value="">Select period...</option>
+                      <option value="1 Year">1 Year</option>
+                      <option value="2 Years">2 Years</option>
+                      <option value="3 Years">3 Years</option>
+                      <option value="5 Years">5 Years</option>
+                      <option value="7 Years" selected>7 Years</option>
+                      <option value="10 Years">10 Years</option>
+                      <option value="Permanent">Permanent</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 mt-6 pt-6 border-t border-gray-200">
+                  <button type="button" 
+                          onclick="closeSimulateModal()" 
+                          class="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors">
+                    Cancel
+                  </button>
+                  <button type="submit" 
+                          id="simulate-submit-btn"
+                          class="flex-1 px-4 py-3 bg-gradient-to-r from-[#001F54] to-[#003380] text-white font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    <i data-lucide="upload" class="w-4 h-4"></i>
+                    <span>Create Document</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulate Modal Scripts -->
+        <script>
+          function openSimulateModal() {
+            document.getElementById('simulate-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            // Reset form
+            document.getElementById('simulate-document-form').reset();
+            // Re-initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+              lucide.createIcons();
+            }
+          }
+
+          function closeSimulateModal() {
+            document.getElementById('simulate-modal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+          }
+
+          function handleSimulateSubmit(event) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const submitBtn = document.getElementById('simulate-submit-btn');
+            const originalBtnContent = submitBtn.innerHTML;
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Creating...';
+            
+            // Prepare form data
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Add microservice integration fields
+            data.source_system = data.department + '_Microservice'; // e.g., "HR1_Microservice"
+            data.external_reference_id = 'EXT-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9); // Unique ID for idempotency
+            data.metadata = {
+              simulated: true,
+              created_via: 'admin_portal',
+              timestamp: new Date().toISOString()
+            };
+            
+            // Create abort controller for timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
+            // Send request with timeout
+            fetch('{{ route("api.external.documents.import") }}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify(data),
+              signal: controller.signal,
+              credentials: 'same-origin' // IMPORTANT: Send cookies with request
+            })
+            .then(response => {
+              clearTimeout(timeoutId);
+              
+              // HIDE PAGE LOADER IMMEDIATELY when we get ANY response
+              const pageLoader = document.getElementById('page-loader');
+              if (pageLoader) {
+                pageLoader.classList.remove('active');
+              }
+              
+              // Try to parse as JSON, if it fails we'll catch it later
+              return response.json().catch(() => {
+                // If JSON parsing fails, return a generic error object
+                return { success: false, message: 'Invalid response from server' };
+              });
+            })
+            .then(result => {
+              if (result.success) {
+                // Close modal immediately
+                closeSimulateModal();
+                
+                // HIDE PAGE LOADER IMMEDIATELY
+                const pageLoader = document.getElementById('page-loader');
+                if (pageLoader) {
+                  pageLoader.classList.remove('active');
+                }
+                
+                // Show success alert WITHOUT auto reload
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Success!',
+                  html: 'Document created successfully!<br><small>Refresh the page to see it in the table.</small>',
+                  confirmButtonText: 'Refresh Now',
+                  showCancelButton: true,
+                  cancelButtonText: 'Close',
+                  confirmButtonColor: '#001F54'
+                }).then((swalResult) => {
+                  // Only reload if user clicks "Refresh Now"
+                  if (swalResult.isConfirmed) {
+                    window.location.reload();
+                  }
+                });
+                
+              } else {
+                // Show error
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnContent;
+                if (typeof lucide !== 'undefined') {
+                  lucide.createIcons();
+                }
+                
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Creation Failed',
+                  text: result.message || 'Failed to create document'
+                });
+              }
+            })
+            .catch(error => {
+              clearTimeout(timeoutId);
+              console.error('Error:', error);
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = originalBtnContent;
+              if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+              }
+              
+              // Hide page loader on error
+              const pageLoader = document.getElementById('page-loader');
+              if (pageLoader) {
+                pageLoader.classList.remove('active');
+              }
+              
+              if (error.name === 'AbortError') {
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'Request Timeout',
+                  text: 'The request took too long. The document may have been created. Please refresh the page to check.'
+                });
+              } else {
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Error',
+                  text: 'An error occurred while creating the document'
+                });
+              }
+            });
+          }
+
+          // Close modal on ESC key
+          document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+              const modal = document.getElementById('simulate-modal');
+              if (modal && !modal.classList.contains('hidden')) {
+                closeSimulateModal();
+              }
+            }
+          });
+        </script>
+
         <!-- Reports & Analytics Tab -->
-        <div id="archived-reports-tab" class="card bg-white shadow-xl {{ $activeTab==='reports' ? '' : 'hidden' }}">
-          <div class="card-body">
-            <div class="flex items-center justify-between mb-6">
-              <h3 class="card-title text-xl flex items-center gap-2">
-                <i data-lucide="bar-chart" class="w-6 h-6 text-emerald-600"></i>
-                Reports & Analytics
-              </h3>
-              <div class="flex items-center gap-2">
-                <select id="rep-range" class="select select-bordered select-sm">
+        <div id="archived-reports-tab" class="{{ $activeTab === 'reports' ? '' : 'hidden' }}">
+          <!-- Header -->
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <i data-lucide="pie-chart" class="w-6 h-6 text-blue-900"></i>
+                  Archive Analytics Dashboard
+                </h3>
+                <p class="text-sm text-gray-500 mt-1">Comprehensive overview of your archived document repository</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <select id="rep-range" class="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="30">Last 30 days</option>
                   <option value="90">Last 90 days</option>
                   <option value="365">Last 12 months</option>
+                  <option value="all">All time</option>
                 </select>
+                <button id="export-report-btn" onclick="exportArchivedReport()" class="px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors flex items-center gap-2">
+                  <i data-lucide="download" class="w-4 h-4"></i>
+                  Export Report
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <!-- Total Archived -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Total Archived</p>
+                  <p id="rep-total" class="text-3xl font-bold text-gray-900 mt-1">0</p>
+                  <p class="text-xs text-gray-400 mt-1">Documents in archive</p>
+                </div>
+                <div class="w-14 h-14 rounded-xl bg-blue-900 flex items-center justify-center shadow-lg">
+                  <i data-lucide="archive" class="w-7 h-7 text-yellow-400"></i>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100">
+                <div class="flex items-center text-xs">
+                  <i data-lucide="trending-up" class="w-3.5 h-3.5 text-emerald-500 mr-1"></i>
+                  <span class="text-emerald-600 font-medium">+12%</span>
+                  <span class="text-gray-400 ml-1">from last month</span>
+                </div>
               </div>
             </div>
 
-            <!-- KPI cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div class="card bg-base-100 border-l-4 border-l-primary"><div class="card-body p-4"><div class="text-sm text-gray-500">Total Archived</div><div id="rep-total" class="text-2xl font-bold">0</div></div></div>
-              <div class="card bg-base-100 border-l-4 border-l-success"><div class="card-body p-4"><div class="text-sm text-gray-500">Active</div><div id="rep-active" class="text-2xl font-bold">0</div></div></div>
-              <div class="card bg-base-100 border-l-4 border-l-warning"><div class="card-body p-4"><div class="text-sm text-gray-500">Expiring Soon</div><div id="rep-expiring" class="text-2xl font-bold">0</div></div></div>
-              <div class="card bg-base-100 border-l-4 border-l-error"><div class="card-body p-4"><div class="text-sm text-gray-500">Expired</div><div id="rep-expired" class="text-2xl font-bold">0</div></div></div>
+            <!-- Active Documents -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Active Documents</p>
+                  <p id="rep-active" class="text-3xl font-bold text-gray-900 mt-1">0</p>
+                  <p class="text-xs text-gray-400 mt-1">Within retention period</p>
+                </div>
+                <div class="w-14 h-14 rounded-xl bg-blue-900 flex items-center justify-center shadow-lg">
+                  <i data-lucide="check-circle" class="w-7 h-7 text-yellow-400"></i>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100">
+                <div class="flex items-center">
+                  <div class="flex-1 bg-gray-200 rounded-full h-1.5">
+                    <div id="active-progress" class="bg-emerald-500 h-1.5 rounded-full" style="width: 0%"></div>
+                  </div>
+                  <span id="active-percent" class="text-xs text-gray-500 ml-2">0%</span>
+                </div>
+              </div>
             </div>
 
-            <!-- Simple charts container (can be wired to Chart.js later) -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div class="p-4 rounded-lg border">
-                <div class="text-sm font-semibold mb-2">Archived by Department</div>
-                <div id="rep-by-dept" class="text-sm text-gray-600">Loading…</div>
+            <!-- Expiring Soon -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Expiring Soon</p>
+                  <p id="rep-expiring" class="text-3xl font-bold text-gray-900 mt-1">0</p>
+                  <p class="text-xs text-gray-400 mt-1">Needs attention</p>
+                </div>
+                <div class="w-14 h-14 rounded-xl bg-blue-900 flex items-center justify-center shadow-lg">
+                  <i data-lucide="clock" class="w-7 h-7 text-yellow-400"></i>
+                </div>
               </div>
-              <div class="p-4 rounded-lg border">
-                <div class="text-sm font-semibold mb-2">Archived by Type</div>
-                <div id="rep-by-type" class="text-sm text-gray-600">Loading…</div>
+              <div class="mt-4 pt-3 border-t border-gray-100">
+                <div class="flex items-center text-xs">
+                  <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-500 mr-1"></i>
+                  <span class="text-amber-600 font-medium">Review required</span>
+                </div>
               </div>
+            </div>
+
+            <!-- Expired -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-gray-500">Expired</p>
+                  <p id="rep-expired" class="text-3xl font-bold text-gray-900 mt-1">0</p>
+                  <p class="text-xs text-gray-400 mt-1">Ready for disposal</p>
+                </div>
+                <div class="w-14 h-14 rounded-xl bg-blue-900 flex items-center justify-center shadow-lg">
+                  <i data-lucide="alert-circle" class="w-7 h-7 text-yellow-400"></i>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100">
+                <div class="flex items-center text-xs">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-500 mr-1"></i>
+                  <span class="text-red-600 font-medium">Action needed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Department Distribution -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h4 class="text-base font-semibold text-gray-800">Documents by Department</h4>
+                  <p class="text-xs text-gray-400">Distribution across departments</p>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <i data-lucide="building-2" class="w-4 h-4 text-blue-600"></i>
+                </div>
+              </div>
+              <div id="rep-by-dept" class="space-y-3">
+                <div class="flex items-center justify-center py-8">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Type Distribution -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h4 class="text-base font-semibold text-gray-800">Documents by Type</h4>
+                  <p class="text-xs text-gray-400">Categorized by document type</p>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                  <i data-lucide="file-type" class="w-4 h-4 text-emerald-600"></i>
+                </div>
+              </div>
+              <div id="rep-by-type" class="space-y-3">
+                <div class="flex items-center justify-center py-8">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Additional Analytics Row -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Confidentiality Distribution -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h4 class="text-base font-semibold text-gray-800">By Confidentiality</h4>
+                  <p class="text-xs text-gray-400">Security classification</p>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                  <i data-lucide="shield" class="w-4 h-4 text-purple-600"></i>
+                </div>
+              </div>
+              <div id="rep-by-confidentiality" class="space-y-3">
+                <div class="flex items-center justify-center py-8">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Retention Period Overview -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h4 class="text-base font-semibold text-gray-800">Retention Periods</h4>
+                  <p class="text-xs text-gray-400">Document lifecycle status</p>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                  <i data-lucide="calendar-clock" class="w-4 h-4 text-amber-600"></i>
+                </div>
+              </div>
+              <div id="rep-by-retention" class="space-y-3">
+                <div class="flex items-center justify-center py-8">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-600"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h4 class="text-base font-semibold text-gray-800">Quick Actions</h4>
+                  <p class="text-xs text-gray-400">Common operations</p>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <i data-lucide="zap" class="w-4 h-4 text-blue-600"></i>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <button class="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
+                  <div class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+                    <i data-lucide="trash-2" class="w-4 h-4 text-red-600"></i>
+                  </div>
+                  <div>
+                    <p class="text-sm font-medium text-gray-800">Review Expired</p>
+                    <p class="text-xs text-gray-400">Dispose expired documents</p>
+                  </div>
+                </button>
+                <button class="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
+                  <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <i data-lucide="clock" class="w-4 h-4 text-amber-600"></i>
+                  </div>
+                  <div>
+                    <p class="text-sm font-medium text-gray-800">Extend Retention</p>
+                    <p class="text-xs text-gray-400">Update retention periods</p>
+                  </div>
+                </button>
+                <button class="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left">
+                  <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <i data-lucide="file-output" class="w-4 h-4 text-emerald-600"></i>
+                  </div>
+                  <div>
+                    <p class="text-sm font-medium text-gray-800">Export Archive</p>
+                    <p class="text-xs text-gray-400">Download full archive</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h4 class="text-base font-semibold text-gray-800">Recent Archive Activity</h4>
+                <p class="text-xs text-gray-400">Latest documents added to archive</p>
+              </div>
+              <a href="{{ route('document.archived') }}?tab=list" class="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+                View all
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+              </a>
+            </div>
+            <div id="recent-activity" class="divide-y divide-gray-100">
+              @forelse($documents->take(5) as $doc)
+                <div class="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+                  <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-900 to-blue-800 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="file-text" class="w-5 h-5 text-yellow-400"></i>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-800 truncate">{{ $doc->title ?: 'Untitled Document' }}</p>
+                    <p class="text-xs text-gray-400">{{ $doc->department ?: 'Unassigned' }} • {{ $doc->created_at->format('M d, Y') }}</p>
+                  </div>
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium 
+                    @if($doc->status === 'expired') bg-red-50 text-red-700 
+                    @elseif($doc->status === 'expiring_soon') bg-amber-50 text-amber-700 
+                    @else bg-emerald-50 text-emerald-700 @endif">
+                    {{ ucfirst($doc->status ?? 'Archived') }}
+                  </span>
+                </div>
+              @empty
+                <div class="py-8 text-center">
+                  <i data-lucide="inbox" class="w-8 h-8 text-gray-300 mx-auto mb-2"></i>
+                  <p class="text-sm text-gray-400">No recent activity</p>
+                </div>
+              @endforelse
             </div>
           </div>
         </div>
@@ -753,20 +1304,38 @@
       const navDocs = document.getElementById('nav-docs');
       const navReports = document.getElementById('nav-reports');
 
+      // Helper function to set tab inactive state
+      function setTabInactive(btn) {
+        if (!btn) return;
+        btn.classList.remove('bg-[#001F54]', 'text-white', 'shadow-md');
+        btn.classList.add('bg-white', 'text-gray-600', 'hover:bg-[#001F54]', 'hover:text-white', 'hover:border-transparent', 'hover:shadow-md', 'border', 'border-gray-200');
+        const iconBox = btn.querySelector('div');
+        if (iconBox) {
+          iconBox.classList.remove('bg-white/20');
+          iconBox.classList.add('bg-[#001F54]', 'group-hover:bg-white/20');
+        }
+      }
+      
+      // Helper function to set tab active state
+      function setTabActive(btn) {
+        if (!btn) return;
+        btn.classList.remove('bg-white', 'text-gray-600', 'hover:bg-[#001F54]', 'hover:text-white', 'hover:border-transparent', 'hover:shadow-md', 'border', 'border-gray-200');
+        btn.classList.add('bg-[#001F54]', 'text-white', 'shadow-md');
+        const iconBox = btn.querySelector('div');
+        if (iconBox) {
+          iconBox.classList.remove('bg-[#001F54]', 'group-hover:bg-white/20');
+          iconBox.classList.add('bg-white/20');
+        }
+      }
+
       if (tab === 'reports') {
         // Show reports tab, hide documents tab
         if (docsTab) docsTab.classList.add('hidden');
         if (reportsTab) reportsTab.classList.remove('hidden');
         
         // Update navigation buttons
-        if (navDocs) {
-          navDocs.classList.remove('text-blue-800', 'font-semibold', 'bg-blue-50');
-          navDocs.classList.add('text-gray-600');
-        }
-        if (navReports) {
-          navReports.classList.remove('text-gray-600');
-          navReports.classList.add('text-blue-600', 'font-semibold', 'bg-blue-50');
-        }
+        setTabInactive(navDocs);
+        setTabActive(navReports);
         
         // Update URL without page refresh
         try {
@@ -774,7 +1343,6 @@
           url.searchParams.set('tab', 'reports');
           window.history.replaceState({}, '', url);
         } catch(e) {
-          // Fallback
           window.history.replaceState({}, '', '?tab=reports');
         }
       } else {
@@ -783,14 +1351,8 @@
         if (reportsTab) reportsTab.classList.add('hidden');
         
         // Update navigation buttons
-        if (navDocs) {
-          navDocs.classList.remove('text-gray-600');
-          navDocs.classList.add('text-blue-800', 'font-semibold', 'bg-blue-50');
-        }
-        if (navReports) {
-          navReports.classList.remove('text-blue-600', 'font-semibold', 'bg-blue-50');
-          navReports.classList.add('text-gray-600');
-        }
+        setTabActive(navDocs);
+        setTabInactive(navReports);
         
         // Update URL without page refresh
         try {
@@ -798,7 +1360,6 @@
           url.searchParams.set('tab', 'list');
           window.history.replaceState({}, '', url);
         } catch(e) {
-          // Fallback
           window.history.replaceState({}, '', '?tab=list');
         }
       }
@@ -832,57 +1393,169 @@
         if (docsTab) docsTab.classList.add('hidden');
         if (reportsTab) reportsTab.classList.remove('hidden');
         if (navDocs) {
-          navDocs.classList.remove('text-blue-800', 'font-semibold', 'bg-blue-50');
-          navDocs.classList.add('text-gray-600');
+          navDocs.classList.remove('bg-blue-900', 'text-white', 'shadow-md');
+          navDocs.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
         }
         if (navReports) {
-          navReports.classList.remove('text-gray-600');
-          navReports.classList.add('text-blue-600', 'font-semibold', 'bg-blue-50');
+          navReports.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+          navReports.classList.add('bg-blue-900', 'text-white', 'shadow-md');
         }
       } else {
         if (docsTab) docsTab.classList.remove('hidden');
         if (reportsTab) reportsTab.classList.add('hidden');
         if (navDocs) {
-          navDocs.classList.remove('text-gray-600');
-          navDocs.classList.add('text-blue-800', 'font-semibold', 'bg-blue-50');
+          navDocs.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+          navDocs.classList.add('bg-blue-900', 'text-white', 'shadow-md');
         }
         if (navReports) {
-          navReports.classList.remove('text-blue-600', 'font-semibold', 'bg-blue-50');
-          navReports.classList.add('text-gray-600');
+          navReports.classList.remove('bg-blue-900', 'text-white', 'shadow-md');
+          navReports.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
         }
       }
       
-      // Lightweight client-side analytics using the existing table rows
+      // Enhanced client-side analytics using the existing table rows
       try{
-        const rows = Array.from(document.querySelectorAll('table tbody tr'));
+        const rows = Array.from(document.querySelectorAll('#archived-documents-tab table tbody tr'));
         const data = rows.map(r => ({
           dept: (r.querySelector('td:nth-child(3)')?.textContent || '').trim(),
           type: (r.querySelector('td:nth-child(2)')?.textContent || '').trim(),
-          status: (r.querySelector('td:nth-child(7) span')?.textContent || '').trim().toLowerCase()
+          status: (r.querySelector('td:nth-child(7) span')?.textContent || '').trim().toLowerCase(),
+          confidentiality: (r.querySelector('td:nth-child(5) span')?.textContent || '').trim(),
+          retention: (r.querySelector('td:nth-child(6)')?.textContent || '').trim()
         }));
 
         const total = data.length;
-        const active = data.filter(d => d.status === 'active').length;
+        const active = data.filter(d => d.status === 'active' || d.status === 'archived').length;
         const expiring = data.filter(d => d.status === 'expiring soon').length;
         const expired = data.filter(d => d.status === 'expired').length;
 
         const byDept = {};
         const byType = {};
-        data.forEach(d => { byDept[d.dept] = (byDept[d.dept]||0)+1; byType[d.type]=(byType[d.type]||0)+1; });
+        const byConfidentiality = {};
+        const byRetention = {};
+        
+        data.forEach(d => { 
+          byDept[d.dept] = (byDept[d.dept]||0)+1; 
+          byType[d.type] = (byType[d.type]||0)+1;
+          byConfidentiality[d.confidentiality] = (byConfidentiality[d.confidentiality]||0)+1;
+          byRetention[d.retention] = (byRetention[d.retention]||0)+1;
+        });
 
         const el = id => document.getElementById(id);
+        
+        // Update KPI values
         if(el('rep-total')) el('rep-total').textContent = total;
         if(el('rep-active')) el('rep-active').textContent = active;
         if(el('rep-expiring')) el('rep-expiring').textContent = expiring;
         if(el('rep-expired')) el('rep-expired').textContent = expired;
+        
+        // Update progress bar
+        const activePercent = total > 0 ? Math.round((active / total) * 100) : 0;
+        if(el('active-progress')) el('active-progress').style.width = activePercent + '%';
+        if(el('active-percent')) el('active-percent').textContent = activePercent + '%';
 
-        if(el('rep-by-dept')) el('rep-by-dept').innerHTML = Object.keys(byDept).length
-          ? Object.entries(byDept).map(([k,v])=>`<div class=\"flex justify-between py-1\"><span>${k||'—'}</span><span class=\"font-semibold\">${v}</span></div>`).join('')
-          : '<span class="text-gray-400">No data</span>';
-        if(el('rep-by-type')) el('rep-by-type').innerHTML = Object.keys(byType).length
-          ? Object.entries(byType).map(([k,v])=>`<div class=\"flex justify-between py-1\"><span>${k||'—'}</span><span class=\"font-semibold\">${v}</span></div>`).join('')
-          : '<span class="text-gray-400">No data</span>';
-      }catch(e){}
+        // Color palette for charts
+        const colors = ['#001F54', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777'];
+        
+        // Helper function to create bar chart items
+        function createBarItems(dataObj, containerId) {
+          const container = el(containerId);
+          if (!container) return;
+          
+          const entries = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
+          const max = Math.max(...entries.map(e => e[1]), 1);
+          
+          if (entries.length === 0) {
+            container.innerHTML = '<div class="flex flex-col items-center justify-center py-6 text-gray-400"><i data-lucide="inbox" class="w-8 h-8 mb-2"></i><span class="text-sm">No data available</span></div>';
+            return;
+          }
+          
+          container.innerHTML = entries.slice(0, 5).map(([k, v], i) => {
+            const percent = Math.round((v / max) * 100);
+            const color = colors[i % colors.length];
+            return `
+              <div class="group">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm text-gray-700 font-medium truncate max-w-[150px]">${k || '—'}</span>
+                  <span class="text-sm font-bold text-gray-900">${v}</span>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-2">
+                  <div class="h-2 rounded-full transition-all duration-500" style="width: ${percent}%; background-color: ${color};"></div>
+                </div>
+              </div>
+            `;
+          }).join('');
+          
+          // Reinitialize lucide icons
+          if (window.lucide) window.lucide.createIcons();
+        }
+        
+        // Helper function for confidentiality badges
+        function createConfidentialityItems(dataObj, containerId) {
+          const container = el(containerId);
+          if (!container) return;
+          
+          const entries = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
+          
+          if (entries.length === 0) {
+            container.innerHTML = '<div class="flex flex-col items-center justify-center py-6 text-gray-400"><i data-lucide="shield" class="w-8 h-8 mb-2"></i><span class="text-sm">No data available</span></div>';
+            return;
+          }
+          
+          const confidentialityColors = {
+            'restricted': { bg: 'bg-red-100', text: 'text-red-700', icon: 'shield-alert' },
+            'confidential': { bg: 'bg-orange-100', text: 'text-orange-700', icon: 'shield' },
+            'internal': { bg: 'bg-emerald-100', text: 'text-emerald-700', icon: 'shield-check' },
+            'public': { bg: 'bg-sky-100', text: 'text-sky-700', icon: 'globe' }
+          };
+          
+          container.innerHTML = entries.map(([k, v]) => {
+            const lower = k.toLowerCase();
+            const style = confidentialityColors[lower] || { bg: 'bg-gray-100', text: 'text-gray-700', icon: 'file' };
+            return `
+              <div class="flex items-center justify-between p-3 rounded-lg ${style.bg}">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="${style.icon}" class="w-4 h-4 ${style.text}"></i>
+                  <span class="text-sm font-medium ${style.text}">${k || '—'}</span>
+                </div>
+                <span class="text-sm font-bold ${style.text}">${v}</span>
+              </div>
+            `;
+          }).join('');
+          
+          if (window.lucide) window.lucide.createIcons();
+        }
+        
+        // Helper function for retention items
+        function createRetentionItems(dataObj, containerId) {
+          const container = el(containerId);
+          if (!container) return;
+          
+          const entries = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
+          
+          if (entries.length === 0) {
+            container.innerHTML = '<div class="flex flex-col items-center justify-center py-6 text-gray-400"><i data-lucide="calendar" class="w-8 h-8 mb-2"></i><span class="text-sm">No data available</span></div>';
+            return;
+          }
+          
+          container.innerHTML = entries.slice(0, 4).map(([k, v], i) => {
+            const colors = ['border-blue-400', 'border-emerald-400', 'border-amber-400', 'border-purple-400'];
+            return `
+              <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-l-4 ${colors[i % colors.length]}">
+                <span class="text-sm text-gray-700">${k || '—'}</span>
+                <span class="text-sm font-bold text-gray-900">${v} docs</span>
+              </div>
+            `;
+          }).join('');
+        }
+        
+        // Populate all charts
+        createBarItems(byDept, 'rep-by-dept');
+        createBarItems(byType, 'rep-by-type');
+        createConfidentialityItems(byConfidentiality, 'rep-by-confidentiality');
+        createRetentionItems(byRetention, 'rep-by-retention');
+        
+      }catch(e){ console.error('Analytics error:', e); }
     });
   </script>
   <!-- Archive Confirmation Modal -->
@@ -914,7 +1587,7 @@
             <span class="label-text-alt">Administrator password required to restore archived documents</span>
           </div>
         </div>
-        
+
         <!-- Error Message -->
         <div id="passwordError" class="alert alert-error mb-4 hidden">
           <i data-lucide="alert-circle" class="w-4 h-4"></i>
@@ -989,6 +1662,182 @@
       #filters-modal .modal-box {
         border-radius: 0.5rem;
         max-height: 90vh;
+      }
+    }
+    
+    /* Ensure toast container appears in main content area, not behind sidebar */
+    #soliera-toast-container {
+      position: fixed !important;
+      bottom: 1rem !important;
+      right: 1rem !important;
+      z-index: 10000 !important;
+      /* Ensure it's above sidebar (sidebar z-index is 50) */
+      /* Position relative to viewport, not any parent container */
+      left: auto !important;
+      top: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      /* Ensure it's not clipped by any parent overflow */
+      transform: none !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 0.5rem !important;
+      pointer-events: none !important;
+      max-width: 24rem !important;
+    }
+    
+    /* Toast structure - match dashboard exactly */
+    .soliera-toast {
+      position: relative !important;
+      bottom: auto !important;
+      right: auto !important;
+      max-width: 24rem !important;
+      min-width: 20rem !important;
+      background: #FFFFFF !important;
+      border-radius: 0.5rem !important;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+      border-left: 4px solid #F7B32B !important;
+      overflow: hidden !important;
+      animation: slideInRight 0.3s ease-out !important;
+      pointer-events: all !important;
+    }
+    
+    .soliera-toast-content {
+      display: flex !important;
+      align-items: flex-start !important;
+      gap: 0.75rem !important;
+      padding: 1rem !important;
+      position: relative !important;
+    }
+    
+    .soliera-toast-icon {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 2.5rem !important;
+      height: 2.5rem !important;
+      min-width: 2.5rem !important;
+      background: #F7B32B !important;
+      border-radius: 0.5rem !important;
+      flex-shrink: 0 !important;
+    }
+    
+    .soliera-toast-icon i {
+      width: 1.25rem !important;
+      height: 1.25rem !important;
+      color: #001F54 !important;
+    }
+    
+    .soliera-toast-text {
+      flex: 1 !important;
+      min-width: 0 !important;
+    }
+    
+    .soliera-toast-title {
+      font-size: 0.875rem !important;
+      font-weight: 600 !important;
+      color: #001F54 !important;
+      line-height: 1.5 !important;
+      margin: 0 !important;
+      margin-bottom: 0.25rem !important;
+    }
+    
+    .soliera-toast-body {
+      font-size: 0.875rem !important;
+      color: rgba(0, 31, 84, 0.8) !important;
+      line-height: 1.5 !important;
+      margin: 0 !important;
+    }
+    
+    /* Close button - MUST be top-right, not bottom-left */
+    .soliera-toast-close {
+      position: absolute !important;
+      top: 0.75rem !important;
+      right: 0.75rem !important;
+      bottom: auto !important;
+      left: auto !important;
+      width: 1.5rem !important;
+      height: 1.5rem !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background: transparent !important;
+      border: none !important;
+      cursor: pointer !important;
+      padding: 0 !important;
+      color: rgba(0, 31, 84, 0.7) !important;
+      transition: color 0.2s ease !important;
+      flex-shrink: 0 !important;
+      z-index: 10 !important;
+    }
+    
+    .soliera-toast-close:hover {
+      color: #001F54 !important;
+    }
+    
+    .soliera-toast-close i {
+      width: 1rem !important;
+      height: 1rem !important;
+    }
+    
+    .soliera-toast-progress {
+      position: absolute !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      height: 3px !important;
+      background: rgba(0, 31, 84, 0.1) !important;
+      overflow: hidden !important;
+    }
+    
+    .soliera-toast-progress-bar {
+      height: 100% !important;
+      background: #F7B32B !important;
+      width: 100% !important;
+      animation: progressBar linear forwards !important;
+    }
+    
+    @keyframes slideInRight {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    @keyframes progressBar {
+      from {
+        width: 100%;
+      }
+      to {
+        width: 0%;
+      }
+    }
+    
+    /* On desktop, ensure toast appears in the main content area (right side) */
+    @media (min-width: 1024px) {
+      #soliera-toast-container {
+        /* Sidebar is fixed on left, toast should be in remaining viewport space */
+        right: 1rem !important;
+        bottom: 1rem !important;
+      }
+    }
+    
+    /* On mobile, ensure toast appears in viewport, not behind sidebar */
+    @media (max-width: 1023px) {
+      #soliera-toast-container {
+        /* When sidebar is hidden/closed on mobile, toast should be visible */
+        right: 1rem !important;
+        bottom: 1rem !important;
+        max-width: calc(100% - 1rem) !important;
+      }
+      
+      .soliera-toast {
+        min-width: auto !important;
+        max-width: 100% !important;
       }
     }
     
@@ -1122,6 +1971,7 @@
       // Update filter badge
       updateFilterBadge() {
         const badge = document.getElementById('filter-badge');
+        if (!badge) return; // Exit if badge element doesn't exist
         const count = this.getActiveCount();
         if (count > 0) {
           badge.textContent = count;
@@ -1713,12 +2563,6 @@
               <div style="margin-bottom: 32px;">
                 <h4 style="font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 16px;">Who has access</h4>
                 <div id="details-access-list" style="margin-bottom: 12px;"></div>
-                <button onclick="showShareDialog(window.currentDocumentId)" style="width: 100%; padding: 10px; background: none; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; font-weight: 500; color: #1a73e8; cursor: pointer; transition: all 0.2s; font-family: 'Roboto', sans-serif;" onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor='transparent'">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
-                    <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
-                  </svg>
-                  Share
-                </button>
               </div>
 
               <!-- Details -->
@@ -2091,86 +2935,7 @@
       location.reload();
     }
 
-    function showVersionHistory(documentId) {
-      // Fetch document history/versions
-      fetch(`/legal/documents/${documentId}/history`, {
-        method: 'GET',
-        headers: {
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success && data.editing_history && data.editing_history.length > 0) {
-          const versions = data.editing_history;
-          Swal.fire({
-            title: 'Version History',
-            html: `
-              <div class="text-left">
-                <p class="text-gray-600 mb-4">View all versions of this document.</p>
-                <div class="space-y-3 max-h-96 overflow-y-auto">
-                  ${versions.map((version, index) => `
-                    <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
-                      <div class="flex items-start justify-between">
-                        <div class="flex-1">
-                          <div class="flex items-center gap-2 mb-1">
-                            <span class="text-sm font-semibold text-gray-900">Version ${versions.length - index}</span>
-                            <span class="text-xs text-gray-500">${version.action || 'Updated'}</span>
-                          </div>
-                          <p class="text-sm text-gray-600 mb-1">${version.description || 'No description'}</p>
-                          <div class="flex items-center gap-2 text-xs text-gray-500">
-                            <span>${version.user_name || 'System'}</span>
-                            <span>•</span>
-                            <span>${new Date(version.timestamp).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            `,
-            showConfirmButton: true,
-            confirmButtonText: 'Close',
-            width: '600px'
-          });
-        } else {
-          Swal.fire({
-            title: 'Version History',
-            html: `
-              <div class="text-left">
-                <p class="text-gray-600 mb-4">View all versions of archived documents.</p>
-                <div class="space-y-2 max-h-64 overflow-y-auto">
-                  <div class="text-gray-500 text-sm text-center py-4">No version history available for this document.</div>
-                </div>
-              </div>
-            `,
-            showConfirmButton: true,
-            confirmButtonText: 'Close',
-            width: '600px'
-          });
-        }
-      })
-      .catch(error => {
-        console.error('Error loading version history:', error);
-        Swal.fire({
-          title: 'Version History',
-          html: `
-            <div class="text-left">
-              <p class="text-gray-600 mb-4">View all versions of archived documents.</p>
-              <div class="space-y-2 max-h-64 overflow-y-auto">
-                <div class="text-gray-500 text-sm text-center py-4">Version history feature coming soon...</div>
-              </div>
-            </div>
-          `,
-          showConfirmButton: true,
-          confirmButtonText: 'Close',
-          width: '600px'
-        });
-      });
-    }
+    // Version history feature removed for Archived Documents
 
     function showCollaborators() {
       Swal.fire({
@@ -2302,22 +3067,6 @@
               <div id="share-autocomplete-dropdown" class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto"></div>
             </div>
             
-            <!-- Get Link Section -->
-            <div class="mb-6 pb-6 border-b border-gray-200">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                  </svg>
-                  <span class="text-sm font-medium text-gray-700">Get Link</span>
-                </div>
-                <button id="copy-link-btn" data-share-url="${shareUrl}" class="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                  Copy link
-                </button>
-              </div>
-            </div>
-
               <!-- People with access -->
               <div class="mb-6">
                 <h4 class="text-sm font-semibold text-gray-700 mb-3">People with access</h4>
@@ -2410,11 +3159,24 @@
             const autocompleteDropdown = document.getElementById('share-autocomplete-dropdown');
             
             if (addPeopleInput) {
-              // Input event for autocomplete
+              // Debounce function to limit API calls
+              let searchTimeout = null;
+              
+              // Input event for autocomplete with debouncing
               addPeopleInput.addEventListener('input', function(e) {
                 const query = this.value.trim();
+                
+                // Clear previous timeout
+                if (searchTimeout) {
+                  clearTimeout(searchTimeout);
+                }
+                
+                // Only search if query is at least 2 characters
                 if (query.length >= 2) {
-                  searchUsersAndEmails(query, autocompleteDropdown, documentId);
+                  // Debounce: wait 300ms after user stops typing
+                  searchTimeout = setTimeout(() => {
+                    searchUsersAndEmails(query, autocompleteDropdown, documentId);
+                  }, 300);
                 } else {
                   autocompleteDropdown.classList.add('hidden');
                   autocompleteDropdown.innerHTML = '';
@@ -2451,7 +3213,7 @@
               // Use event delegation on the share-people-list container
               const peopleList = document.getElementById('share-people-list');
               if (peopleList) {
-                console.log('Attaching tooltip handlers via event delegation');
+                // Tooltip handlers attached via event delegation
                 
                 // Remove old listeners by cloning
                 const newPeopleList = peopleList.cloneNode(true);
@@ -2471,13 +3233,8 @@
                     const userInitial = trigger.getAttribute('data-user-initial');
                     const avatarColor = trigger.getAttribute('data-avatar-color');
                     
-                    console.log('Mouse entered tooltip trigger');
-                    console.log('Tooltip data:', { userName, userEmail, userRole, userInitial, avatarColor });
-                    
                     if (window.showUserTooltip) {
                       window.showUserTooltip(e, userName, userEmail, userRole, userInitial, avatarColor);
-                    } else {
-                      console.error('showUserTooltip function not found');
                     }
                   }
                 }, true);
@@ -2495,7 +3252,7 @@
                 newPeopleList.addEventListener('mouseleave', function(e) {
                   const trigger = e.target.closest('.user-tooltip-trigger');
                   if (trigger) {
-                    console.log('Mouse left tooltip trigger');
+                    // Mouse left tooltip trigger
                     
                     // Only hide if tooltip is already shown
                     const tooltip = document.getElementById('user-tooltip');
@@ -2677,16 +3434,44 @@
 
     // Search users and emails for autocomplete
     function searchUsersAndEmails(query, dropdown, documentId) {
-      fetch('/users/search?q=' + encodeURIComponent(query), {
+      // Don't search if query is too short (less than 2 characters)
+      if (!query || query.trim().length < 2) {
+        dropdown.classList.add('hidden');
+        return;
+      }
+      
+      const trimmedQuery = query.trim();
+      
+      fetch('/users/search?q=' + encodeURIComponent(trimmedQuery), {
         method: 'GET',
         headers: {
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest'
         }
       })
-      .then(response => response.json())
+      .then(response => {
+        // Check if response is ok and is JSON
+        if (!response.ok) {
+          // If 404 or other error, just hide dropdown silently
+          if (response.status === 404) {
+            dropdown.classList.add('hidden');
+            return null;
+          }
+          throw new Error('Network response was not ok');
+        }
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          dropdown.classList.add('hidden');
+          return null;
+        }
+        return response.json();
+      })
       .then(data => {
+        // If data is null (from error handling above), return early
+        if (!data) {
+          return;
+        }
         if (data.success && data.users && data.users.length > 0) {
           dropdown.innerHTML = data.users.map(user => {
             const safeEmail = escapeHtml(user.email);
@@ -2741,7 +3526,12 @@
         }
       })
       .catch(error => {
-        console.error('Error searching users:', error);
+        // Silently handle errors - don't log to console to avoid noise
+        // Only log if it's not a network/404 error
+        if (error.message && !error.message.includes('404') && !error.message.includes('Failed to fetch')) {
+          // Only log unexpected errors
+          console.error('Error searching users:', error);
+        }
         dropdown.classList.add('hidden');
       });
     }
@@ -3174,7 +3964,6 @@
       
       // If tooltip already exists and is for the same element, don't recreate
       if (window.currentTooltip && window.currentTooltip.dataset.targetId === userName) {
-        console.log('Tooltip already exists for this element');
         return;
       }
       
@@ -3191,17 +3980,13 @@
       window.tooltipTimeout = setTimeout(() => {
         // Check if still hovering over the same element (compare by triggerId)
         if (!window.tooltipTarget || !window.tooltipData || window.tooltipTargetId !== triggerId) {
-          console.log('Tooltip target or data lost or changed');
           return;
         }
         
         // Double check the element is still in the DOM
         if (!document.body.contains(window.tooltipTarget)) {
-          console.log('Tooltip target no longer in DOM');
           return;
         }
-        
-        console.log('Creating tooltip after 2 seconds');
         
         const tooltip = document.createElement('div');
         tooltip.id = 'user-tooltip';
@@ -3306,7 +4091,7 @@
     };
 
     window.hideUserTooltip = function() {
-      console.log('hideUserTooltip called');
+      // Hide user tooltip
       
       // Clear hide timeout
       if (window.hideTooltipTimeout) {
@@ -4108,6 +4893,108 @@
         }
       }
     });
+
+    // Export Archived Documents Report
+    function exportArchivedReport() {
+      const button = document.getElementById('export-report-btn');
+      const originalHTML = button.innerHTML;
+      
+      // Get the selected date range
+      const rangeSelect = document.getElementById('rep-range');
+      const days = rangeSelect ? rangeSelect.value : '30';
+      
+      // Show loading state
+      button.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Exporting...';
+      button.disabled = true;
+      if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+      
+      // Build and submit a form to let the browser handle the download
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '{{ route("document.archived.export") }}';
+      form.target = '_blank';
+      form.style.display = 'none';
+      
+      // Add CSRF token
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = '_token';
+      csrfInput.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      form.appendChild(csrfInput);
+      
+      // Add date range
+      const rangeInput = document.createElement('input');
+      rangeInput.type = 'hidden';
+      rangeInput.name = 'days';
+      rangeInput.value = days;
+      form.appendChild(rangeInput);
+      
+      // Add format (default to Excel)
+      const formatInput = document.createElement('input');
+      formatInput.type = 'hidden';
+      formatInput.name = 'format';
+      formatInput.value = 'excel';
+      form.appendChild(formatInput);
+      
+      document.body.appendChild(form);
+      form.submit();
+      
+      // Remove form after a short delay
+      setTimeout(() => {
+        document.body.removeChild(form);
+        button.innerHTML = originalHTML;
+        button.disabled = false;
+        if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+      }, 1000);
+    }
   </script>
+  
+  <!-- Show archived document success toast notification (like dashboard) -->
+  @if(request('archived'))
+    <script>
+        (function() {
+            function showArchivedNotification() {
+                if (typeof window.showNotification === 'function') {
+                    window.showNotification('Document has been successfully archived and is now displayed in the table below.', 'success', 5000);
+                } else {
+                    // Wait for the function to be available (from soliera_js)
+                    setTimeout(showArchivedNotification, 100);
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(showArchivedNotification, 300);
+                });
+            } else {
+                setTimeout(showArchivedNotification, 300);
+            }
+        })();
+    </script>
+  @endif
+  
+  <!-- Show session success toast notification (like dashboard) -->
+  @if(session('success'))
+    <script>
+        (function() {
+            function showSuccessNotification() {
+                if (typeof window.showNotification === 'function') {
+                    window.showNotification('{{ session('success') }}', 'success', 5000);
+                } else {
+                    // Wait for the function to be available (from soliera_js)
+                    setTimeout(showSuccessNotification, 100);
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(showSuccessNotification, 300);
+                });
+            } else {
+                setTimeout(showSuccessNotification, 300);
+            }
+        })();
+    </script>
+  @endif
 </body>
 </html>

@@ -9,11 +9,17 @@ class GeminiService
 {
     private $client;
     private $apiKey;
+    private $model;
+    private $maxChars;
+    private $examples;
 
     public function __construct()
     {
         $this->client = new Client();
         $this->apiKey = env('GEMINI_API_KEY');
+        $this->model = config('gemini.model', 'gemini-1.5-flash');
+        $this->maxChars = config('gemini.max_chars', 6000);
+        $this->examples = config('gemini.legal_examples', []);
         // Do not throw here; allow graceful fallback inside analyzeDocument
         if (empty($this->apiKey)) {
             \Log::warning('GEMINI_API_KEY is not set; GeminiService will use fallback analysis.');
@@ -38,7 +44,7 @@ class GeminiService
 
         // Check for common OCR errors and fallback messages
         $lowercaseText = strtolower($text);
-        $isFallbackText = str_contains($lowercaseText, 'unknown document type') || 
+        $isFallbackText = str_contains($lowercaseText, 'unknown document type') ||
             str_contains($lowercaseText, 'document not found') ||
             str_contains($lowercaseText, 'tmp') ||
             str_contains($lowercaseText, 'file not found') ||
@@ -47,7 +53,7 @@ class GeminiService
             str_contains($lowercaseText, 'image file') ||
             str_contains($lowercaseText, 'pdf file') ||
             str_contains($lowercaseText, 'manual review recommended');
-            
+
         if ($isFallbackText) {
             \Log::warning('GeminiService: Fallback text detected, using enhanced filename analysis', [
                 'text' => $text,
@@ -63,7 +69,7 @@ class GeminiService
                 \Log::warning('GEMINI_API_KEY is not set, using enhanced fallback analysis');
                 return $this->enhancedFallbackAnalysis($text);
             }
-            
+
             \Log::info('Starting Gemini AI analysis', [
                 'api_key_set' => !empty($this->apiKey),
                 'text_length' => strlen($text),
@@ -71,9 +77,11 @@ class GeminiService
                 'text_validation_passed' => true,
                 'is_fallback_text' => false
             ]);
-            
-            $url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $this->apiKey;
-            
+
+            $url = 'https://generativelanguage.googleapis.com/v1/models/' . $this->model . ':generateContent?key=' . $this->apiKey;
+            $trimmedText = $this->limitText($text, $this->maxChars);
+            $prompt = $this->buildPrompt($trimmedText);
+
             $response = $this->client->post($url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
@@ -83,61 +91,22 @@ class GeminiService
                         [
                             'parts' => [
                                 [
-                                    'text' => "You are a legal document classifier and analyzer. Analyze the FULL text content and provide accurate classification and analysis.
-
-IMPORTANT: This is actual document content, not a filename or fallback text. Analyze the real content thoroughly.
-
-Primary task: Categorize the document into ONE of these categories ONLY:
-[Policy, Contract, Legal Notice, Compliance, Financial, Report, Memorandum, Affidavit, Subpoena, Cease & Desist, Legal Brief, General]
-
-Classification rules (in order of priority):
-1. POLICY: Contains 'Privacy Policy', 'Data Protection', 'Terms of Service', 'Terms and Conditions', 'Acceptable Use Policy', 'Data Privacy Policy'
-2. CONTRACT: Contains 'contract', 'agreement', 'parties', 'obligations', 'signatures', 'binding terms', 'lease', 'employment agreement'
-3. MEMORANDUM: Contains 'memorandum', 'memo', 'MOA', 'internal communication', 'staff notice'
-4. LEGAL NOTICE: Contains 'legal notice', 'cease and desist', 'demand letter', 'court notice'
-5. COMPLIANCE: Contains 'compliance', 'regulation', 'regulatory', 'audit', 'standards'
-6. FINANCIAL: Contains 'invoice', 'receipt', 'financial statement', 'budget', 'expense report'
-7. REPORT: Contains 'report', 'analysis', 'assessment', 'evaluation', 'findings'
-8. AFFIDAVIT: Contains 'affidavit', 'sworn statement', 'declaration', 'under oath'
-9. SUBPOENA: Contains 'subpoena', 'court order', 'summons'
-10. LEGAL BRIEF: Contains 'legal brief', 'case brief', 'legal argument'
-11. GENERAL: Only if absolutely none of the above match
-
-Return a structured response in this exact format:
-
-CATEGORY: <one of the allowed categories above>
-CONFIDENCE: <0.0-1.0>
-
-SUMMARY: <2-4 sentences based on the actual document content>
-KEY_INFO: <concise bullet-like info extracted from content>
-LEGAL_IMPLICATIONS: <short text or 'None' based on content>
-COMPLIANCE_STATUS: <compliant | non-compliant | review_required>
-TAGS: <5-7 relevant tags, comma-separated>
-
-Document text to analyze: " . $text . "
-
-IMPORTANT: Also determine if the document requires legal review based on its content (answer YES/NO).
-IMPORTANT: Also determine if the document requires visitor coordination (answer YES/NO), especially if it mentions visitors, attendees, or guest lists.
-IMPORTANT: Provide a LEGAL_RISK_SCORE: [Low, Medium, High] based on potential legal issues or implications.
-
-LEGAL_REVIEW_REQUIRED: [YES/NO]
-VISITOR_COORDINATION_REQUIRED: [YES/NO]
-LEGAL_RISK_SCORE: [Low/Medium/High]"
+                                    'text' => $prompt
                                 ]
                             ]
                         ]
                     ]
                 ]
             ]);
-            
+
             $result = json_decode($response->getBody(), true);
-            
+
             \Log::info('Gemini API response received', [
                 'response_keys' => array_keys($result),
                 'has_candidates' => isset($result['candidates']),
                 'candidates_count' => isset($result['candidates']) ? count($result['candidates']) : 0
             ]);
-            
+
             // Parse the response to extract structured data
             if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
                 $analysisText = $result['candidates'][0]['content']['parts'][0]['text'];
@@ -147,16 +116,16 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
                 ]);
                 return $this->parseAnalysisResponse($analysisText);
             }
-            
+
             \Log::warning('Invalid Gemini API response format', [
                 'result' => $result
             ]);
-            
+
             return [
                 'error' => true,
                 'message' => 'Invalid response format from Gemini API'
             ];
-            
+
         } catch (RequestException $e) {
             // On ANY API/network error, gracefully fallback to local analysis
             \Log::error('Gemini API request failed', [
@@ -176,18 +145,65 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
         }
     }
 
+    private function buildPrompt(string $text): string
+    {
+        return "You are Soliera's Senior Legal Compliance AI, an advanced expert in Philippine Law, Corporate Jurisprudence, and Document Analysis. 
+
+## ANALYSIS PROTOCOL (STRICT CONTENT VERIFICATION)
+1. **Clause Checklist**: You MUST check for these specific legal elements:
+   - **Parties**: Identity of actors.
+   - **Term & Termination**: Duration and how to end the agreement.
+   - **Financial Terms**: Amounts, payment schedules, or penalties.
+   - **Liability/Indemnity**: Who is responsible for damages.
+   - **Governing Law**: Philippine jurisdiction (e.g., Civil Code, Labor Code).
+   - **Confidentiality**: Data privacy or non-disclosure terms.
+
+2. **Evidence Requirement**: For EVERY key finding, you MUST provide a verbatim quote from the text as 'EVIDENCE'. If not found, state 'NOT_FOUND'.
+
+## TAXONOMY
+* **Contract**: Binding agreements (Lease, Deed, MOA, NDA).
+* **Policy**: Internal rules, Memos citing RA acts.
+* **Legal Notice**: Demand letters, NOVs.
+* **Compliance**: Permits, COE, Secretary's Cert.
+* **Report**: Incident/Audit reports.
+* **General**: Unclassified.
+
+## INSTRUCTIONS
+Analyze the text below. Return ONLY this format:
+
+CATEGORY: <category>
+CONFIDENCE: <0.0-1.0>
+SUMMARY: <2-3 sentences summary>
+KEY_INFO: 
+- Parties: <value> | EVIDENCE: \"<quote>\"
+- Dates/Term: <value> | EVIDENCE: \"<quote>\"
+- Financials: <value> | EVIDENCE: \"<quote>\"
+- Laws Cited: <value> | EVIDENCE: \"<quote>\"
+LEGAL_IMPLICATIONS: <brief analysis>
+COMPLIANCE_STATUS: <compliant | non-compliant | review_required>
+TAGS: <tags>
+FLAGGED_ISSUES: <list of specific risks/violations found | EVIDENCE: \"<quote>\">
+VIOLATION_SCORE: <Low/Medium/High/Critical>
+LEGAL_REVIEW_REQUIRED: <YES/NO>
+LEGAL_RISK_SCORE: <Low/Medium/High>
+
+## DOCUMENT TEXT
+\"{$text}\"";
+    }
+
     public function enhancedFallbackAnalysis($text)
     {
         // Enhanced keyword-based analysis as fallback
         $text = strtolower($text);
-        
+
         \Log::info('GeminiService: Using enhanced fallback analysis', [
             'text' => $text,
             'text_length' => strlen($text)
         ]);
-        
+
         // Check if this is a fallback message indicating extraction failure
-        if (str_contains($text, 'unknown document type') || 
+        if (
+            str_contains($text, 'unknown document type') ||
             str_contains($text, 'document not found') ||
             str_contains($text, 'tmp') ||
             str_contains($text, 'file not found') ||
@@ -195,18 +211,19 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
             str_contains($text, 'image file') ||
             str_contains($text, 'pdf file') ||
             str_contains($text, 'pdf text extraction failed') ||
-            str_contains($text, 'manual review recommended')) {
-            
+            str_contains($text, 'manual review recommended')
+        ) {
+
             \Log::warning('GeminiService: Enhanced fallback analysis detected extraction failure', [
                 'text' => $text,
                 'using_filename_analysis' => true
             ]);
-            
+
             // Try to extract meaningful information from the fallback text
             $category = $this->extractCategoryFromFallbackText($text);
             $requiresLegalReview = $this->determineLegalReviewFromFallback($text);
             $legalRiskScore = $this->determineRiskFromFallback($text);
-            
+
             return [
                 'error' => false,
                 'category' => $category,
@@ -222,13 +239,13 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
                 'extraction_quality' => 'low'
             ];
         }
-        
+
         // Initialize variables
         $category = 'general';
         $requiresLegalReview = false;
         $requiresVisitorCoordination = false;
         $legalRiskScore = 'Low';
-        
+
         // Enhanced document type detection with better keyword mapping
         $documentTypeMap = [
             // Policy documents
@@ -238,7 +255,7 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
             'terms and conditions' => ['category' => 'policy', 'risk' => 'Medium', 'review' => true],
             'acceptable use' => ['category' => 'policy', 'risk' => 'Medium', 'review' => true],
             'data privacy' => ['category' => 'policy', 'risk' => 'Medium', 'review' => true],
-            
+
             // Contract documents
             'contract' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true],
             'agreement' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true],
@@ -248,56 +265,56 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
             'obligations' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true],
             'signatures' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true],
             'binding' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true],
-            
+
             // Memorandum documents
             'memorandum' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false],
             'memo' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false],
             'moa' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false],
             'internal communication' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false],
             'staff notice' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false],
-            
+
             // Legal notice documents
             'legal notice' => ['category' => 'legal_notice', 'risk' => 'High', 'review' => true],
             'cease and desist' => ['category' => 'legal_notice', 'risk' => 'High', 'review' => true],
             'demand letter' => ['category' => 'legal_notice', 'risk' => 'High', 'review' => true],
             'court notice' => ['category' => 'legal_notice', 'risk' => 'High', 'review' => true],
-            
+
             // Compliance documents
             'compliance' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true],
             'regulation' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true],
             'regulatory' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true],
             'audit' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true],
             'standards' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true],
-            
+
             // Financial documents
             'invoice' => ['category' => 'financial', 'risk' => 'Low', 'review' => false],
             'receipt' => ['category' => 'financial', 'risk' => 'Low', 'review' => false],
             'financial statement' => ['category' => 'financial', 'risk' => 'Low', 'review' => false],
             'budget' => ['category' => 'financial', 'risk' => 'Low', 'review' => false],
             'expense report' => ['category' => 'financial', 'risk' => 'Low', 'review' => false],
-            
+
             // Report documents
             'report' => ['category' => 'report', 'risk' => 'Low', 'review' => false],
             'analysis' => ['category' => 'report', 'risk' => 'Low', 'review' => false],
             'assessment' => ['category' => 'report', 'risk' => 'Low', 'review' => false],
             'evaluation' => ['category' => 'report', 'risk' => 'Low', 'review' => false],
             'findings' => ['category' => 'report', 'risk' => 'Low', 'review' => false],
-            
+
             // Legal documents
             'affidavit' => ['category' => 'affidavit', 'risk' => 'Medium', 'review' => true],
             'sworn statement' => ['category' => 'affidavit', 'risk' => 'Medium', 'review' => true],
             'declaration' => ['category' => 'affidavit', 'risk' => 'Medium', 'review' => true],
             'under oath' => ['category' => 'affidavit', 'risk' => 'Medium', 'review' => true],
-            
+
             'subpoena' => ['category' => 'subpoena', 'risk' => 'High', 'review' => true],
             'court order' => ['category' => 'subpoena', 'risk' => 'High', 'review' => true],
             'summons' => ['category' => 'subpoena', 'risk' => 'High', 'review' => true],
-            
+
             'legal brief' => ['category' => 'legal_brief', 'risk' => 'Medium', 'review' => true],
             'case brief' => ['category' => 'legal_brief', 'risk' => 'Medium', 'review' => true],
             'legal argument' => ['category' => 'legal_brief', 'risk' => 'Medium', 'review' => true]
         ];
-        
+
         // Check for document type indicators
         foreach ($documentTypeMap as $indicator => $config) {
             if (strpos($text, $indicator) !== false) {
@@ -307,20 +324,22 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
                 break;
             }
         }
-        
+
         // Determine if visitor coordination is required
-        if (strpos($text, 'visitor') !== false || strpos($text, 'attendee') !== false || 
+        if (
+            strpos($text, 'visitor') !== false || strpos($text, 'attendee') !== false ||
             strpos($text, 'guest list') !== false || strpos($text, 'guests') !== false ||
-            strpos($text, 'meeting') !== false || strpos($text, 'conference') !== false) {
+            strpos($text, 'meeting') !== false || strpos($text, 'conference') !== false
+        ) {
             $requiresVisitorCoordination = true;
         }
 
         // Generate meaningful summary based on detected category
         $summary = $this->generateSummaryFromCategory($category, $text);
-        
+
         // Generate tags based on content and category
         $tags = $this->generateTagsFromContent($text, $category);
-        
+
         return [
             'error' => false,
             'category' => $category,
@@ -343,7 +362,7 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
     private function generateSummaryFromCategory($category, $text)
     {
         $textPreview = substr($text, 0, 150);
-        
+
         switch ($category) {
             case 'policy':
                 return "This appears to be a policy document, likely containing rules, guidelines, or standards. Content preview: $textPreview...";
@@ -376,24 +395,32 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
     private function generateTagsFromContent($text, $category)
     {
         $tags = [$category, 'fallback_analysis'];
-        
+
         // Add content-based tags
-        if (strpos($text, 'legal') !== false) $tags[] = 'legal';
-        if (strpos($text, 'business') !== false) $tags[] = 'business';
-        if (strpos($text, 'compliance') !== false) $tags[] = 'compliance';
-        if (strpos($text, 'financial') !== false) $tags[] = 'financial';
-        if (strpos($text, 'policy') !== false) $tags[] = 'policy';
-        if (strpos($text, 'contract') !== false) $tags[] = 'contract';
-        if (strpos($text, 'memo') !== false) $tags[] = 'memo';
-        if (strpos($text, 'report') !== false) $tags[] = 'report';
-        
+        if (strpos($text, 'legal') !== false)
+            $tags[] = 'legal';
+        if (strpos($text, 'business') !== false)
+            $tags[] = 'business';
+        if (strpos($text, 'compliance') !== false)
+            $tags[] = 'compliance';
+        if (strpos($text, 'financial') !== false)
+            $tags[] = 'financial';
+        if (strpos($text, 'policy') !== false)
+            $tags[] = 'policy';
+        if (strpos($text, 'contract') !== false)
+            $tags[] = 'contract';
+        if (strpos($text, 'memo') !== false)
+            $tags[] = 'memo';
+        if (strpos($text, 'report') !== false)
+            $tags[] = 'report';
+
         // Ensure we have 5-7 tags
         $tags = array_unique($tags);
         if (count($tags) < 5) {
             $tags[] = 'document';
             $tags[] = 'analysis';
         }
-        
+
         return array_slice($tags, 0, 7);
     }
 
@@ -426,26 +453,28 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
     {
         // Enhanced keyword-based analysis as fallback
         $text = strtolower($text);
-        
+
         // Check if this is a fallback message indicating extraction failure
-        if (str_contains($text, 'unknown document type') || 
+        if (
+            str_contains($text, 'unknown document type') ||
             str_contains($text, 'document not found') ||
             str_contains($text, 'tmp') ||
             str_contains($text, 'file not found') ||
             str_contains($text, 'likely scanned') ||
             str_contains($text, 'image file') ||
-            str_contains($text, 'pdf file')) {
-            
+            str_contains($text, 'pdf file')
+        ) {
+
             \Log::warning('GeminiService: Fallback analysis detected extraction failure', [
                 'text' => $text,
                 'using_filename_analysis' => true
             ]);
-            
+
             // Try to extract meaningful information from the fallback text
             $category = $this->extractCategoryFromFallbackText($text);
             $requiresLegalReview = $this->determineLegalReviewFromFallback($text);
             $legalRiskScore = $this->determineRiskFromFallback($text);
-            
+
             return [
                 'error' => false,
                 'category' => $category,
@@ -461,13 +490,13 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
                 'extraction_quality' => 'low'
             ];
         }
-        
+
         // Initialize variables
         $category = 'general';
         $requiresLegalReview = false;
         $requiresVisitorCoordination = false;
         $legalRiskScore = 'Low';
-        
+
         // Check if text contains filename-based indicators (HIGHEST PRIORITY)
         $filenameIndicators = [
             'memo' => 'memorandum',
@@ -478,7 +507,7 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
             'affidavit' => 'affidavit',
             'subpoena' => 'subpoena'
         ];
-        
+
         foreach ($filenameIndicators as $indicator => $categoryType) {
             if (strpos($text, $indicator) !== false) {
                 // If we find a filename indicator, prioritize it
@@ -486,7 +515,7 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
                 break;
             }
         }
-        
+
         // If no filename indicator found, proceed with content analysis
         if ($category === 'general') {
             // Check for specific legal document types first - PRIORITY ORDER
@@ -540,7 +569,7 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
                 $category = 'policy';
             }
         }
-        
+
         // Determine if visitor coordination is required
         if (strpos($text, 'visitor') !== false || strpos($text, 'attendee') !== false || strpos($text, 'guest list') !== false || strpos($text, 'guests') !== false) {
             $requiresVisitorCoordination = true;
@@ -548,13 +577,13 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
 
         // Extract first 200 characters as summary
         $summary = substr($text, 0, 200) . '...';
-        
+
         // Generate tags based on common words
         $words = str_word_count($text, 1);
         $wordCount = array_count_values($words);
         arsort($wordCount);
         $tags = array_slice(array_keys($wordCount), 0, 5);
-        
+
         return [
             'error' => false,
             'category' => $category,
@@ -625,7 +654,7 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
     private function extractCategoryFromFallbackText($text)
     {
         $text = strtolower($text);
-        
+
         // Check for specific document types in fallback text
         if (str_contains($text, 'policy') || str_contains($text, 'privacy')) {
             return 'policy';
@@ -645,7 +674,7 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
         if (str_contains($text, 'legal') || str_contains($text, 'affidavit')) {
             return 'legal';
         }
-        
+
         return 'general';
     }
 
@@ -655,16 +684,18 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
     private function determineLegalReviewFromFallback($text)
     {
         $text = strtolower($text);
-        
+
         // High-risk document types that typically require legal review
-        if (str_contains($text, 'contract') || 
+        if (
+            str_contains($text, 'contract') ||
             str_contains($text, 'agreement') ||
             str_contains($text, 'legal') ||
             str_contains($text, 'policy') ||
-            str_contains($text, 'compliance')) {
+            str_contains($text, 'compliance')
+        ) {
             return true;
         }
-        
+
         return false;
     }
 
@@ -674,22 +705,26 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
     private function determineRiskFromFallback($text)
     {
         $text = strtolower($text);
-        
+
         // High-risk indicators
-        if (str_contains($text, 'contract') || 
+        if (
+            str_contains($text, 'contract') ||
             str_contains($text, 'legal') ||
             str_contains($text, 'policy') ||
-            str_contains($text, 'compliance')) {
+            str_contains($text, 'compliance')
+        ) {
             return 'Medium';
         }
-        
+
         // Low-risk indicators
-        if (str_contains($text, 'memo') || 
+        if (
+            str_contains($text, 'memo') ||
             str_contains($text, 'report') ||
-            str_contains($text, 'general')) {
+            str_contains($text, 'general')
+        ) {
             return 'Low';
         }
-        
+
         return 'Low';
     }
 
@@ -697,11 +732,12 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
     {
         try {
             // Use the correct API endpoint with gemini-1.5-flash model
-            $url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $this->apiKey;
-            
+            $url = 'https://generativelanguage.googleapis.com/v1/models/' . $this->model . ':generateContent?key=' . $this->apiKey;
+            $trimmedText = $this->limitText($text, $this->maxChars);
+
             // Debug: Log the URL (remove in production)
             \Log::info('Gemini Legal API URL: ' . $url);
-            
+
             $response = $this->client->post($url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
@@ -792,9 +828,9 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
                 \Log::warning('GEMINI_API_KEY is not set, using fallback content generation');
                 return $this->generateFallbackContent($prompt);
             }
-            
+
             $url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $this->apiKey;
-            
+
             $response = $this->client->post($url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
@@ -811,20 +847,20 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
                     ]
                 ]
             ]);
-            
+
             $result = json_decode($response->getBody(), true);
-            
+
             if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
                 return [
                     'content' => $result['candidates'][0]['content']['parts'][0]['text']
                 ];
             }
-            
+
             return [
                 'error' => true,
                 'message' => 'Invalid response format from Gemini API'
             ];
-            
+
         } catch (RequestException $e) {
             \Log::error('Gemini content generation failed', [
                 'error' => $e->getMessage(),
@@ -841,164 +877,70 @@ LEGAL_RISK_SCORE: [Low/Medium/High]"
     }
 
     /**
-     * Enhanced AI Analysis with Classification and Violation Detection
+     * Enhanced AI Analysis with Classification, Violation Detection, and Quality Assessment
      */
-    public function analyzeDocumentEnhanced($text)
-    {
-        // Validate input text before processing
-        if (empty(trim($text))) {
-            \Log::error('GeminiService: Empty or invalid text provided for enhanced analysis', [
-                'text' => $text,
-                'text_length' => strlen($text)
-            ]);
-            return [
-                'error' => true,
-                'message' => 'No text content provided for analysis',
-                'category' => 'general',
-                'fallback' => true
-            ];
-        }
 
+    public function analyzeDocumentEnhanced($text, array $qualityData = [])
+    {
+        // 1. ALWAYS Try Gemini Full Power AI First (Primary Channel)
         try {
-            // If API key is missing, fall back to enhanced local analysis
-            if (empty($this->apiKey)) {
-                \Log::warning('GEMINI_API_KEY is not set, using enhanced fallback analysis');
+            if (empty(trim($text))) {
                 return $this->enhancedFallbackAnalysisWithViolations($text);
             }
-            
-            \Log::info('Starting Enhanced Gemini AI analysis', [
-                'api_key_set' => !empty($this->apiKey),
+
+            \Log::info('FULL POWER AI Analysis initiated (Primary Channel)', [
                 'text_length' => strlen($text),
-                'text_preview' => substr($text, 0, 100)
+                'readability_score' => $qualityData['reliability_score'] ?? 'N/A'
             ]);
-            
-            $url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $this->apiKey;
-            
+
+            $url = 'https://generativelanguage.googleapis.com/v1/models/' . $this->model . ':generateContent?key=' . $this->apiKey;
+            $prompt = $this->buildPrompt($text);
+
             $response = $this->client->post($url, [
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                ],
+                'headers' => ['Content-Type' => 'application/json'],
                 'json' => [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                [
-                                    'text' => "You are an advanced legal document analyzer with expertise in classification, violation detection, and compliance analysis. Analyze the FULL text content and provide comprehensive analysis.
-
-IMPORTANT: This is actual document content, not a filename or fallback text. Analyze the real content thoroughly.
-
-PRIMARY TASKS:
-1. CLASSIFICATION: Categorize the document into ONE of these categories ONLY:
-[Policy, Contract, Legal Notice, Compliance, Financial, Report, Memorandum, Affidavit, Subpoena, Cease & Desist, Legal Brief, General]
-
-2. VIOLATION ANALYSIS: Detect potential legal violations, risky terms, and problematic clauses
-3. COMPLIANCE CHECK: Assess regulatory compliance and identify applicable standards
-4. RISK ASSESSMENT: Evaluate legal and business risks
-
-CLASSIFICATION RULES (in order of priority):
-1. POLICY: Contains 'Privacy Policy', 'Data Protection', 'Terms of Service', 'Terms and Conditions', 'Acceptable Use Policy', 'Data Privacy Policy'
-2. CONTRACT: Contains 'contract', 'agreement', 'parties', 'obligations', 'signatures', 'binding terms', 'lease', 'employment agreement'
-3. MEMORANDUM: Contains 'memorandum', 'memo', 'MOA', 'internal communication', 'staff notice'
-4. LEGAL NOTICE: Contains 'legal notice', 'cease and desist', 'demand letter', 'court notice'
-5. COMPLIANCE: Contains 'compliance', 'regulation', 'regulatory', 'audit', 'standards'
-6. FINANCIAL: Contains 'invoice', 'receipt', 'financial statement', 'budget', 'expense report'
-7. REPORT: Contains 'report', 'analysis', 'assessment', 'evaluation', 'findings'
-8. AFFIDAVIT: Contains 'affidavit', 'sworn statement', 'declaration', 'under oath'
-9. SUBPOENA: Contains 'subpoena', 'court order', 'summons'
-10. LEGAL BRIEF: Contains 'legal brief', 'case brief', 'legal argument'
-11. GENERAL: Only if absolutely none of the above match
-
-VIOLATION DETECTION: Look for:
-- Unfair contract terms
-- Missing essential clauses
-- Ambiguous language
-- Potential legal risks
-- Non-compliance indicators
-- Problematic liability limitations
-- Unclear termination clauses
-
-COMPLIANCE ANALYSIS: Check for:
-- Data protection compliance
-- Employment law compliance
-- Contract law compliance
-- Regulatory requirements
-- Industry standards
-
-Return a structured response in this exact format:
-
-CATEGORY: <one of the allowed categories above>
-CONFIDENCE: <0.0-1.0>
-SUMMARY: <2-4 sentences based on the actual document content>
-KEY_INFO: <concise bullet-like info extracted from content>
-LEGAL_IMPLICATIONS: <short text or 'None' based on content>
-COMPLIANCE_STATUS: <compliant | non_compliant | review_required>
-TAGS: <5-7 relevant tags, comma-separated>
-
-VIOLATION_ANALYSIS: <detailed analysis of potential violations and risks>
-VIOLATION_SCORE: <Low | Medium | High | Critical>
-FLAGGED_ISSUES: <specific issues found, comma-separated>
-COMPLIANCE_DETAILS: <detailed compliance analysis>
-REGULATORY_STANDARDS: <applicable standards identified, comma-separated>
-AI_INSIGHTS: <AI-generated insights and recommendations>
-
-LEGAL_REVIEW_REQUIRED: [YES/NO]
-VISITOR_COORDINATION_REQUIRED: [YES/NO]
-LEGAL_RISK_SCORE: [Low/Medium/High]
-IMMEDIATE_REVIEW_REQUIRED: [YES/NO]
-
-Document text to analyze: " . $text . "
-"
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                    'contents' => [['parts' => [['text' => $prompt]]]]
+                ],
+                'timeout' => 45 // High timeout for full-power cognitive analysis
             ]);
-            
+
             $result = json_decode($response->getBody(), true);
-            
-            \Log::info('Enhanced Gemini API response received', [
-                'response_keys' => array_keys($result),
-                'has_candidates' => isset($result['candidates']),
-                'candidates_count' => isset($result['candidates']) ? count($result['candidates']) : 0
-            ]);
-            
-            // Parse the response to extract structured data
+
             if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
                 $analysisText = $result['candidates'][0]['content']['parts'][0]['text'];
-                \Log::info('Enhanced Gemini analysis text extracted', [
-                    'text_length' => strlen($analysisText),
-                    'text_preview' => substr($analysisText, 0, 200)
-                ]);
-                return $this->parseEnhancedAnalysisResponse($analysisText);
+                $analysis = $this->parseEnhancedAnalysisResponse($analysisText);
+
+                // --- PURE AI PERFORMANCE METRICS ---
+                $modelConfidence = $analysis['confidence'] ?? 0.8;
+                $extractionReliability = $qualityData['reliability_score'] ?? 1.0;
+
+                // In Full Power mode, we trust the Model's self-assessment more
+                $combinedConfidence = ($modelConfidence * 0.9) + ($extractionReliability * 0.1);
+
+                $analysis['confidence'] = round($combinedConfidence, 2);
+                $analysis['extraction_quality_score'] = $extractionReliability;
+                $analysis['model_confidence_score'] = $modelConfidence;
+                $analysis['is_low_confidence'] = $analysis['confidence'] < 0.4;
+                $analysis['analysis_mode'] = 'Full-Power AI (Primary)';
+
+                return $analysis;
             }
-            
-            \Log::warning('Invalid Enhanced Gemini API response format', [
-                'result' => $result
-            ]);
-            
-            return [
-                'error' => true,
-                'message' => 'Invalid response format from Gemini API'
-            ];
-            
-        } catch (RequestException $e) {
-            // On ANY API/network error, gracefully fallback to local analysis
-            \Log::error('Enhanced Gemini API request failed', [
-                'error' => $e->getMessage(),
-                'response' => $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : 'No response',
-                'falling_back_to_local' => true
-            ]);
-            return $this->enhancedFallbackAnalysisWithViolations($text);
         } catch (\Throwable $e) {
-            // Any other unexpected error, still fallback to ensure classification
-            \Log::error('Unexpected error in Enhanced Gemini analysis', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'falling_back_to_local' => true
+            \Log::warning('PRIMARY AI ANALYSIS FAILED: Switching to backup fallback channel.', [
+                'error' => $e->getMessage()
             ]);
-            return $this->enhancedFallbackAnalysisWithViolations($text);
         }
+
+        // 2. BACKUP CHANNEL: Pattern-matching fallback logic
+        $fallback = $this->enhancedFallbackAnalysisWithViolations($text);
+        $fallback['analysis_mode'] = 'Fallback Analysis (Backup)';
+
+        // Ensure confidence is slightly lowered to reflect it's a backup guess
+        if (isset($fallback['confidence'])) {
+            $fallback['confidence'] = min(0.60, $fallback['confidence']);
+        }
+
+        return $fallback;
     }
 
     /**
@@ -1007,14 +949,15 @@ Document text to analyze: " . $text . "
     private function enhancedFallbackAnalysisWithViolations($text)
     {
         $text = strtolower($text);
-        
+
         \Log::info('GeminiService: Using enhanced fallback analysis with violations', [
             'text' => $text,
             'text_length' => strlen($text)
         ]);
-        
+
         // Check if this is a fallback message indicating extraction failure
-        if (str_contains($text, 'unknown document type') || 
+        if (
+            str_contains($text, 'unknown document type') ||
             str_contains($text, 'document not found') ||
             str_contains($text, 'tmp') ||
             str_contains($text, 'file not found') ||
@@ -1022,13 +965,14 @@ Document text to analyze: " . $text . "
             str_contains($text, 'image file') ||
             str_contains($text, 'pdf file') ||
             str_contains($text, 'pdf text extraction failed') ||
-            str_contains($text, 'manual review recommended')) {
-            
+            str_contains($text, 'manual review recommended')
+        ) {
+
             \Log::warning('GeminiService: Enhanced fallback analysis detected extraction failure', [
                 'text' => $text,
                 'using_filename_analysis' => true
             ]);
-            
+
             return [
                 'error' => false,
                 'category' => 'general',
@@ -1053,7 +997,7 @@ Document text to analyze: " . $text . "
                 'extraction_quality' => 'low'
             ];
         }
-        
+
         // Initialize variables
         $category = 'general';
         $requiresLegalReview = false;
@@ -1063,7 +1007,7 @@ Document text to analyze: " . $text . "
         $complianceStatus = 'review_required';
         $flaggedIssues = [];
         $regulatoryStandards = [];
-        
+
         // Enhanced document type detection with violation analysis
         $documentTypeMap = [
             // Policy documents
@@ -1073,7 +1017,7 @@ Document text to analyze: " . $text . "
             'terms and conditions' => ['category' => 'policy', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'acceptable use' => ['category' => 'policy', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'data privacy' => ['category' => 'policy', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
-            
+
             // Contract documents
             'contract' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true, 'violation' => 'High', 'compliance' => 'review_required'],
             'agreement' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true, 'violation' => 'High', 'compliance' => 'review_required'],
@@ -1083,56 +1027,56 @@ Document text to analyze: " . $text . "
             'obligations' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true, 'violation' => 'High', 'compliance' => 'review_required'],
             'signatures' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true, 'violation' => 'High', 'compliance' => 'review_required'],
             'binding' => ['category' => 'contract', 'risk' => 'Medium', 'review' => true, 'violation' => 'High', 'compliance' => 'review_required'],
-            
+
             // Memorandum documents
             'memorandum' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'memo' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'moa' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'internal communication' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'staff notice' => ['category' => 'memorandum', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
-            
+
             // Legal notice documents
             'legal notice' => ['category' => 'legal_notice', 'risk' => 'High', 'review' => true, 'violation' => 'Critical', 'compliance' => 'non_compliant'],
             'cease and desist' => ['category' => 'legal_notice', 'risk' => 'High', 'review' => true, 'violation' => 'Critical', 'compliance' => 'non_compliant'],
             'demand letter' => ['category' => 'legal_notice', 'risk' => 'High', 'review' => true, 'violation' => 'Critical', 'compliance' => 'non_compliant'],
             'court notice' => ['category' => 'legal_notice', 'risk' => 'High', 'review' => true, 'violation' => 'Critical', 'compliance' => 'non_compliant'],
-            
+
             // Compliance documents
             'compliance' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'regulation' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'regulatory' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'audit' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'standards' => ['category' => 'compliance', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
-            
+
             // Financial documents
             'invoice' => ['category' => 'financial', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'receipt' => ['category' => 'financial', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'financial statement' => ['category' => 'financial', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'budget' => ['category' => 'financial', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'expense report' => ['category' => 'financial', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
-            
+
             // Report documents
             'report' => ['category' => 'report', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'analysis' => ['category' => 'report', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'assessment' => ['category' => 'report', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'evaluation' => ['category' => 'report', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
             'findings' => ['category' => 'report', 'risk' => 'Low', 'review' => false, 'violation' => 'Low', 'compliance' => 'compliant'],
-            
+
             // Legal documents
             'affidavit' => ['category' => 'affidavit', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'sworn statement' => ['category' => 'affidavit', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'declaration' => ['category' => 'affidavit', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'under oath' => ['category' => 'affidavit', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
-            
+
             'subpoena' => ['category' => 'subpoena', 'risk' => 'High', 'review' => true, 'violation' => 'Critical', 'compliance' => 'non_compliant'],
             'court order' => ['category' => 'subpoena', 'risk' => 'High', 'review' => true, 'violation' => 'Critical', 'compliance' => 'non_compliant'],
             'summons' => ['category' => 'subpoena', 'risk' => 'High', 'review' => true, 'violation' => 'Critical', 'compliance' => 'non_compliant'],
-            
+
             'legal brief' => ['category' => 'legal_brief', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'case brief' => ['category' => 'legal_brief', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required'],
             'legal argument' => ['category' => 'legal_brief', 'risk' => 'Medium', 'review' => true, 'violation' => 'Medium', 'compliance' => 'review_required']
         ];
-        
+
         // Check for document type indicators
         foreach ($documentTypeMap as $indicator => $config) {
             if (strpos($text, $indicator) !== false) {
@@ -1144,11 +1088,13 @@ Document text to analyze: " . $text . "
                 break;
             }
         }
-        
+
         // Determine if visitor coordination is required
-        if (strpos($text, 'visitor') !== false || strpos($text, 'attendee') !== false || 
+        if (
+            strpos($text, 'visitor') !== false || strpos($text, 'attendee') !== false ||
             strpos($text, 'guest list') !== false || strpos($text, 'guests') !== false ||
-            strpos($text, 'meeting') !== false || strpos($text, 'conference') !== false) {
+            strpos($text, 'meeting') !== false || strpos($text, 'conference') !== false
+        ) {
             $requiresVisitorCoordination = true;
         }
 
@@ -1163,13 +1109,13 @@ Document text to analyze: " . $text . "
             'exclusive' => 'Exclusive terms present',
             'binding' => 'Binding obligations unclear'
         ];
-        
+
         foreach ($violationKeywords as $keyword => $issue) {
             if (strpos($text, $keyword) !== false) {
                 $flaggedIssues[] = $issue;
             }
         }
-        
+
         // Regulatory standards detection
         $regulatoryKeywords = [
             'gdpr' => 'GDPR',
@@ -1181,7 +1127,7 @@ Document text to analyze: " . $text . "
             'fda' => 'FDA Regulations',
             'sec' => 'SEC Regulations'
         ];
-        
+
         foreach ($regulatoryKeywords as $keyword => $standard) {
             if (strpos($text, $keyword) !== false) {
                 $regulatoryStandards[] = $standard;
@@ -1190,20 +1136,27 @@ Document text to analyze: " . $text . "
 
         // Generate meaningful summary based on detected category
         $summary = $this->generateSummaryFromCategory($category, $text);
-        
+
         // Generate tags based on content and category
         $tags = $this->generateTagsFromContent($text, $category);
-        
+
         // Determine if immediate review is required
         $requiresImmediateReview = $violationScore === 'Critical' || $legalRiskScore === 'High';
-        
+
+        $suggestedClauses = $this->generateSuggestedClauses($category);
+        $riskyTerms = $this->extractRiskyTerms($text, $flaggedIssues);
+
+        // Generate dynamic fallback confidence based on keyword strength
+        $matchStrength = count($flaggedIssues) + (count($regulatoryStandards) * 2);
+        $dynamicConfidence = 0.4 + (min(3, $matchStrength) * 0.1); // Base 0.4, max 0.7
+
         return [
             'error' => false,
             'category' => $category,
             'ai_classification' => $category,
-            'confidence' => 0.7,
+            'confidence' => $dynamicConfidence,
             'summary' => $summary,
-            'key_info' => 'Document classified using enhanced fallback analysis with violation detection.',
+            'key_info' => 'Document classified using pattern-matching fallback because the primary AI analysis was unavailable or deferred.',
             'legal_implications' => $this->getLegalImplications($category),
             'compliance_status' => $complianceStatus,
             'tags' => $tags,
@@ -1213,6 +1166,8 @@ Document text to analyze: " . $text . "
             'compliance_details' => $this->generateComplianceDetails($category, $complianceStatus),
             'regulatory_standards' => $regulatoryStandards,
             'ai_insights' => $this->generateAIInsights($category, $violationScore, $flaggedIssues),
+            'suggested_clauses' => $suggestedClauses,
+            'risky_terms' => $riskyTerms,
             'fallback' => true,
             'requires_legal_review' => $requiresLegalReview,
             'requires_visitor_coordination' => $requiresVisitorCoordination,
@@ -1233,84 +1188,172 @@ Document text to analyze: " . $text . "
             'category' => 'general',
             'ai_classification' => 'general',
             'confidence' => 0.5,
-            'summary' => '',
-            'key_info' => '',
-            'legal_implications' => '',
+            'summary' => 'Analysis incomplete.',
+            'key_info' => 'No key information extracted.',
+            'legal_implications' => 'None detected.',
             'compliance_status' => 'review_required',
-            'tags' => [],
-            'violation_analysis' => '',
+            'tags' => ['document'],
+            'violation_analysis' => 'No violation analysis provided.',
             'violation_score' => 'Low',
             'flagged_issues' => [],
             'compliance_details' => '',
             'regulatory_standards' => [],
-            'ai_insights' => '',
+            'ai_insights' => 'No detailed AI insights available.',
+            'suggested_clauses' => [],
+            'risky_terms' => [],
             'requires_legal_review' => false,
             'requires_visitor_coordination' => false,
             'legal_risk_score' => 'Low',
             'requires_immediate_review' => false
         ];
 
+        $currentKey = null;
+
         foreach ($lines as $line) {
             $line = trim($line);
-            if (strpos($line, 'CATEGORY:') === 0) {
-                $analysis['category'] = trim(str_replace('CATEGORY:', '', $line));
-                $analysis['ai_classification'] = $analysis['category'];
-            } elseif (strpos($line, 'CONFIDENCE:') === 0) {
-                $conf = (float) trim(str_replace('CONFIDENCE:', '', $line));
-                if ($conf >= 0 && $conf <= 1) {
-                    $analysis['confidence'] = $conf;
+            if (empty($line))
+                continue;
+
+            // Check if line starts with a known key
+            if (preg_match('/^([A-Z_]+):(.*)$/', $line, $matches)) {
+                $key = $matches[1];
+                $value = trim($matches[2]);
+                $currentKey = $key;
+
+                // Process the first line of the value immediately
+                $this->processAnalysisKeyValue($analysis, $key, $value);
+            } else {
+                // Continuation line or bullet point for previous key
+                if ($currentKey) {
+                    $this->appendAnalysisKeyValue($analysis, $currentKey, $line);
                 }
-            } elseif (strpos($line, 'SUMMARY:') === 0) {
-                $analysis['summary'] = trim(str_replace('SUMMARY:', '', $line));
-            } elseif (strpos($line, 'KEY_INFO:') === 0) {
-                $analysis['key_info'] = trim(str_replace('KEY_INFO:', '', $line));
-            } elseif (strpos($line, 'LEGAL_IMPLICATIONS:') === 0) {
-                $analysis['legal_implications'] = trim(str_replace('LEGAL_IMPLICATIONS:', '', $line));
-            } elseif (strpos($line, 'COMPLIANCE_STATUS:') === 0) {
-                $analysis['compliance_status'] = trim(str_replace('COMPLIANCE_STATUS:', '', $line));
-            } elseif (strpos($line, 'TAGS:') === 0) {
-                $tagsText = trim(str_replace('TAGS:', '', $line));
-                $analysis['tags'] = array_map('trim', explode(',', $tagsText));
-            } elseif (strpos($line, 'VIOLATION_ANALYSIS:') === 0) {
-                $analysis['violation_analysis'] = trim(str_replace('VIOLATION_ANALYSIS:', '', $line));
-            } elseif (strpos($line, 'VIOLATION_SCORE:') === 0) {
-                $analysis['violation_score'] = trim(str_replace('VIOLATION_SCORE:', '', $line));
-            } elseif (strpos($line, 'FLAGGED_ISSUES:') === 0) {
-                $issuesText = trim(str_replace('FLAGGED_ISSUES:', '', $line));
-                $analysis['flagged_issues'] = array_map('trim', explode(',', $issuesText));
-            } elseif (strpos($line, 'COMPLIANCE_DETAILS:') === 0) {
-                $analysis['compliance_details'] = trim(str_replace('COMPLIANCE_DETAILS:', '', $line));
-            } elseif (strpos($line, 'REGULATORY_STANDARDS:') === 0) {
-                $standardsText = trim(str_replace('REGULATORY_STANDARDS:', '', $line));
-                $analysis['regulatory_standards'] = array_map('trim', explode(',', $standardsText));
-            } elseif (strpos($line, 'AI_INSIGHTS:') === 0) {
-                $analysis['ai_insights'] = trim(str_replace('AI_INSIGHTS:', '', $line));
-            } elseif (strpos($line, 'LEGAL_REVIEW_REQUIRED:') === 0) {
-                $analysis['requires_legal_review'] = (trim(str_replace('LEGAL_REVIEW_REQUIRED:', '', $line)) === 'YES');
-            } elseif (strpos($line, 'VISITOR_COORDINATION_REQUIRED:') === 0) {
-                $analysis['requires_visitor_coordination'] = (trim(str_replace('VISITOR_COORDINATION_REQUIRED:', '', $line)) === 'YES');
-            } elseif (strpos($line, 'LEGAL_RISK_SCORE:') === 0) {
-                $analysis['legal_risk_score'] = trim(str_replace('LEGAL_RISK_SCORE:', '', $line));
-            } elseif (strpos($line, 'IMMEDIATE_REVIEW_REQUIRED:') === 0) {
-                $analysis['requires_immediate_review'] = (trim(str_replace('IMMEDIATE_REVIEW_REQUIRED:', '', $line)) === 'YES');
             }
         }
 
         return $analysis;
     }
 
+    private function processAnalysisKeyValue(&$analysis, $key, $value)
+    {
+        switch ($key) {
+            case 'CATEGORY':
+                $analysis['category'] = $value;
+                $analysis['ai_classification'] = $value;
+                break;
+            case 'CONFIDENCE':
+                $conf = (float) $value;
+                if ($conf >= 0 && $conf <= 1)
+                    $analysis['confidence'] = $conf;
+                break;
+            case 'SUMMARY':
+                $analysis['summary'] = $value;
+                break;
+            case 'KEY_INFO':
+                $analysis['key_info'] = $value;
+                break;
+            case 'LEGAL_IMPLICATIONS':
+                $analysis['legal_implications'] = $value;
+                break;
+            case 'COMPLIANCE_STATUS':
+                $analysis['compliance_status'] = $value;
+                break;
+            case 'TAGS':
+                $analysis['tags'] = array_map('trim', explode(',', $value));
+                break;
+            case 'VIOLATION_ANALYSIS':
+                $analysis['violation_analysis'] = $value;
+                break;
+            case 'VIOLATION_SCORE':
+                $analysis['violation_score'] = $value;
+                break;
+            case 'FLAGGED_ISSUES':
+                $analysis['flagged_issues'] = array_map('trim', explode(',', $value));
+                break;
+            case 'COMPLIANCE_DETAILS':
+                $analysis['compliance_details'] = $value;
+                break;
+            case 'REGULATORY_STANDARDS':
+                $analysis['regulatory_standards'] = array_map('trim', explode(',', $value));
+                break;
+            case 'AI_INSIGHTS':
+                $analysis['ai_insights'] = $value;
+                break;
+            case 'SUGGESTED_CLAUSES':
+                $analysis['suggested_clauses'] = array_map('trim', explode(',', $value));
+                break;
+            case 'RISKY_TERMS':
+                $analysis['risky_terms'] = array_map('trim', explode(',', $value));
+                break;
+            case 'LEGAL_REVIEW_REQUIRED':
+                $analysis['requires_legal_review'] = (strtoupper($value) === 'YES');
+                break;
+            case 'VISITOR_COORDINATION_REQUIRED':
+                $analysis['requires_visitor_coordination'] = (strtoupper($value) === 'YES');
+                break;
+            case 'LEGAL_RISK_SCORE':
+                $analysis['legal_risk_score'] = $value;
+                break;
+            case 'IMMEDIATE_REVIEW_REQUIRED':
+                $analysis['requires_immediate_review'] = (strtoupper($value) === 'YES');
+                break;
+        }
+    }
+
+    private function appendAnalysisKeyValue(&$analysis, $key, $line)
+    {
+        // Handle list-based fields
+        $listFields = ['KEY_INFO', 'FLAGGED_ISSUES', 'REGULATORY_STANDARDS', 'SUGGESTED_CLAUSES', 'RISKY_TERMS', 'TAGS'];
+        $textFields = ['SUMMARY', 'LEGAL_IMPLICATIONS', 'VIOLATION_ANALYSIS', 'COMPLIANCE_DETAILS', 'AI_INSIGHTS'];
+
+        if (in_array($key, $textFields)) {
+            $currentVal = match ($key) {
+                'SUMMARY' => $analysis['summary'],
+                'LEGAL_IMPLICATIONS' => $analysis['legal_implications'],
+                'VIOLATION_ANALYSIS' => $analysis['violation_analysis'],
+                'COMPLIANCE_DETAILS' => $analysis['compliance_details'],
+                'AI_INSIGHTS' => $analysis['ai_insights'],
+                default => ''
+            };
+            // Append with space or newline
+            $newValue = $currentVal . " " . $line;
+
+            // Update back
+            match ($key) {
+                'SUMMARY' => $analysis['summary'] = $newValue,
+                'LEGAL_IMPLICATIONS' => $analysis['legal_implications'] = $newValue,
+                'VIOLATION_ANALYSIS' => $analysis['violation_analysis'] = $newValue,
+                'COMPLIANCE_DETAILS' => $analysis['compliance_details'] = $newValue,
+                'AI_INSIGHTS' => $analysis['ai_insights'] = $newValue,
+            };
+        } elseif (in_array($key, $listFields)) {
+            // If line starts with bullet, strip it
+            $cleanLine = ltrim($line, '-*• ');
+            match ($key) {
+                'KEY_INFO' => $analysis['key_info'] .= "\n- " . $cleanLine, // Force newline format for key info
+                'FLAGGED_ISSUES' => $analysis['flagged_issues'][] = $cleanLine,
+                'REGULATORY_STANDARDS' => $analysis['regulatory_standards'][] = $cleanLine,
+                'SUGGESTED_CLAUSES' => $analysis['suggested_clauses'][] = $cleanLine,
+                'RISKY_TERMS' => $analysis['risky_terms'][] = $cleanLine,
+                'TAGS' => $analysis['tags'][] = $cleanLine,
+            };
+        }
+    }
+
     /**
      * Generate Violation Analysis
      */
-    private function generateViolationAnalysis($category, $flaggedIssues)
+    private function generateViolationAnalysis($category, array $flaggedIssues): string
     {
         $baseAnalysis = "Document analyzed for potential legal violations and risks.";
-        
+
         if (empty($flaggedIssues)) {
             return $baseAnalysis . " No significant violations detected.";
         }
-        
-        return $baseAnalysis . " Issues identified: " . implode(', ', $flaggedIssues) . ".";
+
+        // Ensure unique issues to avoid repetition
+        $uniqueIssues = array_unique($flaggedIssues);
+
+        return $baseAnalysis . " Issues identified: " . implode(', ', $uniqueIssues) . ".";
     }
 
     /**
@@ -1330,23 +1373,151 @@ Document text to analyze: " . $text . "
         }
     }
 
+    private function generateSuggestedClauses(string $category): array
+    {
+        $categoryLower = strtolower($category);
+        $suggestions = [
+            'policy' => [
+                'Scope and purpose',
+                'Data collection and use',
+                'Data retention',
+                'Security measures',
+                'Data subject rights',
+                'Contact/DPO details',
+            ],
+            'contract' => [
+                'Term and termination',
+                'Payment terms',
+                'Liability limitation',
+                'Indemnification',
+                'Confidentiality',
+                'Governing law',
+            ],
+            'legal notice' => [
+                'Legal basis',
+                'Demand/relief sought',
+                'Compliance deadline',
+                'Consequences of non-compliance',
+            ],
+            'compliance' => [
+                'Applicable standards',
+                'Audit schedule',
+                'Non-compliance handling',
+                'Recordkeeping requirements',
+            ],
+            'financial' => [
+                'Payment schedule',
+                'Late fee/penalties',
+                'Dispute resolution',
+                'Tax and billing details',
+            ],
+            'report' => [
+                'Methodology',
+                'Findings',
+                'Recommendations',
+                'Limitations',
+            ],
+            'memorandum' => [
+                'Purpose',
+                'Effective date',
+                'Responsibilities',
+                'Approvals',
+            ],
+            'affidavit' => [
+                'Sworn statement',
+                'Jurisdiction',
+                'Notary acknowledgment',
+            ],
+            'subpoena' => [
+                'Issuing authority',
+                'Appearance date/time',
+                'Documents requested',
+                'Service details',
+            ],
+            'cease & desist' => [
+                'Infringing conduct description',
+                'Demand to cease',
+                'Compliance deadline',
+                'Legal remedies',
+            ],
+            'legal brief' => [
+                'Issues presented',
+                'Statement of facts',
+                'Legal arguments',
+                'Citations',
+            ],
+            'general' => [
+                'Purpose',
+                'Scope',
+                'Responsibilities',
+            ],
+        ];
+
+        return $suggestions[$categoryLower] ?? $suggestions['general'];
+    }
+
+    private function extractRiskyTerms(string $text, array $flaggedIssues = []): array
+    {
+        $lower = strtolower($text);
+        $terms = [];
+        $patterns = [
+            'unlimited liability' => 'Unlimited liability',
+            'hold harmless' => 'Hold harmless',
+            'indemnify' => 'Indemnification',
+            'liquidated damages' => 'Liquidated damages',
+            'penalty' => 'Penalty clause',
+            'termination for convenience' => 'Termination for convenience',
+            'exclusive' => 'Exclusive terms',
+            'non-compete' => 'Non-compete restriction',
+            'arbitration' => 'Mandatory arbitration',
+            'governing law' => 'Governing law',
+            'force majeure' => 'Force majeure',
+        ];
+
+        foreach ($patterns as $needle => $label) {
+            if (strpos($lower, $needle) !== false) {
+                $terms[] = $label;
+            }
+        }
+
+        foreach ($flaggedIssues as $issue) {
+            if (is_string($issue) && $issue !== '') {
+                $terms[] = $issue;
+            }
+        }
+
+        $unique = array_values(array_unique($terms));
+        if (count($unique) === 0) {
+            return ['None detected'];
+        }
+        return $unique;
+    }
+
+    private function limitText(string $text, int $maxChars): string
+    {
+        if (function_exists('mb_substr')) {
+            return mb_substr($text, 0, $maxChars);
+        }
+        return substr($text, 0, $maxChars);
+    }
+
     /**
      * Generate AI Insights
      */
     private function generateAIInsights($category, $violationScore, $flaggedIssues)
     {
         $insights = [];
-        
+
         if ($violationScore === 'Critical') {
             $insights[] = "Critical violations detected - immediate legal review required";
         } elseif ($violationScore === 'High') {
             $insights[] = "High-risk violations identified - legal review recommended";
         }
-        
+
         if (!empty($flaggedIssues)) {
             $insights[] = "Specific issues flagged: " . implode(', ', array_slice($flaggedIssues, 0, 3));
         }
-        
+
         switch ($category) {
             case 'contract':
                 $insights[] = "Contract document - ensure all essential clauses are present";
@@ -1358,7 +1529,7 @@ Document text to analyze: " . $text . "
                 $insights[] = "Legal notice - review for accuracy and completeness";
                 break;
         }
-        
+
         return empty($insights) ? "No specific insights generated" : implode('. ', $insights) . ".";
     }
 
@@ -1469,25 +1640,25 @@ Document content to analyze:
             // Try to extract JSON from the response
             $jsonStart = strpos($aiResponse, '{');
             $jsonEnd = strrpos($aiResponse, '}');
-            
+
             if ($jsonStart !== false && $jsonEnd !== false) {
                 $jsonString = substr($aiResponse, $jsonStart, $jsonEnd - $jsonStart + 1);
                 $result = json_decode($jsonString, true);
-                
+
                 if (json_last_error() === JSON_ERROR_NONE && is_array($result)) {
                     return $this->formatPhilippineLegalResult($result);
                 }
             }
-            
+
             // Fallback: parse text response
             return $this->parseTextResponse($aiResponse);
-            
+
         } catch (\Exception $e) {
             \Log::error('Error parsing Philippine legal AI response', [
                 'error' => $e->getMessage(),
                 'response' => $aiResponse
             ]);
-            
+
             return $this->enhancedFallbackAnalysisWithViolations($aiResponse);
         }
     }
@@ -1523,8 +1694,9 @@ Document content to analyze:
      */
     private function calculateViolationScore($violations)
     {
-        if (empty($violations)) return 0;
-        
+        if (empty($violations))
+            return 0;
+
         $score = 0;
         foreach ($violations as $violation) {
             $violation = strtolower($violation);
@@ -1538,7 +1710,7 @@ Document content to analyze:
                 $score += 10;
             }
         }
-        
+
         return min($score, 100);
     }
 
@@ -1571,11 +1743,11 @@ Document content to analyze:
         if (preg_match('/DocumentType[:\s]+([^\n\r]+)/i', $response, $matches)) {
             $result['ai_classification'] = trim($matches[1]);
         }
-        
+
         if (preg_match('/Confidence[:\s]+(\d+)/i', $response, $matches)) {
             $result['ai_confidence'] = (float) $matches[1];
         }
-        
+
         if (preg_match('/RiskLevel[:\s]+(low|medium|high|critical)/i', $response, $matches)) {
             $riskLevel = strtolower($matches[1]);
             $result['requires_immediate_review'] = in_array($riskLevel, ['high', 'critical']);
@@ -1615,7 +1787,7 @@ Analyze the complaint and return JSON format:
 Complaint text: " . $complaintText;
 
         try {
-            $response = $this->makeGeminiRequest($prompt);
+            $response = $this->generateContent($prompt);
             if ($response && isset($response['candidates'][0]['content']['parts'][0]['text'])) {
                 $aiResponse = $response['candidates'][0]['content']['parts'][0]['text'];
                 return $this->parseComplaintAnalysis($aiResponse);
@@ -1635,7 +1807,7 @@ Complaint text: " . $complaintText;
         try {
             $jsonStart = strpos($response, '{');
             $jsonEnd = strrpos($response, '}');
-            
+
             if ($jsonStart !== false && $jsonEnd !== false) {
                 $jsonString = substr($response, $jsonStart, $jsonEnd - $jsonStart + 1);
                 return json_decode($jsonString, true);

@@ -6,13 +6,20 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use App\Models\DeptAccount;
 
 class AccessLog extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'action', 'description', 'ip_address', 'document_id', 'metadata'
+        'user_id',
+        'action',
+        'description',
+        'ip_address',
+        'details',
+        'document_id',
+        'metadata'
     ];
 
     protected $casts = [
@@ -41,6 +48,11 @@ class AccessLog extends Model
     protected static function booted(): void
     {
         static::creating(function (AccessLog $log) {
+            // Ensure IP address is set if not provided
+            if (empty($log->ip_address)) {
+                $log->ip_address = request()->ip();
+            }
+
             // If ip_address column was dropped, ensure we don't try to insert it
             if (!Schema::hasColumn('access_logs', 'ip_address')) {
                 unset($log->ip_address);
@@ -80,7 +92,9 @@ class AccessLog extends Model
             $empId = session('emp_id');
             if ($empId) {
                 $deptNo = optional(DeptAccount::where('employee_id', $empId)->first())->Dept_no;
-                if ($deptNo) { return (int) $deptNo; }
+                if ($deptNo) {
+                    return (int) $deptNo;
+                }
             }
 
             if (Auth::check()) {
@@ -88,7 +102,9 @@ class AccessLog extends Model
                 $empFromEmail = $email ? strstr($email, '@', true) : null;
                 if ($empFromEmail) {
                     $deptNo = optional(DeptAccount::where('employee_id', $empFromEmail)->first())->Dept_no;
-                    if ($deptNo) { return (int) $deptNo; }
+                    if ($deptNo) {
+                        return (int) $deptNo;
+                    }
                 }
             }
         } catch (\Throwable $e) {
@@ -96,4 +112,4 @@ class AccessLog extends Model
         }
         return null;
     }
-} 
+}

@@ -127,7 +127,7 @@ class LegalCase extends Model
      */
     public function getPriorityColorAttribute()
     {
-        return match($this->priority) {
+        return match ($this->priority) {
             'urgent' => 'text-red-600 bg-red-100',
             'high' => 'text-orange-600 bg-orange-100',
             'medium' => 'text-yellow-600 bg-yellow-100',
@@ -141,15 +141,26 @@ class LegalCase extends Model
      */
     public function getStatusColorAttribute()
     {
-        return match($this->status) {
-            'pending' => 'text-yellow-600 bg-yellow-100',
-            'ongoing' => 'text-blue-600 bg-blue-100',
+        return match ($this->status) {
+            'pending' => 'text-blue-600 bg-blue-100',
+            'ongoing' => 'text-orange-600 bg-orange-100',
             'completed' => 'text-green-600 bg-green-100',
             'rejected' => 'text-red-600 bg-red-100',
-            'active' => 'text-blue-600 bg-blue-100',
-            'on_hold' => 'text-orange-600 bg-orange-100',
-            'closed' => 'text-green-600 bg-green-100',
             default => 'text-gray-600 bg-gray-100'
+        };
+    }
+
+    /**
+     * Get the status label for display
+     */
+    public function getStatusLabelAttribute()
+    {
+        return match ($this->status) {
+            'pending' => 'Pending',
+            'ongoing' => 'Ongoing',
+            'completed' => 'Settled',
+            'rejected' => 'Rejected',
+            default => ucfirst(str_replace('_', ' ', $this->status))
         };
     }
 
@@ -158,7 +169,7 @@ class LegalCase extends Model
      */
     public function getWorkflowStageColorAttribute()
     {
-        return match($this->workflow_stage) {
+        return match ($this->workflow_stage) {
             'filing' => 'bg-blue-100 text-blue-800',
             'investigation' => 'bg-orange-100 text-orange-800',
             'review' => 'bg-purple-100 text-purple-800',
@@ -173,7 +184,7 @@ class LegalCase extends Model
      */
     public function getWorkflowStageIconAttribute()
     {
-        return match($this->workflow_stage) {
+        return match ($this->workflow_stage) {
             'filing' => 'file-text',
             'investigation' => 'search',
             'review' => 'clipboard-check',
@@ -202,16 +213,33 @@ class LegalCase extends Model
     /**
      * Transition to new workflow stage
      */
-    public function transitionTo($newStage, $notes = null)
+    public function transitionTo($newStage, $notes = null, $customStatus = null)
     {
         if (!$this->canTransitionTo($newStage)) {
-            return false;
+            // Allow backward transition from review to investigation if specifically requested
+            if (!($this->workflow_stage === 'review' && $newStage === 'investigation')) {
+                return false;
+            }
         }
 
         $oldStage = $this->workflow_stage;
         $this->workflow_stage = $newStage;
         $this->stage_changed_at = now();
         $this->days_in_current_stage = 0;
+
+        // Automatically set status based on stage if no custom status provided
+        if ($customStatus) {
+            $this->status = $customStatus;
+        } else {
+            $this->status = match ($newStage) {
+                'filing' => 'pending',
+                'investigation' => 'under_investigation',
+                'review' => 'awaiting_review',
+                'resolution' => 'resolved',
+                'closed' => 'completed',
+                default => $this->status
+            };
+        }
 
         // Stage-specific updates
         if ($newStage === 'investigation' && !$this->investigation_started_at) {
@@ -229,7 +257,12 @@ class LegalCase extends Model
             $this->id,
             'stage_changed',
             "Case moved from {$oldStage} to {$newStage}",
-            ['old_stage' => $oldStage, 'new_stage' => $newStage, 'notes' => $notes]
+            [
+                'old_stage' => $oldStage,
+                'new_stage' => $newStage,
+                'notes' => $notes,
+                'status' => $this->status
+            ]
         );
 
         return true;
@@ -252,8 +285,8 @@ class LegalCase extends Model
     public static function generateCaseNumber()
     {
         $year = date('Y');
-        $prefix = "LC-{$year}-";
-        
+        $prefix = "CASE-{$year}-";
+
         // Use database transaction with locking to prevent race conditions
         return DB::transaction(function () use ($year, $prefix) {
             // Lock the table to prevent concurrent access
@@ -262,22 +295,22 @@ class LegalCase extends Model
                 ->lockForUpdate()
                 ->orderBy('case_number', 'desc')
                 ->first();
-            
+
             if ($lastCase && $lastCase->case_number) {
                 $lastNumber = (int) substr($lastCase->case_number, -4);
                 $newNumber = $lastNumber + 1;
             } else {
                 $newNumber = 1;
             }
-            
+
             $caseNumber = $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
-            
+
             // Double-check that the case number doesn't already exist
             while (self::where('case_number', $caseNumber)->exists()) {
                 $newNumber++;
                 $caseNumber = $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
             }
-            
+
             return $caseNumber;
         });
     }
@@ -288,17 +321,17 @@ class LegalCase extends Model
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($legalCase) {
             if (empty($legalCase->case_number)) {
                 $legalCase->case_number = self::generateCaseNumber();
             }
-            
+
             // Set initial workflow stage if not set
             if (empty($legalCase->workflow_stage)) {
                 $legalCase->workflow_stage = 'filing';
             }
-            
+
             // Set stage_changed_at to current time
             if (empty($legalCase->stage_changed_at)) {
                 $legalCase->stage_changed_at = now();

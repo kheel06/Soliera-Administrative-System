@@ -9,6 +9,7 @@
     
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
     @vite('resources/css/app.css')
 </head>
@@ -55,6 +56,15 @@
       @if(session('error'))
         <div class="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
           <p class="text-red-400 text-sm">{{ session('error') }}</p>
+        </div>
+      @endif
+      
+      <!-- Validation Errors -->
+      @if($errors->any())
+        <div class="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+          @foreach($errors->all() as $error)
+            <p class="text-red-400 text-sm">{{ $error }}</p>
+          @endforeach
         </div>
       @endif
     </div>
@@ -104,9 +114,8 @@
           class="w-full bg-[#F7A923] hover:bg-[#E6940F] text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 mb-4 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg hover:shadow-xl"
           id="verifyBtn"
           disabled
-          onclick="console.log('Button clicked! OTP value:', document.getElementById('otp_code').value)"
         >
-          Verify
+          <span id="verifyBtnText">Verify</span>
         </button>
         
         <!-- Back to Login -->
@@ -143,6 +152,15 @@
 // Wait for DOM to be fully loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing OTP verification...');
+    
+    // Check if there's a login success message and redirect
+    @if(session('login_success'))
+        console.log('Login successful! Redirecting to dashboard...');
+        showNotification('{{ session("login_success") }}', 'success');
+        // Redirect immediately
+        window.location.href = '{{ route("dashboard") }}';
+        return; // Exit early
+    @endif
     
     // Get OTP inputs and other elements
     const otpInputs = document.querySelectorAll('.otp-input');
@@ -215,6 +233,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Only allow numbers
             this.value = this.value.replace(/[^0-9]/g, '');
             
+            // Limit to single digit
+            if (this.value.length > 1) {
+                this.value = this.value.slice(0, 1);
+            }
+            
             // Move to next input if current is filled
             if (this.value.length === 1 && index < otpInputs.length - 1) {
                 otpInputs[index + 1].focus();
@@ -272,70 +295,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Add click event listener to verify button
-    if (verifyBtn) {
-        verifyBtn.addEventListener('click', function(e) {
-            console.log('Verify button clicked!');
-            console.log('Button disabled:', this.disabled);
-            
+    // Handle form submission
+    if (otpForm) {
+        otpForm.addEventListener('submit', function(e) {
             // Get OTP code from individual inputs
             const otpCode = Array.from(otpInputs).map(input => input.value).join('');
-            console.log('OTP value:', otpCode);
             
-            // Check if button is disabled
-            if (this.disabled) {
-                console.log('Button is disabled, not proceeding');
-                return;
+            // Update hidden input with OTP code
+            if (otpCodeHidden) {
+                otpCodeHidden.value = otpCode;
             }
             
-            // Prevent default form submission
-            e.preventDefault();
-            
+            // Validate OTP code
             if (!otpCode || otpCode.length !== 6) {
+                e.preventDefault();
                 showNotification('Please enter a valid 6-digit OTP code', 'error');
-                return;
+                return false;
             }
-            
-            console.log('Force submitting form with OTP:', otpCode);
             
             // Show loading state
-            this.disabled = true;
-            this.innerHTML = '<i class="bx bx-loader-alt animate-spin mr-2"></i>Verifying...';
+            if (verifyBtn) {
+                verifyBtn.disabled = true;
+                const btnText = verifyBtn.querySelector('#verifyBtnText');
+                if (btnText) {
+                    btnText.innerHTML = '<i class="bx bx-loader-alt animate-spin mr-2"></i>Verifying...';
+                }
+            }
             
-            // Create a new form and submit it
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '{{ route("otp.verify.submit") }}';
+            // Disable all OTP inputs during submission
+            otpInputs.forEach(input => input.disabled = true);
             
-            // Add CSRF token
-            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = '_token';
-            csrfInput.value = csrfToken;
-            form.appendChild(csrfInput);
+            // Form will submit normally - allow default behavior
+            console.log('Submitting form with OTP:', otpCode);
+            console.log('Form action:', otpForm.action);
+            console.log('Form method:', otpForm.method);
             
-            // Add employee_id
-            const empIdInput = document.createElement('input');
-            empIdInput.type = 'hidden';
-            empIdInput.name = 'employee_id';
-            empIdInput.value = '{{ session("otp_employee_id") }}';
-            form.appendChild(empIdInput);
-            
-            // Add OTP code
-            const otpCodeInput = document.createElement('input');
-            otpCodeInput.type = 'hidden';
-            otpCodeInput.name = 'otp_code';
-            otpCodeInput.value = otpCode;
-            form.appendChild(otpCodeInput);
-            
-            // Submit the form
-            document.body.appendChild(form);
-            form.submit();
+            // Don't prevent default - let form submit normally
+            return true;
         });
     }
-    
-    // Form submission is now handled by the verify button click event
     
     // Resend OTP function
     window.resendOTP = function() {
@@ -347,11 +345,12 @@ document.addEventListener('DOMContentLoaded', function() {
             resendBtn.textContent = 'Sending...';
         }
         
-        fetch('/resend-otp', {
+        fetch('{{ route("otp.resend") }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
             },
             body: JSON.stringify({
                 employee_id: '{{ session("otp_employee_id") }}'
@@ -439,56 +438,109 @@ document.addEventListener('DOMContentLoaded', function() {
     
     
     // Show notification function
-    // Use global showNotification with progress bar
-    if (typeof window.showNotification === 'undefined' || window.showNotification.toString().indexOf('progressBar') === -1) {
-      window.showNotification = function(message, type = 'info', duration = 3000) {
-        if (!document.getElementById('notification-progress-style')) {
-          const style = document.createElement('style');
-          style.id = 'notification-progress-style';
-          style.textContent = `
-            @keyframes progressBar {
-              from { width: 100%; }
-              to { width: 0%; }
-            }
-            @keyframes slideInRight {
-              from { transform: translateX(100%); opacity: 0; }
-              to { transform: translateX(0); opacity: 1; }
-            }
-          `;
-          document.head.appendChild(style);
+    // Use Soliera-themed toast notification (same as soliera_js.blade.php)
+    if (typeof window.showNotification === 'undefined') {
+      // Create toast container if it doesn't exist
+      function getToastContainer() {
+        let container = document.getElementById('soliera-toast-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'soliera-toast-container';
+          container.className = 'soliera-toast-container';
+          document.body.appendChild(container);
         }
-
-        const notification = document.createElement('div');
-        const alertType = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-        notification.className = `alert alert-${alertType} fixed bottom-4 right-4 z-[9999] max-w-sm shadow-lg relative overflow-hidden`;
-        notification.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; max-width: 24rem; animation: slideInRight 0.3s ease-out;';
+        return container;
+      }
+      
+      window.showNotification = function(message, type = 'info', duration = 3000) {
+        // Parse message - if it contains a colon, treat first part as title
+        let title = '';
+        let body = message;
+        if (message.includes(':') && message.split(':').length > 1) {
+          const parts = message.split(':');
+          title = parts[0].trim();
+          body = parts.slice(1).join(':').trim();
+        }
         
-        const iconMap = { 'success': 'check-circle', 'error': 'alert-circle', 'warning': 'alert-triangle', 'info': 'info' };
+        // If no title, use type as title
+        if (!title) {
+          const titleMap = {
+            'success': 'Success',
+            'error': 'Error',
+            'warning': 'Warning',
+            'info': 'Information'
+          };
+          title = titleMap[type] || 'Notification';
+        }
+        
+        // Set icon based on type
+        const iconMap = {
+          'success': 'check-circle',
+          'error': 'alert-circle',
+          'warning': 'alert-triangle',
+          'info': 'info'
+        };
         const icon = iconMap[type] || 'info';
         
+        // Get toast container
+        const container = getToastContainer();
+        
+        // Create notification element with Soliera theme
+        const notification = document.createElement('div');
+        notification.className = 'soliera-toast';
+        notification.setAttribute('role', 'alert');
+        notification.setAttribute('aria-live', 'polite');
+        
+        // Build HTML structure
         notification.innerHTML = `
-          <div class="flex items-center gap-2 px-4 py-3">
-            <i data-lucide="${icon}" class="w-5 h-5"></i>
-            <span>${message}</span>
+          <div class="soliera-toast-content">
+            <div class="soliera-toast-icon">
+              <i data-lucide="${icon}"></i>
+            </div>
+            <div class="soliera-toast-text">
+              <div class="soliera-toast-title">${title}</div>
+              <div class="soliera-toast-body">${body}</div>
+            </div>
+            <button class="soliera-toast-close" aria-label="Close notification" type="button">
+              <i data-lucide="x"></i>
+            </button>
           </div>
-          <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-            <div class="notification-progress h-full bg-white/50" style="width: 100%; animation: progressBar ${duration}ms linear forwards;"></div>
+          <div class="soliera-toast-progress">
+            <div class="soliera-toast-progress-bar" style="animation: progressBar ${duration}ms linear forwards;"></div>
           </div>
         `;
         
-        document.body.appendChild(notification);
+        // Add close button functionality
+        const closeBtn = notification.querySelector('.soliera-toast-close');
+        const closeNotification = () => {
+          notification.style.opacity = '0';
+          notification.style.transform = 'translateX(100%)';
+          notification.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.remove();
+            }
+          }, 300);
+        };
+        
+        closeBtn.addEventListener('click', closeNotification);
+        
+        // Append to container (flexbox will handle stacking automatically)
+        container.appendChild(notification);
+        
+        // Force reflow to ensure animation starts
         notification.offsetHeight;
         
+        // Initialize Lucide icons
         if (window.lucide && window.lucide.createIcons) {
           window.lucide.createIcons();
         }
         
+        // Auto remove after duration
         setTimeout(() => {
-          notification.style.opacity = '0';
-          notification.style.transition = 'opacity 0.3s ease-out';
-          setTimeout(() => {
-            if (notification.parentNode) notification.remove();
-          }, 300);
+          if (notification.parentNode) {
+            closeNotification();
+          }
         }, duration);
       };
     }

@@ -8,58 +8,55 @@ use App\Models\Reservation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use App\Services\DashboardActivityService;
+use App\Services\DashboardMetricsService;
 
 
 class DashboardController extends Controller
 {
+    protected DashboardMetricsService $metricsService;
+
+    public function __construct(DashboardMetricsService $metricsService)
+    {
+        $this->metricsService = $metricsService;
+    }
+
     public function index()
     {
-        \Log::info('DashboardController: index method called');
-        \Log::info('User authenticated: ' . (Auth::check() ? 'YES' : 'NO'));
-        \Log::info('User ID: ' . (Auth::id() ?? 'NULL'));
-        \Log::info('Session user_role: ' . Session::get('user_role', 'NOT_SET'));
+        // Get metrics from DashboardMetricsService (with caching)
+        $metrics = $this->metricsService->getCachedMetrics(60);
         
-        // Get real data for dashboard
-        $todayDate = now()->toDateString();
+        // Extract KPI values for the view to match variable names expected by blade
+        $kpis = $metrics['kpis'] ?? [];
+        $legalCases = $metrics['legal_cases_by_status'] ?? [];
+
+        return view('dashboard', [
+            'metrics' => $metrics,
+            // KPI Cards
+            'visitorsToday' => $kpis['visitors_today'] ?? 0,
+            'archivedDocs' => $kpis['archived_docs'] ?? 0,
+            'totalDocuments' => $kpis['total_documents'] ?? 0,
+            'totalReservations' => $kpis['total_reservations'] ?? 0,
+            'activeDeptAccounts' => $kpis['active_accounts'] ?? 0,
+            'vaultFolders' => $kpis['vault_folders'] ?? 0,
+            // Legal Status
+            'legalCasesPending' => $legalCases['pending'] ?? 0,
+            'legalCasesInProgress' => $legalCases['in_progress'] ?? 0,
+            'legalCasesResolved' => $legalCases['completed'] ?? 0,
+        ]);
+    }
+
+    /**
+     * JSON Endpoint for Polling (Live Updates)
+     */
+    public function metricsJson(Request $request)
+    {
+        // Can override cache TTL via query param for fresher data if needed
+        $metrics = $this->metricsService->getCachedMetrics(30);
         
-        // Visitors
-        $visitorsToday = \App\Models\Visitor::whereDate('time_in', $todayDate)->count();
-        $visitorsCheckedIn = \App\Models\Visitor::whereNull('time_out')->count();
-        $visitorsThisWeek = \App\Models\Visitor::whereBetween('time_in', [now()->startOfWeek(), now()->endOfWeek()])->count();
-        $visitorsThisMonth = \App\Models\Visitor::whereMonth('time_in', now()->month)->whereYear('time_in', now()->year)->count();
-        
-        // Reservations
-        $approvedReservationsToday = \App\Models\FacilityRequest::where('status', 'approved')->where('request_type', 'reservation')->whereDate('created_at', $todayDate)->count();
-        $pendingReservations = \App\Models\FacilityRequest::where('status', 'pending')->count();
-        $upcomingReservations = \App\Models\FacilityRequest::where('status', 'approved')->where('requested_datetime', '>', now())->count();
-        
-        // Documents
-        $pendingLegalDocs = \App\Models\Document::where('status', 'pending_review')->count();
-        $expiringDocuments = \App\Models\Document::whereNotNull('retention_until')->where('retention_until', '<=', now()->addDays(30))->where('retention_until', '>=', now())->count();
-        
-        // Legal
-        $legalCasesTotal = \App\Models\LegalCase::count();
-        $legalCasesPending = \App\Models\LegalCase::where('status', 'pending')->count();
-        
-        // Users
-        $totalUsers = \App\Models\User::count();
-        $activeFacilities = \App\Models\Facility::where('status', 'active')->count();
-        
-        return view('UI', compact(
-            'visitorsToday',
-            'visitorsCheckedIn',
-            'visitorsThisWeek',
-            'visitorsThisMonth',
-            'approvedReservationsToday',
-            'pendingReservations',
-            'upcomingReservations',
-            'pendingLegalDocs',
-            'expiringDocuments',
-            'legalCasesTotal',
-            'legalCasesPending',
-            'totalUsers',
-            'activeFacilities'
-        ));
+        return response()->json([
+            'success' => true,
+            'data' => $metrics,
+        ]);
     }
 
     /**

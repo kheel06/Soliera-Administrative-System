@@ -56,15 +56,16 @@ class DisposalHistory extends Model
      */
     public function getFormattedFileSizeAttribute()
     {
-        if (!$this->file_size) return 'Unknown';
-        
+        if (!$this->file_size)
+            return 'Unknown';
+
         $bytes = $this->file_size;
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        
+
         for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
             $bytes /= 1024;
         }
-        
+
         return round($bytes, 2) . ' ' . $units[$i];
     }
 
@@ -73,7 +74,7 @@ class DisposalHistory extends Model
      */
     public function getDisposalReasonDisplayAttribute()
     {
-        return match($this->disposal_reason) {
+        return match ($this->disposal_reason) {
             'auto_expired' => 'Automatically Expired',
             'manually_disposed' => 'Manually Disposed',
             default => ucfirst(str_replace('_', ' ', $this->disposal_reason))
@@ -81,11 +82,25 @@ class DisposalHistory extends Model
     }
 
     /**
+     * Get uploader name with fallback
+     */
+    public function getDisposedByNameAttribute()
+    {
+        try {
+            if ($this->disposer) {
+                return $this->disposer->name ?? 'User ' . $this->disposer->id;
+            }
+        } catch (\Exception $e) {
+        }
+        return 'System';
+    }
+
+    /**
      * Get confidentiality level badge class
      */
     public function getConfidentialityBadgeClassAttribute()
     {
-        return match($this->confidentiality_level) {
+        return match ($this->confidentiality_level) {
             'public' => 'badge-success',
             'internal' => 'badge-warning',
             'confidential' => 'badge-error',

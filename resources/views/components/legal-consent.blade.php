@@ -563,8 +563,7 @@
     const excludedRoutes = [
       '/dashboard',
       '/legal/enhanced-dashboard',
-      '/legal/cases',
-      '/superadmin/analytics'
+      '/legal/cases'
     ];
     
     // Check if current path is excluded

@@ -1,0 +1,37 @@
+Field	Type	Null	Key	Default	Extra
+id	bigint(20) unsigned	NO	PRI	NULL	auto_increment
+case_title	varchar(255)	NO		NULL	
+case_description	text	YES		NULL	
+case_type	varchar(255)	YES		NULL	
+priority	enum('low','medium','high','urgent')	NO		medium	
+status	varchar(255)	NO	MUL	pending	
+source	varchar(255)	YES		NULL	
+visitor_id	bigint(20) unsigned	YES	MUL	NULL	
+amount	decimal(15,2)	YES		NULL	
+workflow_stage	enum('filing','investigation','review','resolution','closed')	NO	MUL	filing	
+assigned_to	varchar(255)	YES		NULL	
+investigator_id	varchar(255)	YES	MUL	NULL	
+employee_involved	varchar(255)	YES		NULL	
+incident_date	datetime	YES		NULL	
+incident_location	varchar(255)	YES		NULL	
+created_by	varchar(255)	YES		NULL	
+case_number	varchar(255)	NO	UNI	NULL	
+filing_date	date	YES		NULL	
+court_date	date	YES		NULL	
+outcome	text	YES		NULL	
+notes	text	YES		NULL	
+investigation_notes	text	YES		NULL	
+metadata	longtext	YES		NULL	
+linked_case_id	varchar(255)	YES		NULL	
+created_at	timestamp	YES	MUL	NULL	
+updated_at	timestamp	YES		NULL	
+investigation_started_at	datetime	YES		NULL	
+investigation_completed_at	datetime	YES		NULL	
+investigation_findings	text	YES		NULL	
+resolution_decision	enum('approved','rejected','dismissed','settled','pending')	YES		NULL	
+resolution_notes	text	YES		NULL	
+disciplinary_actions	text	YES		NULL	
+preventive_measures	text	YES		NULL	
+resolved_at	datetime	YES	MUL	NULL	
+stage_changed_at	datetime	YES		NULL	
+days_in_current_stage	int(11)	NO		0	

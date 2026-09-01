@@ -8,4 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class DocumentRetentionPolicy extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'description',
+        'retention_period'
+    ];
 }

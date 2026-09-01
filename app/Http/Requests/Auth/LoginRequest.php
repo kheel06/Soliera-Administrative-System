@@ -42,10 +42,24 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+            RateLimiter::hit($this->throttleKey(), 60); // 60 seconds = 1 minute lockout
+            
+            // Get remaining attempts
+            $attempts = RateLimiter::attempts($this->throttleKey());
+            $remaining = 5 - $attempts;
+            
+            $errorMessage = trans('auth.failed');
+            
+            if ($remaining > 0) {
+                if ($remaining === 1) {
+                    $errorMessage .= ' ' . trans('auth.last_attempt');
+                } else {
+                    $errorMessage .= ' ' . trans('auth.attempts_remaining', ['attempts' => $remaining]);
+                }
+            }
 
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                'email' => $errorMessage,
             ]);
         }
 

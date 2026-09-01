@@ -11,7 +11,22 @@ class Facility extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'location', 'description', 'status', 'capacity', 'amenities', 'rating', 'facility_type', 'images', 'hourly_rate', 'operating_hours_start', 'operating_hours_end'
+        'name',
+        'location',
+        'description',
+        'status',
+        'capacity',
+        'amenities',
+        'rating',
+        'facility_type',
+        'images',
+        'hourly_rate',
+        'price_per_hour', // Added alias/new field
+        'pricing_type',
+        'is_bookable',
+        'image_path',
+        'operating_hours_start',
+        'operating_hours_end'
     ];
 
     // Ensure computed cover image URL is always available on arrays/JSON
@@ -19,10 +34,13 @@ class Facility extends Model
 
     protected $casts = [
         'images' => 'array',
+        'amenities' => 'array', // Added JSON cast
         'rating' => 'decimal:2',
         'hourly_rate' => 'decimal:2',
+        'price_per_hour' => 'decimal:2',
         'operating_hours_start' => 'datetime:H:i',
         'operating_hours_end' => 'datetime:H:i',
+        'is_bookable' => 'boolean',
     ];
 
     public function reservations()

@@ -10,18 +10,53 @@ class Document extends Model
     use HasFactory;
 
     protected $fillable = [
-        'title', 'description', 'department', 'author', 'file_path', 'status', 'uploaded_by', 
-        'ai_analysis', 'category', 'source', 'extracted_text', 'metadata',
-        'requires_legal_review', 'requires_visitor_coordination', 'legal_risk_score',
-        'workflow_stage', 'workflow_log', 'lifecycle_log', 'legal_case_data', 'linked_reservation_id',
+        'title',
+        'description',
+        'department',
+        'author',
+        'file_path',
+        'status',
+        'uploaded_by',
+        'ai_analysis',
+        'category',
+        'tags',
+        'source',
+        'extracted_text',
+        'metadata',
+        'requires_legal_review',
+        'requires_visitor_coordination',
+        'legal_risk_score',
+        'workflow_stage',
+        'workflow_log',
+        'lifecycle_log',
+        'legal_case_data',
+        'linked_reservation_id',
         'linked_case_id',
+        'folder_id', // Added folder support
         // DMS-only metadata
-        'document_uid', 'confidentiality', 'confidentiality_level', 'retention_until', 'retention_policy',
+        'document_uid',
+        'confidentiality',
+        'confidentiality_level',
+        'retention_until',
+        'retention_policy',
+        'external_reference_id',
+        'import_source',
         // Legal document retention policy fields
-        'archived_at', 'archived_by', 'disposal_date', 'retention_years', 'can_dispose', 'disposal_reason',
+        'archived_at',
+        'archived_by',
+        'disposal_date',
+        'retention_years',
+        'can_dispose',
+        'disposal_reason',
         // Collaboration and history fields
-        'editing_history', 'collaborators', 'last_edited_by', 'last_edited_at', 'version',
-        'access_log', 'download_count', 'view_count'
+        'editing_history',
+        'collaborators',
+        'last_edited_by',
+        'last_edited_at',
+        'version',
+        'access_log',
+        'download_count',
+        'view_count'
     ];
 
     protected $casts = [
@@ -43,7 +78,8 @@ class Document extends Model
         'version' => 'integer'
     ];
 
-    public function uploader() {
+    public function uploader()
+    {
         // Try to find DeptAccount first (for department users)
         if (is_numeric($this->uploaded_by)) {
             // If uploaded_by is numeric, it's likely a User ID
@@ -57,7 +93,8 @@ class Document extends Model
     /**
      * Get uploader name with fallback
      */
-    public function getUploaderNameAttribute() {
+    public function getUploaderNameAttribute()
+    {
         try {
             if ($this->uploader) {
                 if ($this->uploader instanceof \App\Models\User) {
@@ -72,11 +109,18 @@ class Document extends Model
         return 'Unknown';
     }
 
-    public function documentRequests() {
+    public function documentRequests()
+    {
         return $this->hasMany(DocumentRequest::class);
     }
 
-    public function facilityReservations() {
+    public function folder()
+    {
+        return $this->belongsTo(Folder::class);
+    }
+
+    public function facilityReservations()
+    {
         return $this->hasMany(FacilityReservation::class);
     }
 
@@ -84,7 +128,7 @@ class Document extends Model
     public function collaborators()
     {
         return $this->belongsToMany(User::class, 'document_collaborators')
-            ->withPivot(['role','added_at'])
+            ->withPivot(['role', 'added_at'])
             ->withTimestamps();
     }
 
@@ -95,7 +139,7 @@ class Document extends Model
 
     public function versions()
     {
-        return $this->hasMany(DocumentVersion::class)->orderBy('version','desc');
+        return $this->hasMany(DocumentVersion::class)->orderBy('version', 'desc');
     }
 
     /**
@@ -104,11 +148,11 @@ class Document extends Model
     public function log(string $action, ?string $desc = null, array $meta = []): void
     {
         $this->activityLogs()->create([
-            'user_id'   => auth()->id(),
-            'action'    => $action,
+            'user_id' => auth()->id(),
+            'action' => $action,
             'description' => $desc,
-            'ip_address'=> request()->ip(),
-            'metadata'  => $meta,
+            'ip_address' => request()->ip(),
+            'metadata' => $meta,
         ]);
     }
 
@@ -123,7 +167,7 @@ class Document extends Model
             'timestamp' => now()->toISOString(),
             'user_id' => auth()->id()
         ];
-        
+
         $this->update(['workflow_log' => $log]);
     }
 
@@ -139,7 +183,7 @@ class Document extends Model
     {
         $retentionYears = $retentionYears ?? $this->getDefaultRetentionYears();
         $disposalDate = now()->addYears($retentionYears);
-        
+
         $this->update([
             'status' => 'archived',
             'archived_at' => now(),
@@ -161,7 +205,7 @@ class Document extends Model
      */
     public function getDefaultRetentionYears()
     {
-        return match($this->category) {
+        return match ($this->category) {
             'contract' => 7,
             'policy' => 5,
             'legal_case' => 10,
@@ -176,10 +220,10 @@ class Document extends Model
      */
     public function canBeDisposed()
     {
-        return $this->status === 'archived' && 
-               $this->disposal_date && 
-               $this->disposal_date <= now() &&
-               !$this->can_dispose;
+        return $this->status === 'archived' &&
+            $this->disposal_date &&
+            $this->disposal_date <= now() &&
+            !$this->can_dispose;
     }
 
     /**
@@ -218,7 +262,7 @@ class Document extends Model
     public function scopeReadyForDisposal($query)
     {
         return $query->where('status', 'archived')
-                    ->where('can_dispose', true);
+            ->where('can_dispose', true);
     }
 
     /**
@@ -227,14 +271,14 @@ class Document extends Model
     public function scopeExpiringSoon($query)
     {
         return $query->where('status', 'archived')
-                    ->where('disposal_date', '<=', now()->addDays(30))
-                    ->where('can_dispose', false);
+            ->where('disposal_date', '<=', now()->addDays(30))
+            ->where('can_dispose', false);
     }
 
     /**
      * Collaboration and History Methods
      */
-    
+
     /**
      * Add editing history entry
      */
@@ -249,7 +293,7 @@ class Document extends Model
             'timestamp' => now()->toISOString(),
             'data' => $data
         ];
-        
+
         $this->update([
             'editing_history' => $history,
             'last_edited_by' => $userId ?? auth()->id(),
@@ -270,7 +314,7 @@ class Document extends Model
             'added_at' => now()->toISOString(),
             'added_by' => auth()->id()
         ];
-        
+
         $this->update(['collaborators' => $collaborators]);
     }
 
@@ -288,7 +332,7 @@ class Document extends Model
             'user_agent' => request()->userAgent(),
             'timestamp' => now()->toISOString()
         ];
-        
+
         // Update counters
         $updates = ['access_log' => $accessLog];
         if ($action === 'view') {
@@ -296,7 +340,7 @@ class Document extends Model
         } elseif ($action === 'download') {
             $updates['download_count'] = ($this->download_count ?? 0) + 1;
         }
-        
+
         $this->update($updates);
     }
 
@@ -330,12 +374,12 @@ class Document extends Model
     public function canUserEdit($userId = null)
     {
         $userId = $userId ?? auth()->id();
-        
+
         // Document owner can always edit
         if ($this->uploaded_by == $userId) {
             return true;
         }
-        
+
         // Check if user is a collaborator with edit role
         $collaborators = $this->getCollaborators();
         foreach ($collaborators as $collaborator) {
@@ -343,7 +387,7 @@ class Document extends Model
                 return true;
             }
         }
-        
+
         return false;
     }
 

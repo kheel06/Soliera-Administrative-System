@@ -1,0 +1,11 @@
+Field	Type	Null	Key	Default	Extra
+id	bigint(20) unsigned	NO	PRI	NULL	auto_increment
+name	varchar(255)	NO		NULL	
+description	text	YES		NULL	
+parent_id	bigint(20) unsigned	YES	MUL	NULL	
+user_id	bigint(20) unsigned	YES		NULL	
+department	varchar(255)	YES		NULL	
+category	varchar(255)	YES		NULL	
+tags	longtext	YES		NULL	
+created_at	timestamp	YES		NULL	
+updated_at	timestamp	YES		NULL	

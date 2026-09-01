@@ -1,26 +1,11 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Access Control - Soliera</title>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  @vite(['resources/css/soliera.css'])
+@extends('layouts.app')
 
-</head>
-<body class="bg-base-100">
-  <div class="flex h-screen overflow-hidden">
-    <!-- Sidebar -->
-    @include('partials.sidebarr')
-    <!-- Main content -->
-    <div class="flex flex-col flex-1 overflow-hidden">
-      <!-- Header -->
-      @include('partials.navbar')
+@section('title', 'Access | Users')
 
-      <!-- Main content area -->
-      <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+@section('content')
+
+      <!-- Content area -->
+      <div class="bg-gray-50 rounded-lg">
         @if(session('success'))
           <div class="alert alert-success mb-6">
             <i data-lucide="check-circle" class="w-5 h-5"></i>
@@ -122,9 +107,7 @@
             </tbody>
           </table>
         </x-table-card>
-      </main>
-    </div>
-  </div>
+      </div>
 
   <!-- Add User Modal -->
   <dialog id="addUserModal" class="modal">
@@ -287,6 +270,9 @@
     </div>
   </dialog>
 
+@endsection
+
+@push('scripts')
   @include('partials.soliera_js')
   <script>
     // Instant search: debounce and update URL + reload results
@@ -408,5 +394,4 @@
       setInterval(updateDateTime, 1000);
     });
   </script>
-</body>
-</html>
+@endpush

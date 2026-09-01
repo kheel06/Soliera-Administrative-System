@@ -35,6 +35,9 @@ class Kernel extends ConsoleKernel
         
         // Clean up expired OTP codes every hour
         $schedule->command('otp:cleanup')->hourly();
+        
+        // Ingest core1events for facility request notifications (every 30 seconds)
+        $schedule->job(new \App\Jobs\IngestCore1Events())->everyThirtySeconds()->withoutOverlapping();
     }
 
     /**

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Models\LegalTemplate;
+use App\Models\LegalContract; // Added LegalContract
 use App\Models\DocumentRequest;
 use App\Models\CompanyPolicy;
 use App\Models\EmployeeComplaint;
@@ -10,6 +12,7 @@ use App\Models\ViolationReport;
 use App\Models\LegalAiResult;
 use App\Models\LegalAuditLog;
 use App\Services\LegalManagementService;
+use App\Services\SystemNotificationService; // Added Notification Service
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -17,9 +20,13 @@ use App\Models\FacilityReservation;
 use App\Models\FacilityRequest;
 use App\Notifications\DocumentRequestStatusNotification;
 use App\Models\AccessLog;
+use App\Models\CaseActivity;
+use App\Models\LegalCase;
 use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\IOFactory;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\JsonResponse;
 
 class LegalController extends Controller
 {
@@ -54,13 +61,13 @@ class LegalController extends Controller
 
         // Recent legal cases
         $recentCases = \App\Models\LegalCase::latest()->take(5)->get() ?? collect([]);
-        
+
         // Recent legal documents
         $recentDocuments = Document::where('source', 'legal_management')
             ->latest()
             ->take(5)
             ->get();
-            
+
         // Pending legal review tasks
         $pendingLegalReviewTasks = \App\Models\ReservationTask::with(['facilityReservation.facility', 'facilityReservation.reserver'])
             ->where('task_type', 'legal_review')
@@ -86,64 +93,96 @@ class LegalController extends Controller
         $search = $request->input('search');
         $category = $request->input('category');
         $status = $request->input('status');
-        
+        $origin = $request->input('origin');
+
+        // Archived documents live in the archived documents table
+        if ($status === 'archived') {
+            return redirect()->route('document.archived');
+        }
+
         // Build the query for Documents tab
-        // Show ONLY external/legal submissions here; exclude Create workspace and AI builder
-        $query = Document::whereIn('source', ['legal_submission'])
-            ->with(['uploader' => function($q) {
-                $q->select('Dept_no', 'employee_name', 'dept_name');
-            }]);
-            
+        // Show all legal-related documents including legal_management, legal_submission, ai_builder, and general uploads
+        $query = Document::where(function ($q) {
+            $q->whereIn('source', ['legal_management', 'legal_submission', 'ai_builder'])
+                ->orWhereNull('source')
+                ->orWhere('source', '');
+        })
+            ->with([
+                'uploader' => function ($q) {
+                    $q->select('Dept_no', 'employee_name', 'dept_name');
+                }
+            ]);
+
         // Apply search filter
         if (!empty($search)) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('title', 'LIKE', '%' . $search . '%')
-                  ->orWhere('description', 'LIKE', '%' . $search . '%');
+                    ->orWhere('description', 'LIKE', '%' . $search . '%');
             });
         }
-        
+
         // Apply category filter
         if ($category) {
-            $query->where('category', $category);   
+            $query->where('category', $category);
         }
-        
+
+        // Exclude archived documents from this view
+        $query->where(function ($q) {
+            $q->whereNull('archived_at')
+                ->where('status', '!=', 'archived');
+        });
+
         // Apply status filter
         if ($status) {
             $query->where('status', $status);
         }
-        
+
+        // Apply origin/source filter
+        if ($origin) {
+            if ($origin === 'general') {
+                $query->where(function ($q) {
+                    $q->whereNull('source')->orWhere('source', '');
+                });
+            } else {
+                $query->where('source', $origin);
+            }
+        }
+
         // Get paginated documents with all necessary fields
-        $documents = $query->latest()->paginate(20);
+        $documents = $query->latest()->paginate(10);
         // Created via internal drafting (for Create tab table)
         // Show drafts and submitted-for-review (and keep already active ones visible here too)
         $createdDocuments = Document::where('source', 'legal_management')
             ->whereIn('status', ['draft', 'pending_review', 'active'])
             ->latest()
-            ->take(50)
-            ->get();
-            
+            ->paginate(10, ['*'], 'create_page');
+
         // Build the query for statistics for the cards (include all legal sources)
-        $statsQuery = Document::whereIn('source', ['legal_management', 'legal_submission', 'ai_builder']);
-        
+        $statsQuery = Document::whereIn('source', ['legal_management', 'legal_submission', 'ai_builder'])
+            ->where(function ($q) {
+                $q->whereNull('archived_at')
+                    ->where('status', '!=', 'archived');
+            });
+
         // Apply the same filters to stats query
         if ($search) {
-            $statsQuery->where(function($q) use ($search) {
+            $statsQuery->where(function ($q) use ($search) {
                 $q->where('title', 'like', '%' . $search . '%')
-                  ->orWhere('description', 'like', '%' . $search . '%');
+                    ->orWhere('description', 'like', '%' . $search . '%');
             });
         }
-        
+
         if ($category) {
             $statsQuery->where('category', $category);
         }
-        
+
         // Get document statistics with filters applied
         // Compute card stats. Declined combines rejected and returned
         $stats = [
             'total' => (clone $statsQuery)->count(),
-            'active' => (clone $statsQuery)->where('status', 'active')->count(),
+            'active' => (clone $statsQuery)->whereIn('status', ['active', 'approved'])->count(),
             'pending_review' => (clone $statsQuery)->where('status', 'pending_review')->count(),
-            'archived' => (clone $statsQuery)->whereIn('status', ['rejected','returned'])->count(),
+            'archived' => (clone $statsQuery)->whereIn('status', ['rejected', 'returned'])->count(),
         ];
 
         // Determine which tab should be active (documents | create | monitor)
@@ -151,8 +190,9 @@ class LegalController extends Controller
         $validTabs = ['documents', 'create', 'monitor'];
         $activeTab = in_array($requestedTab, $validTabs, true) ? $requestedTab : 'documents';
 
-        return view('legal.legal_documents', compact('documents', 'createdDocuments', 'stats', 'search', 'category', 'status', 'activeTab'));
+        return view('legal.legal_documents', compact('documents', 'createdDocuments', 'stats', 'search', 'category', 'status', 'origin', 'activeTab'));
     }
+
 
     /**
      * Show internal legal document creation form (draft/publish)
@@ -232,6 +272,15 @@ class LegalController extends Controller
         if ($request->hasFile('file')) {
             $path = $request->file('file')->store('legal_documents', 'public');
             $doc->update(['file_path' => $path]);
+        }
+
+        // Create notification when submitted for review
+        if ($status === 'pending_review') {
+            try {
+                \App\Services\SystemNotificationService::notifyDocumentAction('submitted', $doc, auth()->user());
+            } catch (\Throwable $e) {
+                \Log::warning('Failed to send notification for submitted document', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
+            }
         }
 
         // Optionally kick AI when submitted for review and file/content available
@@ -352,13 +401,13 @@ class LegalController extends Controller
         $aiRisks = (clone $base)->whereNotNull('legal_risk_score')->select('legal_risk_score', \DB::raw('count(*) as count'))->groupBy('legal_risk_score')->get();
 
         $sheets = [
-            'Created by Department' => array_merge([["Department","Count"]], $createdByDept->map(fn($r)=>[$r->department,$r->count])->toArray()),
-            'Types' => array_merge([["Type","Count"]], $types->map(fn($r)=>[$r->category,$r->count])->toArray()),
-            'Expiring (90d)' => array_merge([["Title","Department","Retention Until"]], $expiring->map(fn($d)=>[$d->title,$d->department,optional($d->retention_until)->format('Y-m-d')])->toArray()),
-            'AI Risk' => array_merge([["Risk","Count"]], $aiRisks->map(fn($r)=>[$r->legal_risk_score,$r->count])->toArray()),
+            'Created by Department' => array_merge([["Department", "Count"]], $createdByDept->map(fn($r) => [$r->department, $r->count])->toArray()),
+            'Types' => array_merge([["Type", "Count"]], $types->map(fn($r) => [$r->category, $r->count])->toArray()),
+            'Expiring (90d)' => array_merge([["Title", "Department", "Retention Until"]], $expiring->map(fn($d) => [$d->title, $d->department, optional($d->retention_until)->format('Y-m-d')])->toArray()),
+            'AI Risk' => array_merge([["Risk", "Count"]], $aiRisks->map(fn($r) => [$r->legal_risk_score, $r->count])->toArray()),
         ];
 
-        return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\VisitorReportExport($sheets), 'legal_reports_'.now()->format('Ymd_His').'.xlsx');
+        return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\VisitorReportExport($sheets), 'legal_reports_' . now()->format('Ymd_His') . '.xlsx');
     }
 
     /** Execution/Monitoring: mark as signed */
@@ -366,7 +415,7 @@ class LegalController extends Controller
     {
         $doc = Document::findOrFail($id);
         $doc->update(['metadata->signed_at' => now()->toDateTimeString()]);
-        return back()->with('success','Document marked as signed.');
+        return back()->with('success', 'Document marked as signed.');
     }
 
     /** Execution/Monitoring: set renewal date */
@@ -377,7 +426,7 @@ class LegalController extends Controller
         $meta = $doc->metadata ?? [];
         $meta['renewal_date'] = $request->renewal_date;
         $doc->update(['metadata' => $meta]);
-        return back()->with('success','Renewal date set.');
+        return back()->with('success', 'Renewal date set.');
     }
 
     /** Signatures: request a signature from a signer (internal stub; can connect to e-sign later) */
@@ -443,7 +492,7 @@ class LegalController extends Controller
         $cases = \App\Models\LegalCase::with(['assignedTo', 'createdBy', 'documents'])
             ->latest()
             ->paginate(20);
-            
+
         return view('legal.legal_cases', compact('cases'));
     }
 
@@ -474,7 +523,7 @@ class LegalController extends Controller
         try {
             // Generate case number first to avoid race conditions
             $caseNumber = \App\Models\LegalCase::generateCaseNumber();
-            
+
             // Create legal case
             $legalCase = \App\Models\LegalCase::create([
                 'case_title' => $request->case_title,
@@ -490,6 +539,9 @@ class LegalController extends Controller
                 'case_number' => $caseNumber, // Explicitly set the case number
             ]);
 
+            // Notify stakeholders
+            \App\Services\SystemNotificationService::notifyLegalCaseAction('created', $legalCase);
+
 
             // Check if request is AJAX
             if ($request->ajax()) {
@@ -501,7 +553,7 @@ class LegalController extends Controller
             }
 
             return redirect()->route('legal.case_deck')->with('success', 'Legal case created successfully!');
-            
+
         } catch (\Illuminate\Database\QueryException $e) {
             // Handle duplicate case number error specifically
             if (strpos($e->getMessage(), 'Duplicate entry') !== false && strpos($e->getMessage(), 'case_number') !== false) {
@@ -509,7 +561,7 @@ class LegalController extends Controller
             } else {
                 $errorMessage = 'Database error: ' . $e->getMessage();
             }
-            
+
             if ($request->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -545,7 +597,7 @@ class LegalController extends Controller
     public function reviewCase($id)
     {
         $case = \App\Models\LegalCase::with(['assignedTo', 'createdBy', 'documents'])->findOrFail($id);
-        
+
         // Get case statistics
         $stats = [
             'days_open' => $case->created_at ? $case->created_at->diffInDays(now()) : 0,
@@ -553,7 +605,7 @@ class LegalController extends Controller
             'witness_count' => 0, // To be implemented
             'notes_count' => 0, // To be implemented
         ];
-        
+
         return view('legal.case_review', compact('case', 'stats'));
     }
 
@@ -563,7 +615,7 @@ class LegalController extends Controller
     public function complianceAssessment($id)
     {
         $case = \App\Models\LegalCase::with(['assignedTo', 'createdBy', 'documents'])->findOrFail($id);
-        
+
         // Mock compliance data - in real implementation, this would come from a compliance service
         $complianceData = [
             'overall_score' => 85,
@@ -586,7 +638,7 @@ class LegalController extends Controller
                 'long_term' => ['Implement compliance monitoring', 'Regular compliance audits']
             ]
         ];
-        
+
         return view('legal.compliance_assessment', compact('case', 'complianceData'));
     }
 
@@ -604,7 +656,7 @@ class LegalController extends Controller
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Update case with investigation details
             $case->update([
                 'status' => 'ongoing',
@@ -637,7 +689,7 @@ class LegalController extends Controller
             }
 
             return redirect()->back()->with('success', 'Investigation started successfully!');
-            
+
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json([
@@ -664,47 +716,55 @@ class LegalController extends Controller
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Handle file upload
             $file = $request->file('evidence_file');
             $fileName = time() . '_' . $file->getClientOriginalName();
             $filePath = $file->storeAs('legal_evidence', $fileName, 'public');
 
-            // Create evidence document
-            $document = Document::create([
+            // Create CaseEvidence record for the Case Review UI
+            $caseEvidence = \App\Models\CaseEvidence::create([
+                'legal_case_id' => $case->id,
+                'evidence_type' => $request->evidence_type,
                 'title' => $request->evidence_description,
-                'description' => "Evidence for case: {$case->case_title}",
-                'category' => 'legal_evidence',
+                'description' => $request->description,
                 'file_path' => $filePath,
-                'uploaded_by' => auth()->id(),
-                'status' => 'active',
-                'source' => 'legal_management',
-                'linked_case_id' => $case->id,
-                'metadata' => [
-                    'evidence_type' => $request->evidence_type,
-                    'evidence_date' => $request->evidence_date,
-                    'case_id' => $case->id
-                ]
+                'file_name' => $fileName,
+                'file_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'uploaded_by' => auth()->user()?->name ?? auth()->user()?->employee_name ?? 'System',
+                'collected_at' => $request->evidence_date
             ]);
+
+            // Notify stakeholders
+            \App\Services\SystemNotificationService::notifyDocumentAction('added as evidence', $caseEvidence);
 
             // Log the action
             AccessLog::create([
                 'user_id' => auth()->id(),
                 'action' => 'add_legal_evidence',
-                'description' => "Added evidence to legal case ID {$case->id}",
+                'description' => "Added evidence to legal case ID {$case->id}: {$fileName}",
                 'ip_address' => request()->ip()
             ]);
+
+            // Add Case Activity log
+            CaseActivity::log(
+                $case->id,
+                'evidence_added',
+                "Evidence file uploaded: {$request->evidence_description}",
+                ['file_name' => $fileName, 'type' => $request->evidence_type]
+            );
 
             if ($request->ajax()) {
                 return response()->json([
                     'success' => true,
                     'message' => 'Evidence added successfully!',
-                    'document' => $document
+                    'document' => $caseEvidence
                 ]);
             }
 
             return redirect()->back()->with('success', 'Evidence added successfully!');
-            
+
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json([
@@ -730,11 +790,11 @@ class LegalController extends Controller
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Add note to case metadata
             $metadata = $case->metadata ?? [];
             $notes = $metadata['notes'] ?? [];
-            
+
             $notes[] = [
                 'id' => uniqid(),
                 'type' => $request->note_type,
@@ -744,7 +804,7 @@ class LegalController extends Controller
                 'created_by' => auth()->id(),
                 'created_by_name' => auth()->user()->name ?? 'Unknown'
             ];
-            
+
             $metadata['notes'] = $notes;
             $case->update(['metadata' => $metadata]);
 
@@ -765,7 +825,7 @@ class LegalController extends Controller
             }
 
             return redirect()->back()->with('success', 'Note added successfully!');
-            
+
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json([
@@ -785,15 +845,22 @@ class LegalController extends Controller
     {
         $request->validate([
             'current_stage' => 'required|string',
-            'notes' => 'nullable|string|max:2000'
+            'next_stage' => 'nullable|string',
+            'status' => 'nullable|string',
+            'notes' => 'nullable|string|max:2000',
+            'resolution_decision' => 'nullable|string',
+            'resolution_notes' => 'nullable|string',
+            'disciplinary_actions' => 'nullable|string',
+            'preventive_measures' => 'nullable|string',
         ]);
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Verify current stage matches
             if ($case->workflow_stage !== $request->current_stage) {
-                return redirect()->back()->withErrors(['error' => 'Case stage has changed. Please refresh the page.']);
+                $errorMsg = 'Case stage has changed. Please refresh the page.';
+                return $request->ajax() ? response()->json(['success' => false, 'message' => $errorMsg]) : redirect()->back()->withErrors(['error' => $errorMsg]);
             }
 
             // Determine next stage
@@ -804,36 +871,55 @@ class LegalController extends Controller
                 'resolution' => 'closed'
             ];
 
-            $nextStage = $stageTransitions[$case->workflow_stage] ?? null;
+            $nextStage = $request->next_stage ?: ($stageTransitions[$case->workflow_stage] ?? null);
 
             if (!$nextStage) {
-                return redirect()->back()->withErrors(['error' => 'Cannot transition from current stage.']);
-            }
-
-            // Check if transition is allowed
-            if (!$case->canTransitionTo($nextStage)) {
-                return redirect()->back()->withErrors(['error' => 'Transition to ' . $nextStage . ' is not allowed from current stage.']);
+                $errorMsg = 'Cannot transition from current stage.';
+                return $request->ajax() ? response()->json(['success' => false, 'message' => $errorMsg]) : redirect()->back()->withErrors(['error' => $errorMsg]);
             }
 
             // Perform transition
-            $success = $case->transitionTo($nextStage, $request->notes);
+            $success = $case->transitionTo($nextStage, $request->notes, $request->status);
 
             if (!$success) {
-                return redirect()->back()->withErrors(['error' => 'Failed to transition case.']);
+                $errorMsg = 'Failed to transition case.';
+                return $request->ajax() ? response()->json(['success' => false, 'message' => $errorMsg]) : redirect()->back()->withErrors(['error' => $errorMsg]);
+            }
+
+            // If moving to closed, ensure resolution details are set or persistent
+            if ($nextStage === 'closed') {
+                $case->update([
+                    'status' => 'completed'
+                ]);
             }
 
             // Log the action
             AccessLog::create([
-                'user_id' => Auth::id(),
+                'user_id' => auth()->id(),
                 'action' => 'transition_legal_case',
                 'description' => "Transitioned legal case ID {$case->id} from {$request->current_stage} to {$nextStage}",
                 'ip_address' => request()->ip()
             ]);
 
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Transition successful!',
+                    'stage' => $nextStage,
+                    'status' => $case->status
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Case stage updated successfully!');
+
             return redirect()->back()->with('success', "Case successfully transitioned from " . ucfirst($request->current_stage) . " to " . ucfirst($nextStage) . ".");
-            
+
         } catch (\Exception $e) {
-            return redirect()->back()->withErrors(['error' => 'Error transitioning case: ' . $e->getMessage()]);
+            $errorMsg = 'Error transitioning case: ' . $e->getMessage();
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $errorMsg]);
+            }
+            return redirect()->back()->withErrors(['error' => $errorMsg]);
         }
     }
 
@@ -855,7 +941,7 @@ class LegalController extends Controller
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Create witness record
             $witness = \App\Models\CaseWitness::create([
                 'legal_case_id' => $case->id,
@@ -886,7 +972,7 @@ class LegalController extends Controller
             }
 
             return redirect()->back()->with('success', 'Witness added successfully!');
-            
+
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json([
@@ -911,7 +997,7 @@ class LegalController extends Controller
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Update investigation notes and findings
             $case->update([
                 'investigation_notes' => $request->investigation_notes,
@@ -940,7 +1026,7 @@ class LegalController extends Controller
             }
 
             return redirect()->back()->with('success', 'Investigation notes saved successfully!');
-            
+
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json([
@@ -962,25 +1048,40 @@ class LegalController extends Controller
             'resolution_decision' => 'required|string|in:approved,rejected,dismissed,settled,pending',
             'resolution_notes' => 'required|string|max:5000',
             'disciplinary_actions' => 'nullable|string|max:5000',
-            'preventive_measures' => 'nullable|string|max:5000'
+            'preventive_measures' => 'nullable|string|max:5000',
+            'amount' => 'nullable|numeric',
+            'mark_facility_unavailable' => 'nullable|boolean'
         ]);
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Update case with resolution details
             $case->update([
                 'resolution_decision' => $request->resolution_decision,
                 'resolution_notes' => $request->resolution_notes,
                 'disciplinary_actions' => $request->disciplinary_actions,
                 'preventive_measures' => $request->preventive_measures,
+                'amount' => $request->amount,
                 'resolved_at' => now(),
-                'status' => $request->resolution_decision === 'pending' ? 'on_hold' : 'completed',
+                'status' => 'resolved', // Set to resolved status per new workflow
             ]);
+
+            // If facility needs to be marked as unavailable
+            if ($request->mark_facility_unavailable && $case->incident_location) {
+                // Try to find the facility by name (very basic matching)
+                $facility = \App\Models\Facility::where('name', 'like', '%' . $case->incident_location . '%')->first();
+                if ($facility) {
+                    $facility->update(['status' => 'Maintenance']);
+
+                    // Log facility update
+                    CaseActivity::log($case->id, 'facility_status_updated', "Facility '{$facility->name}' marked as Under Maintenance due to damage resolution.");
+                }
+            }
 
             // Log the action
             AccessLog::create([
-                'user_id' => Auth::id(),
+                'user_id' => auth()->id(),
                 'action' => 'submit_case_resolution',
                 'description' => "Submitted resolution ({$request->resolution_decision}) for legal case ID {$case->id}",
                 'ip_address' => request()->ip()
@@ -995,7 +1096,6 @@ class LegalController extends Controller
             }
 
             return redirect()->back()->with('success', 'Case resolution submitted successfully!');
-            
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json([
@@ -1056,7 +1156,7 @@ class LegalController extends Controller
             ]);
 
             // Send notification
-            \App\Services\SystemNotificationService::notifyLegalCaseAction('deleted', (object)['case_title' => $caseTitle, 'id' => $id]);
+            \App\Services\SystemNotificationService::notifyLegalCaseAction('deleted', (object) ['case_title' => $caseTitle, 'id' => $id]);
 
             return response()->json([
                 'success' => true,
@@ -1081,7 +1181,7 @@ class LegalController extends Controller
             ->whereHas('document')
             ->latest()
             ->get();
-            
+
         return view('legal.pending', compact('pendingRequests'));
     }
 
@@ -1092,7 +1192,7 @@ class LegalController extends Controller
             ->whereHas('document')
             ->latest()
             ->paginate(20);
-            
+
         return view('legal.approved', compact('approvedRequests'));
     }
 
@@ -1110,7 +1210,7 @@ class LegalController extends Controller
     public function approveRequest($id)
     {
         $documentRequest = DocumentRequest::findOrFail($id);
-        
+
         if ($documentRequest->status !== 'pending') {
             return redirect()->back()->with('error', 'This request has already been processed.');
         }
@@ -1141,7 +1241,7 @@ class LegalController extends Controller
     public function denyRequest($id)
     {
         $documentRequest = DocumentRequest::findOrFail($id);
-        
+
         if ($documentRequest->status !== 'pending') {
             return redirect()->back()->with('error', 'This request has already been processed.');
         }
@@ -1173,7 +1273,7 @@ class LegalController extends Controller
     {
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Check if case can be approved (only pending cases)
             if ($case->status !== 'pending') {
                 return response()->json([
@@ -1220,7 +1320,7 @@ class LegalController extends Controller
     {
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Check if case can be declined (only pending cases)
             if ($case->status !== 'pending') {
                 return response()->json([
@@ -1310,7 +1410,7 @@ class LegalController extends Controller
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Update case with escalation details
             $case->update([
                 'status' => 'escalated',
@@ -1340,7 +1440,7 @@ class LegalController extends Controller
             }
 
             return redirect()->back()->with('success', 'Case escalated successfully!');
-            
+
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json([
@@ -1366,7 +1466,7 @@ class LegalController extends Controller
 
         try {
             $case = \App\Models\LegalCase::findOrFail($id);
-            
+
             // Update case with hold details
             $case->update([
                 'status' => 'on_hold',
@@ -1396,7 +1496,7 @@ class LegalController extends Controller
             }
 
             return redirect()->back()->with('success', 'Case put on hold successfully!');
-            
+
         } catch (\Exception $e) {
             if ($request->ajax()) {
                 return response()->json([
@@ -1430,7 +1530,7 @@ class LegalController extends Controller
         ];
 
         $dbCategory = $categoryMapping[$category] ?? 'general';
-        
+
         // Get documents for this category (only from Legal Management)
         $documents = Document::with('uploader')
             ->where('category', $dbCategory)
@@ -1465,8 +1565,8 @@ class LegalController extends Controller
     public function draftingWorkspace(Request $request)
     {
         $documentId = $request->get('document_id') ?? $request->get('edit');
-        $templateKey = $request->get('template'); // Get the raw template parameter
-        
+        $templateParam = $request->get('template');
+
         $document = null;
         if ($documentId) {
             $document = Document::where('id', $documentId)
@@ -1475,38 +1575,102 @@ class LegalController extends Controller
                 ->first();
         }
 
-        // Available templates
-        $templates = [
+        // Available templates from DB
+        $dbTemplates = LegalTemplate::where('status', 'approved')->get();
+        $templates = [];
+        foreach ($dbTemplates as $tpl) {
+            $content = $tpl->content;
+
+            $category = $tpl->category;
+
+            // Fix for bad DB content for Employment Contract
+            if (stripos($tpl->name, 'Employment Contract') !== false && strlen($content) < 100) {
+                $content = $this->getEmploymentContractTemplate();
+            }
+
+            // Fix for bad DB content for SLA
+            if (stripos($tpl->name, 'Service Level Agreement') !== false && strlen($content) < 100) {
+                $content = $this->getSLATemplate();
+                $category = 'SLA';
+            }
+
+            $templates[$tpl->id] = [
+                'id' => $tpl->id,
+                'title' => $tpl->name,
+                'content' => $content,
+                'category' => $category,
+                'code' => $tpl->code
+            ];
+        }
+
+        // Hardcoded fallbacks if needed, or merged
+        $hardcodedTemplates = [
             'service_contract' => [
                 'title' => 'Service Contract Template',
-                'content' => $this->getServiceContractTemplate()
+                'content' => $this->getServiceContractTemplate(),
+                'category' => 'contract'
             ],
             'employment_contract' => [
                 'title' => 'Employment Contract Template',
-                'content' => $this->getEmploymentContractTemplate()
+                'content' => $this->getEmploymentContractTemplate(),
+                'category' => 'employment'
             ],
-            'guest_agreement' => [
-                'title' => 'Guest Agreement Template',
-                'content' => $this->getGuestAgreementTemplate()
-            ],
-            'vendor_agreement' => [
-                'title' => 'Vendor Agreement Template',
-                'content' => $this->getVendorAgreementTemplate()
-            ],
-            'hr_policy' => [
-                'title' => 'HR Policy Template',
-                'content' => $this->getHRPolicyTemplate()
+            'sla' => [
+                'title' => 'Service Level Agreement (SLA)',
+                'content' => $this->getSLATemplate(),
+                'category' => 'SLA'
             ]
         ];
 
-        // Validate that $templateKey is a string and exists as a key in $templates
-        $template = null;
-        if (is_string($templateKey) && array_key_exists($templateKey, $templates)) {
-            $template = $templateKey;
+        // Use union operator to preserve numeric keys (IDs) from DB templates
+        // array_merge re-indexes numeric keys, causing ID mismatches
+        $templates = $hardcodedTemplates + $templates;
+
+        // Determine if a specific template is requested
+        $selectedTemplate = null;
+        if ($templateParam) {
+            if (isset($templates[$templateParam])) {
+                $selectedTemplate = $templates[$templateParam];
+            } else {
+                // Try to find by ID or Code in DB
+                $tpl = LegalTemplate::find($templateParam);
+                if (!$tpl) {
+                    $tpl = LegalTemplate::where('code', $templateParam)->first();
+                }
+
+                if ($tpl) {
+                    $content = $tpl->content;
+                    $category = $tpl->category;
+
+                    // Fix for bad DB content on fallback load
+                    if ((stripos($tpl->name, 'Employment Contract') !== false) && strlen($content) < 100) {
+                        $content = $this->getEmploymentContractTemplate();
+                    }
+                    if ((stripos($tpl->name, 'Service Level Agreement') !== false || stripos($tpl->name, 'SLA') !== false) && strlen($content) < 100) {
+                        $content = $this->getSLATemplate();
+                        $category = 'SLA';
+                    }
+
+                    $selectedTemplate = [
+                        'id' => $tpl->id,
+                        'title' => $tpl->name,
+                        'content' => $content,
+                        'category' => $category,
+                        'code' => $tpl->code
+                    ];
+                }
+            }
         }
 
-        return view('legal.drafting_workspace', compact('document', 'templates', 'template'));
+        // Check for associated contract
+        $contract = null;
+        if ($document && isset($document->metadata['legal_contract_id'])) {
+            $contract = LegalContract::find($document->metadata['legal_contract_id']);
+        }
+
+        return view('legal.drafting_workspace', compact('document', 'templates', 'selectedTemplate', 'contract'));
     }
+
 
     /**
      * Save document as draft
@@ -1517,15 +1681,18 @@ class LegalController extends Controller
             'title' => 'required|string|max:255',
             'content' => 'required|string',
             'document_type' => 'required|string|max:255',
-            'department' => 'required|string|max:255',
-            'document_id' => 'nullable|exists:documents,id'
+            'document_id' => 'nullable|exists:documents,id',
+            'counterparty_name' => 'nullable|string|max:255',
+            'effective_date' => 'nullable|date',
+            'contract_value' => 'nullable|numeric',
+            'expiration_date' => 'nullable|date'
         ]);
 
         $data = [
             'title' => $request->title,
             'description' => 'Draft document created in drafting workspace',
             'category' => $request->document_type,
-            'department' => $request->department,
+            'department' => auth()->user()->department ?? 'Administration',
             'status' => 'draft',
             'source' => 'legal_management',
             'file_path' => '',
@@ -1538,14 +1705,74 @@ class LegalController extends Controller
             ],
         ];
 
+        $document = null;
+        $contract = null;
+        $isNewContract = false;
+
         if ($request->document_id) {
             // Update existing document
             $document = Document::find($request->document_id);
+
+            $existingMetadata = $document->metadata ?? [];
+            $data['metadata'] = array_merge($existingMetadata, $data['metadata']);
+
             $document->update($data);
+
+            // Check for linked contract
+            if (isset($existingMetadata['legal_contract_id'])) {
+                $contract = LegalContract::find($existingMetadata['legal_contract_id']);
+                if ($contract) {
+                    $contract->update([
+                        'title' => $request->title,
+                        'type' => $request->document_type,
+                        // 'department' => $request->department, // Removed from UI
+                        'counterparty_name' => $request->counterparty_name,
+                        'effective_date' => $request->effective_date,
+                        'expiration_date' => $request->expiration_date,
+                        'contract_value' => $request->contract_value,
+                    ]);
+                }
+            }
         } else {
             // Create new document
             $document = Document::create($data);
             $document->update(['reference_id' => 'LGL-' . str_pad($document->id, 6, '0', STR_PAD_LEFT)]);
+        }
+
+        // Drafting Workspace Sync: Ensure a LegalContract exists
+        if (!$contract) {
+            $contract = LegalContract::create([
+                'title' => $request->title,
+                'contract_number' => 'CTR-' . date('Y') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
+                'counterparty_name' => $request->counterparty_name ?? 'Pending',
+                'type' => $request->document_type ?? 'Contract',
+                'status' => 'Draft',
+                'department' => auth()->user()->department ?? 'Legal',
+                'effective_date' => $request->effective_date,
+                'expiration_date' => $request->expiration_date,
+                'contract_value' => $request->contract_value,
+                'user_id' => auth()->id(),
+                'description' => 'Draft created via Drafting Workspace',
+            ]);
+
+            // Link document to contract via metadata
+            $meta = $document->metadata ?? [];
+            $meta['legal_contract_id'] = $contract->id;
+            $document->update(['metadata' => $meta]);
+
+            $isNewContract = true;
+        }
+
+        // Trigger Notification if new contract Created
+        if ($isNewContract) {
+            try {
+                // Ensure the service class exists and method is static
+                if (class_exists(\App\Services\SystemNotificationService::class)) {
+                    \App\Services\SystemNotificationService::notifyContractAction('created', $contract);
+                }
+            } catch (\Exception $e) {
+                Log::error('Notification failed: ' . $e->getMessage());
+            }
         }
 
         // Log the action
@@ -1558,7 +1785,7 @@ class LegalController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Draft saved successfully',
+            'message' => 'Draft saved and synchronized to Contracts Workspace',
             'document_id' => $document->id,
             'reference_id' => $document->reference_id
         ]);
@@ -1631,7 +1858,7 @@ class LegalController extends Controller
             ->firstOrFail();
 
         $format = $request->get('format', 'pdf');
-        
+
         if ($format === 'pdf') {
             return $this->generatePdfExport($document);
         } elseif ($format === 'word') {
@@ -1654,7 +1881,7 @@ class LegalController extends Controller
         return '<div style="font-family: \'Times New Roman\', serif; font-size: 12pt; line-height: 1.6; max-width: 8.5in; margin: 0 auto; padding: 1in; background: white;">
             <!-- Letterhead -->
             <div style="text-align: center; margin-bottom: 3em; border-bottom: 2px solid #000; padding-bottom: 1em;">
-                <h1 style="font-size: 20pt; font-weight: bold; margin-bottom: 0.3em; text-transform: uppercase; letter-spacing: 2px; color: #000;">SOLIERA HOTEL</h1>
+                <h1 style="font-size: 20pt; font-weight: bold; margin-bottom: 0.3em; text-transform: uppercase; letter-spacing: 2px; color: #000;"><span contenteditable="false">SOLIERA HOTEL</span></h1>
                 <p style="font-size: 11pt; color: #333; margin: 0.2em 0; font-weight: 500;">[HOTEL ADDRESS]</p>
                 <p style="font-size: 11pt; color: #333; margin: 0.2em 0; font-weight: 500;">[CITY, STATE ZIP] • Phone: [PHONE] • Email: [EMAIL]</p>
             </div>
@@ -1667,7 +1894,7 @@ class LegalController extends Controller
             
             <div style="margin-bottom: 2em;">
                 <p style="text-align: justify; margin-bottom: 1em; text-indent: 0.5in;">
-                    This Employment Contract ("Contract") is entered into on <strong>' . date('F j, Y') . '</strong> between <strong>SOLIERA HOTEL</strong> ("Company"), a corporation organized under the laws of [STATE], with its principal place of business at [HOTEL ADDRESS], and <strong>[EMPLOYEE_NAME]</strong> ("Employee"), residing at [EMPLOYEE_ADDRESS].
+                    This Employment Contract ("Contract") is entered into on <strong>' . date('F j, Y') . '</strong> between <strong><span contenteditable="false">SOLIERA HOTEL</span></strong> ("Company"), a corporation organized under the laws of [STATE], with its principal place of business at [HOTEL ADDRESS], and <strong>[EMPLOYEE_NAME]</strong> ("Employee"), residing at [EMPLOYEE_ADDRESS].
                 </p>
             </div>
             
@@ -1735,7 +1962,7 @@ class LegalController extends Controller
                 <div style="display: flex; justify-content: space-between; margin-top: 3em; page-break-inside: avoid;">
                     <div style="width: 45%; text-align: center;">
                         <div style="border-bottom: 1px solid #000; margin-bottom: 0.8em; height: 1.5em; width: 100%;"></div>
-                        <p style="font-weight: bold; margin: 0.5em 0; font-size: 11pt; text-transform: uppercase;">SOLIERA HOTEL</p>
+                        <p style="font-weight: bold; margin: 0.5em 0; font-size: 11pt; text-transform: uppercase;"><span contenteditable="false">SOLIERA HOTEL</span></p>
                         <p style="font-size: 9pt; margin: 0.3em 0; color: #666;">Authorized Representative</p>
                         <p style="font-size: 9pt; margin: 0.3em 0; color: #666;">Date: _______________</p>
                     </div>
@@ -1754,7 +1981,7 @@ class LegalController extends Controller
     {
         return '<div style="font-family: \'Times New Roman\', serif; font-size: 12pt; line-height: 1.6; max-width: 8.5in; margin: 0 auto; padding: 1in;">
             <div style="text-align: center; margin-bottom: 2em;">
-                <h1 style="font-size: 18pt; font-weight: bold; margin-bottom: 0.5em; text-transform: uppercase; letter-spacing: 1px;">SOLIERA HOTEL</h1>
+                <h1 style="font-size: 18pt; font-weight: bold; margin-bottom: 0.5em; text-transform: uppercase; letter-spacing: 1px;"><span contenteditable="false">SOLIERA HOTEL</span></h1>
                 <p style="font-size: 10pt; color: #666; margin: 0;">[HOTEL ADDRESS]</p>
                 <p style="font-size: 10pt; color: #666; margin: 0;">[CITY, STATE ZIP]</p>
             </div>
@@ -1854,7 +2081,7 @@ class LegalController extends Controller
                 <div style="display: flex; justify-content: space-between; margin-top: 2em;">
                     <div style="width: 45%;">
                         <p style="border-bottom: 1px solid #000; margin-bottom: 0.5em; height: 2em;"></p>
-                        <p style="text-align: center; font-weight: bold; margin: 0;">SOLIERA HOTEL</p>
+                        <p style="text-align: center; font-weight: bold; margin: 0;"><span contenteditable="false">SOLIERA HOTEL</span></p>
                         <p style="text-align: center; font-size: 10pt; margin: 0;">Authorized Representative</p>
                         <p style="text-align: center; font-size: 10pt; margin: 0;">Date: _______________</p>
                     </div>
@@ -1873,7 +2100,7 @@ class LegalController extends Controller
     {
         return '<div style="font-family: \'Times New Roman\', serif; font-size: 12pt; line-height: 1.6; max-width: 8.5in; margin: 0 auto; padding: 1in;">
             <div style="text-align: center; margin-bottom: 2em;">
-                <h1 style="font-size: 18pt; font-weight: bold; margin-bottom: 0.5em; text-transform: uppercase; letter-spacing: 1px;">SOLIERA HOTEL</h1>
+                <h1 style="font-size: 18pt; font-weight: bold; margin-bottom: 0.5em; text-transform: uppercase; letter-spacing: 1px;"><span contenteditable="false">SOLIERA HOTEL</span></h1>
                 <p style="font-size: 10pt; color: #666; margin: 0;">[HOTEL ADDRESS]</p>
                 <p style="font-size: 10pt; color: #666; margin: 0;">[CITY, STATE ZIP]</p>
             </div>
@@ -1903,7 +2130,7 @@ class LegalController extends Controller
             <div style="margin-bottom: 2em;">
                 <h3 style="font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5em; border-bottom: 1px solid #000; padding-bottom: 0.2em;">1. SUPPLY TERMS</h3>
                 <p style="text-align: justify; margin-bottom: 0.5em; text-indent: 0.5in;">
-                    The Vendor agrees to supply the following goods and/or services to Soliera Hotel in accordance with the terms and conditions set forth in this agreement:
+                    The Vendor agrees to supply the following goods and/or services to <span contenteditable="false">SOLIERA HOTEL</span> in accordance with the terms and conditions set forth in this agreement:
                 </p>
                 <ul style="margin-left: 1in; margin-bottom: 0.5em;">
                     <li style="margin-bottom: 0.3em;">Product/Service: [PRODUCT_SERVICE]</li>
@@ -1967,7 +2194,7 @@ class LegalController extends Controller
                 <div style="display: flex; justify-content: space-between; margin-top: 2em;">
                     <div style="width: 45%;">
                         <p style="border-bottom: 1px solid #000; margin-bottom: 0.5em; height: 2em;"></p>
-                        <p style="text-align: center; font-weight: bold; margin: 0;">SOLIERA HOTEL</p>
+                        <p style="text-align: center; font-weight: bold; margin: 0;"><span contenteditable="false">SOLIERA HOTEL</span></p>
                         <p style="text-align: center; font-size: 10pt; margin: 0;">Authorized Representative</p>
                         <p style="text-align: center; font-size: 10pt; margin: 0;">Date: _______________</p>
                     </div>
@@ -1986,7 +2213,7 @@ class LegalController extends Controller
     {
         return '<div style="font-family: \'Times New Roman\', serif; font-size: 12pt; line-height: 1.6; max-width: 8.5in; margin: 0 auto; padding: 1in;">
             <div style="text-align: center; margin-bottom: 2em;">
-                <h1 style="font-size: 18pt; font-weight: bold; margin-bottom: 0.5em; text-transform: uppercase; letter-spacing: 1px;">SOLIERA HOTEL</h1>
+                <h1 style="font-size: 18pt; font-weight: bold; margin-bottom: 0.5em; text-transform: uppercase; letter-spacing: 1px;"><span contenteditable="false">SOLIERA HOTEL</span></h1>
                 <p style="font-size: 10pt; color: #666; margin: 0;">[HOTEL ADDRESS]</p>
                 <p style="font-size: 10pt; color: #666; margin: 0;">[CITY, STATE ZIP]</p>
             </div>
@@ -2016,21 +2243,21 @@ class LegalController extends Controller
             <div style="margin-bottom: 2em;">
                 <h3 style="font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5em; border-bottom: 1px solid #000; padding-bottom: 0.2em;">1. PURPOSE</h3>
                 <p style="text-align: justify; margin-bottom: 0.5em; text-indent: 0.5in;">
-                    The purpose of this policy is to establish clear guidelines and standards for [POLICY_SUBJECT] within Soliera Hotel. This policy ensures consistency, fairness, and compliance with applicable laws and regulations while promoting a positive work environment for all employees.
+                    The purpose of this policy is to establish clear guidelines and standards for [POLICY_SUBJECT] within <span contenteditable="false">SOLIERA HOTEL</span>. This policy ensures consistency, fairness, and compliance with applicable laws and regulations while promoting a positive work environment for all employees.
                 </p>
             </div>
             
             <div style="margin-bottom: 2em;">
                 <h3 style="font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5em; border-bottom: 1px solid #000; padding-bottom: 0.2em;">2. SCOPE</h3>
                 <p style="text-align: justify; margin-bottom: 0.5em; text-indent: 0.5in;">
-                    This policy applies to all employees of Soliera Hotel, including full-time, part-time, temporary, and contract workers. It also extends to all departments and levels of management within the organization.
+                    This policy applies to all employees of <span contenteditable="false">SOLIERA HOTEL</span>, including full-time, part-time, temporary, and contract workers. It also extends to all departments and levels of management within the organization.
                 </p>
             </div>
             
             <div style="margin-bottom: 2em;">
                 <h3 style="font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5em; border-bottom: 1px solid #000; padding-bottom: 0.2em;">3. POLICY STATEMENT</h3>
                 <p style="text-align: justify; margin-bottom: 0.5em; text-indent: 0.5in;">
-                    Soliera Hotel is committed to [POLICY_COMMITMENT]. All employees are expected to adhere to the following principles and guidelines:
+                    <span contenteditable="false">SOLIERA HOTEL</span> is committed to [POLICY_COMMITMENT]. All employees are expected to adhere to the following principles and guidelines:
                 </p>
                 <ul style="margin-left: 1in; margin-bottom: 0.5em;">
                     <li style="margin-bottom: 0.3em;">[PRINCIPLE_1]</li>
@@ -2078,8 +2305,149 @@ class LegalController extends Controller
                     <div style="width: 45%;">
                         <p style="border-bottom: 1px solid #000; margin-bottom: 0.5em; height: 2em;"></p>
                         <p style="text-align: center; font-weight: bold; margin: 0;">[GENERAL_MANAGER]</p>
-                        <p style="text-align: center; font-size: 10pt; margin: 0;">General Manager</p>
+                        <p style="text-align: center; font-size: 10pt; margin: 0;">Owner</p>
                         <p style="text-align: center; font-size: 10pt; margin: 0;">Date: _______________</p>
+                    </div>
+                </div>
+            </div>
+        </div>';
+    }
+
+    private function getSLATemplate()
+    {
+        return '<div style="font-family: \'Times New Roman\', serif; font-size: 12pt; line-height: 1.6; max-width: 8.5in; margin: 0 auto; padding: 1in; background: white;">
+            <!-- Letterhead -->
+            <div style="text-align: center; margin-bottom: 3em; border-bottom: 2px solid #000; padding-bottom: 1em;">
+                <h1 style="font-size: 20pt; font-weight: bold; margin-bottom: 0.3em; text-transform: uppercase; letter-spacing: 2px; color: #000;"><span contenteditable="false">SOLIERA HOTEL</span></h1>
+                <p style="font-size: 11pt; color: #333; margin: 0.2em 0; font-weight: 500;">[HOTEL ADDRESS]</p>
+                <p style="font-size: 11pt; color: #333; margin: 0.2em 0; font-weight: 500;">[CITY, STATE ZIP] • Phone: [PHONE] • Email: [EMAIL]</p>
+            </div>
+            
+            <!-- Document Title -->
+            <div style="text-align: center; margin-bottom: 3em;">
+                <h2 style="font-size: 18pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5em; color: #000;">SERVICE LEVEL AGREEMENT (SLA)</h2>
+                <p style="font-size: 12pt; margin: 0; color: #333;">Effective Date: <strong>' . date('F j, Y') . '</strong></p>
+            </div>
+            
+            <div style="margin-bottom: 2em;">
+                <h3 style="font-size: 11pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5em; color: #666;">PARTIES</h3>
+                <p style="text-align: justify; margin-bottom: 1em; text-indent: 0.5in;">
+                    This Service Level Agreement ("Agreement") is made and entered into by and between:
+                </p>
+                <div style="margin-left: 0.5in; margin-bottom: 1em;">
+                    <p style="margin-bottom: 0.5em;"><strong>SERVICE PROVIDER:</strong> <span contenteditable="false">SOLIERA HOTEL</span> IT Department ("Provider")</p>
+                    <p style="margin-bottom: 0.5em;"><strong>CUSTOMER:</strong> <strong>[CUSTOMER_NAME/DEPARTMENT]</strong> ("Customer")</p>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 2.5em;">
+                <h3 style="font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.8em; border-bottom: 1px solid #000; padding-bottom: 0.3em; color: #000;">1. AGREEMENT OVERVIEW</h3>
+                <p style="text-align: justify; margin-bottom: 0.8em; text-indent: 0.5in; line-height: 1.7;">
+                    This Agreement represents a Service Level Agreement ("SLA" or "Agreement") between the Provider and Customer for the provisioning of IT services required to support and sustain the Customer\'s business operations.
+                </p>
+                <p style="text-align: justify; margin-bottom: 0.8em; text-indent: 0.5in; line-height: 1.7;">
+                    This Agreement remains valid until superseded by a revised agreement mutually endorsed by the stakeholders.
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 2.5em;">
+                <h3 style="font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.8em; border-bottom: 1px solid #000; padding-bottom: 0.3em; color: #000;">2. GOALS AND OBJECTIVES</h3>
+                <p style="text-align: justify; margin-bottom: 0.8em; text-indent: 0.5in; line-height: 1.7;">
+                    The purpose of this Agreement is to ensure that the proper elements and commitments are in place to provide consistent IT service support and delivery to the Customer. 
+                </p>
+                <p style="text-align: justify; margin-bottom: 0.8em; text-indent: 0.5in; line-height: 1.7;">
+                    The objectives of this Agreement are to:
+                </p>
+                <ul style="margin-left: 1.2in; margin-bottom: 0.8em; line-height: 1.6;">
+                    <li style="margin-bottom: 0.4em;">Provide clear reference to service ownership, accountability, roles, and/or responsibilities.</li>
+                    <li style="margin-bottom: 0.4em;">Present a clear, concise, and measurable description of service provision to the customer.</li>
+                    <li style="margin-bottom: 0.4em;">Match perceptions of expected service provision with actual service support & delivery.</li>
+                </ul>
+            </div>
+            
+            <div style="margin-bottom: 2.5em;">
+                <h3 style="font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.8em; border-bottom: 1px solid #000; padding-bottom: 0.3em; color: #000;">3. SERVICE AGREEMENT</h3>
+                <p style="text-align: justify; margin-bottom: 0.8em; text-indent: 0.5in; line-height: 1.7;">
+                    The following detailed service parameters are the responsibility of the Service Provider in the ongoing support of this Agreement.
+                </p>
+                
+                <h4 style="font-size: 12pt; font-weight: bold; margin-top: 1em; margin-bottom: 0.5em;">3.1 Service Scope</h4>
+                <p style="text-align: justify; margin-bottom: 0.8em; text-indent: 0.5in; line-height: 1.7;">
+                    The following services are covered by this Agreement:
+                </p>
+                <ul style="margin-left: 1.2in; margin-bottom: 0.8em; line-height: 1.6;">
+                    <li style="margin-bottom: 0.4em;">Manned telephone support</li>
+                    <li style="margin-bottom: 0.4em;">Monitored email support</li>
+                    <li style="margin-bottom: 0.4em;">Remote assistance using Remote Desktop and a Virtual Private Network where available</li>
+                    <li style="margin-bottom: 0.4em;">Planned or Emergency Onsite assistance (extra costs apply)</li>
+                    <li style="margin-bottom: 0.4em;">[ADDITIONAL_SERVICE_1]</li>
+                    <li style="margin-bottom: 0.4em;">[ADDITIONAL_SERVICE_2]</li>
+                </ul>
+            </div>
+            
+            <div style="margin-bottom: 2.5em;">
+                <h3 style="font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.8em; border-bottom: 1px solid #000; padding-bottom: 0.3em; color: #000;">4. PERFORMANCE METRICS (KPIs)</h3>
+                <p style="text-align: justify; margin-bottom: 0.8em; text-indent: 0.5in; line-height: 1.7;">
+                    The following performance metrics will be measured and reported monthly:
+                </p>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 1em;">
+                    <thead>
+                        <tr style="background-color: #f2f2f2;">
+                            <th style="border: 1px solid #000; padding: 8px; text-align: left;">Metric</th>
+                            <th style="border: 1px solid #000; padding: 8px; text-align: left;">Definition</th>
+                            <th style="border: 1px solid #000; padding: 8px; text-align: left;">Benchmark</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 8px;">System Uptime</td>
+                            <td style="border: 1px solid #000; padding: 8px;">Time services are available</td>
+                            <td style="border: 1px solid #000; padding: 8px;">99.9%</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 8px;">Response Time</td>
+                            <td style="border: 1px solid #000; padding: 8px;">Time to acknowledge issue</td>
+                            <td style="border: 1px solid #000; padding: 8px;">< 1 Hour (Critical)</td>
+                        </tr>
+                         <tr>
+                            <td style="border: 1px solid #000; padding: 8px;">Resolution Time</td>
+                            <td style="border: 1px solid #000; padding: 8px;">Time to resolve issue</td>
+                            <td style="border: 1px solid #000; padding: 8px;">< 4 Hours (Critical)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="margin-bottom: 2.5em;">
+                <h3 style="font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 0.8em; border-bottom: 1px solid #000; padding-bottom: 0.3em; color: #000;">5. SERVICE MANAGEMENT</h3>
+                <h4 style="font-size: 12pt; font-weight: bold; margin-top: 1em; margin-bottom: 0.5em;">5.1 Service Availability</h4>
+                <p style="text-align: justify; margin-bottom: 0.8em; text-indent: 0.5in; line-height: 1.7;">
+                    Coverage parameters specific to the service(s) covered in this Agreement are as follows:
+                </p>
+                <ul style="margin-left: 1.2in; margin-bottom: 0.8em; line-height: 1.6;">
+                    <li style="margin-bottom: 0.4em;">Telephone support: 9:00 A.M. to 5:00 P.M. Monday - Friday</li>
+                    <li style="margin-bottom: 0.4em;">Email support: Monitored 9:00 A.M. to 5:00 P.M. Monday - Friday</li>
+                    <li style="margin-bottom: 0.4em;">Onsite assistance guaranteed within 72 hours during the business week</li>
+                </ul>
+            </div>
+            
+            <div style="margin-top: 4em;">
+                <p style="text-align: justify; margin-bottom: 3em; font-size: 11pt;">
+                    IN WITNESS WHEREOF, the parties have executed this Service Level Agreement as of the date first written above.
+                </p>
+                
+                <div style="display: flex; justify-content: space-between; margin-top: 3em; page-break-inside: avoid;">
+                    <div style="width: 45%; text-align: center;">
+                        <div style="border-bottom: 1px solid #000; margin-bottom: 0.8em; height: 1.5em; width: 100%;"></div>
+                        <p style="font-weight: bold; margin: 0.5em 0; font-size: 11pt; text-transform: uppercase;"><span contenteditable="false">SOLIERA HOTEL</span></p>
+                        <p style="font-size: 9pt; margin: 0.3em 0; color: #666;">IT Director</p>
+                        <p style="font-size: 9pt; margin: 0.3em 0; color: #666;">Date: _______________</p>
+                    </div>
+                    <div style="width: 45%; text-align: center;">
+                        <div style="border-bottom: 1px solid #000; margin-bottom: 0.8em; height: 1.5em; width: 100%;"></div>
+                        <p style="font-weight: bold; margin: 0.5em 0; font-size: 11pt; text-transform: uppercase;">[CUSTOMER_REPRESENTATIVE]</p>
+                        <p style="font-size: 9pt; margin: 0.3em 0; color: #666;">[TITLE]</p>
+                        <p style="font-size: 9pt; margin: 0.3em 0; color: #666;">Date: _______________</p>
                     </div>
                 </div>
             </div>
@@ -2091,10 +2459,10 @@ class LegalController extends Controller
         try {
             // Get document content from metadata
             $content = $document->metadata['content'] ?? $document->description ?? 'No content available';
-            
+
             // Clean HTML content for PDF
             $cleanContent = strip_tags($content, '<h1><h2><h3><h4><h5><h6><p><strong><em><ul><ol><li><br>');
-            
+
             // Create HTML for PDF
             $html = '
             <!DOCTYPE html>
@@ -2136,15 +2504,15 @@ class LegalController extends Controller
                 </div>
             </body>
             </html>';
-            
+
             // Generate PDF using DomPDF
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
             $pdf->setPaper('A4', 'portrait');
-            
+
             $filename = 'legal_document_' . ($document->reference_id ?? $document->id) . '_' . now()->format('Y-m-d') . '.pdf';
-            
+
             return $pdf->download($filename);
-            
+
         } catch (\Exception $e) {
             \Log::error('PDF export failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
             return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
@@ -2156,20 +2524,20 @@ class LegalController extends Controller
         try {
             // Get document content from metadata
             $content = $document->metadata['content'] ?? $document->description ?? 'No content available';
-            
+
             // Clean HTML content for Word
             $cleanContent = strip_tags($content, '<h1><h2><h3><h4><h5><h6><p><strong><em><ul><ol><li><br>');
-            
+
             // Create a new Word document
             $phpWord = new \PhpOffice\PhpWord\PhpWord();
-            
+
             // Set document properties
             $properties = $phpWord->getDocInfo();
             $properties->setCreator('Soliera Legal System');
             $properties->setTitle($document->title);
             $properties->setDescription('Legal Document Export');
             $properties->setSubject($document->category ?? 'Legal Document');
-            
+
             // Add a section
             $section = $phpWord->addSection([
                 'marginTop' => 720,
@@ -2177,7 +2545,7 @@ class LegalController extends Controller
                 'marginLeft' => 720,
                 'marginRight' => 720,
             ]);
-            
+
             // Add title
             $section->addText($document->title, [
                 'name' => 'Arial',
@@ -2188,7 +2556,7 @@ class LegalController extends Controller
                 'alignment' => 'center',
                 'spaceAfter' => 240
             ]);
-            
+
             // Add document information
             $section->addText('Document Information', [
                 'name' => 'Arial',
@@ -2199,20 +2567,20 @@ class LegalController extends Controller
                 'spaceBefore' => 120,
                 'spaceAfter' => 60
             ]);
-            
+
             $infoText = "Document ID: " . ($document->reference_id ?? 'N/A') . "\n";
             $infoText .= "Category: " . ($document->category ?? 'N/A') . "\n";
             $infoText .= "Department: " . ($document->department ?? 'N/A') . "\n";
             $infoText .= "Status: " . ($document->status ?? 'N/A') . "\n";
             $infoText .= "Created: " . ($document->created_at ? $document->created_at->format('F j, Y \a\t g:i A') : 'N/A');
-            
+
             $section->addText($infoText, [
                 'name' => 'Arial',
                 'size' => 10
             ], [
                 'spaceAfter' => 240
             ]);
-            
+
             // Add content
             $section->addText('Document Content', [
                 'name' => 'Arial',
@@ -2223,18 +2591,18 @@ class LegalController extends Controller
                 'spaceBefore' => 120,
                 'spaceAfter' => 60
             ]);
-            
+
             // Convert HTML content to plain text for Word
             $plainText = strip_tags($cleanContent);
             $plainText = html_entity_decode($plainText);
-            
+
             $section->addText($plainText, [
                 'name' => 'Arial',
                 'size' => 11
             ], [
                 'spaceAfter' => 120
             ]);
-            
+
             // Add footer
             $section->addTextBreak(2);
             $section->addText('Generated on ' . now()->format('F j, Y \a\t g:i A'), [
@@ -2245,7 +2613,7 @@ class LegalController extends Controller
             ], [
                 'alignment' => 'center'
             ]);
-            
+
             $section->addText('Soliera Legal Document Management System', [
                 'name' => 'Arial',
                 'size' => 9,
@@ -2254,22 +2622,22 @@ class LegalController extends Controller
             ], [
                 'alignment' => 'center'
             ]);
-            
+
             // Generate filename
             $filename = 'legal_document_' . ($document->reference_id ?? $document->id) . '_' . now()->format('Y-m-d') . '.docx';
-            
+
             // Save the document
             $objWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007');
-            
+
             // Create a temporary file
             $tempFile = tempnam(sys_get_temp_dir(), 'word_export_');
             $objWriter->save($tempFile);
-            
+
             // Return the file as download
             return response()->download($tempFile, $filename, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             ])->deleteFileAfterSend(true);
-            
+
         } catch (\Exception $e) {
             \Log::error('Word export failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
             return response()->json(['error' => 'Failed to generate Word document: ' . $e->getMessage()], 500);
@@ -2312,11 +2680,13 @@ class LegalController extends Controller
         $document->update([
             'signature_status' => 'sent',
             'signers' => $signers,
-            'workflow_log' => array_merge($document->workflow_log ?? [], [[
-                'at' => now()->toIso8601String(),
-                'action' => 'send_esign',
-                'by' => auth()->id(),
-            ]])
+            'workflow_log' => array_merge($document->workflow_log ?? [], [
+                [
+                    'at' => now()->toIso8601String(),
+                    'action' => 'send_esign',
+                    'by' => auth()->id(),
+                ]
+            ])
         ]);
 
         return response()->json([
@@ -2373,19 +2743,23 @@ class LegalController extends Controller
     {
         $base = Document::query();
         // Filters
-        if ($dept = $request->get('department')) { $base->where('department', $dept); }
-        if ($type = $request->get('type')) { $base->where('category', $type); }
+        if ($dept = $request->get('department')) {
+            $base->where('department', $dept);
+        }
+        if ($type = $request->get('type')) {
+            $base->where('category', $type);
+        }
 
         $total = (clone $base)->count();
-        $pending = (clone $base)->where('status','pending_review')->count();
-        $approved = (clone $base)->where('status','active')->count();
-        $rejected = (clone $base)->where('status','rejected')->count();
-        $returned = (clone $base)->where('status','returned')->count();
-        $drafts = (clone $base)->where('status','draft')->count();
+        $pending = (clone $base)->where('status', 'pending_review')->count();
+        $approved = (clone $base)->where('status', 'active')->count();
+        $rejected = (clone $base)->where('status', 'rejected')->count();
+        $returned = (clone $base)->where('status', 'returned')->count();
+        $drafts = (clone $base)->where('status', 'draft')->count();
 
         // Signature states
-        $signing = (clone $base)->where('signature_status','sent')->count();
-        $signed = (clone $base)->where('signature_status','completed')->count();
+        $signing = (clone $base)->where('signature_status', 'sent')->count();
+        $signed = (clone $base)->where('signature_status', 'completed')->count();
 
         // Expiring (retention within 90d) and renewals due
         $expiring = (clone $base)->whereNotNull('retention_until')
@@ -2395,16 +2769,21 @@ class LegalController extends Controller
         // Upcoming renewal (metadata->renewal_date within 60d)
         $renewals = (clone $base)->whereRaw("JSON_EXTRACT(metadata, '$.renewal_date') IS NOT NULL")
             ->get()
-            ->filter(function($d){
+            ->filter(function ($d) {
                 $date = optional(optional(collect($d->metadata))->get('renewal_date'));
-                if (!$date) return false;
-                try { $dt = \Carbon\Carbon::parse($date); } catch (\Throwable $e) { return false; }
+                if (!$date)
+                    return false;
+                try {
+                    $dt = \Carbon\Carbon::parse($date);
+                } catch (\Throwable $e) {
+                    return false;
+                }
                 return $dt->between(now(), now()->addDays(60));
             })->count();
 
         return response()->json([
             'success' => true,
-            'counts' => compact('total','pending','approved','rejected','returned','drafts','signing','signed','expiring','renewals')
+            'counts' => compact('total', 'pending', 'approved', 'rejected', 'returned', 'drafts', 'signing', 'signed', 'expiring', 'renewals')
         ]);
     }
 
@@ -2414,19 +2793,25 @@ class LegalController extends Controller
     public function monitoringList(Request $request)
     {
         $query = Document::query();
-        if ($dept = $request->get('department')) { $query->where('department', $dept); }
-        if ($type = $request->get('type')) { $query->where('category', $type); }
-        if ($status = $request->get('status')) { $query->where('status', $status); }
+        if ($dept = $request->get('department')) {
+            $query->where('department', $dept);
+        }
+        if ($type = $request->get('type')) {
+            $query->where('category', $type);
+        }
+        if ($status = $request->get('status')) {
+            $query->where('status', $status);
+        }
         if ($search = $request->get('search')) {
-            $query->where(function($q) use ($search){
-                $q->where('title','like',"%$search%")
-                  ->orWhere('reference_id','like',"%$search%");
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%$search%")
+                    ->orWhere('reference_id', 'like', "%$search%");
             });
         }
 
         $docs = $query->latest()->paginate(15);
 
-        $items = collect($docs->items())->map(function($d){
+        $items = collect($docs->items())->map(function ($d) {
             $meta = $d->metadata ?? [];
             return [
                 'id' => $d->id,
@@ -2475,7 +2860,7 @@ class LegalController extends Controller
 
         try {
             $geminiService = app(\App\Services\GeminiService::class);
-            
+
             // Build enhanced prompt with context
             $enhancedPrompt = $this->buildEnhancedPrompt(
                 $request->prompt,
@@ -2485,7 +2870,7 @@ class LegalController extends Controller
 
             // Generate content using Gemini
             $response = $geminiService->generateContent($enhancedPrompt);
-            
+
             if ($response && !isset($response['error'])) {
                 return response()->json([
                     'success' => true,
@@ -2526,7 +2911,7 @@ class LegalController extends Controller
 
         try {
             $geminiService = app(\App\Services\GeminiService::class);
-            
+
             // Build comprehensive prompt for document analysis
             $prompt = $this->buildDocumentAnalysisPrompt(
                 $request->document_type,
@@ -2537,11 +2922,11 @@ class LegalController extends Controller
             );
 
             $response = $geminiService->generateContent($prompt);
-            
+
             if ($response && !isset($response['error'])) {
                 // Parse response into structured suggestions
                 $suggestions = $this->parseDocumentSuggestions($response);
-                
+
                 return response()->json([
                     'success' => true,
                     'suggestions' => $suggestions
@@ -2581,7 +2966,7 @@ class LegalController extends Controller
         try {
             // Combine all sections into final content
             $content = $this->combineDocumentSections($request->sections, $request->type);
-            
+
             $document = Document::create([
                 'title' => $request->title,
                 'description' => 'AI-generated document created with AI Document Builder',
@@ -2647,7 +3032,7 @@ class LegalController extends Controller
         try {
             // Combine all sections into final content
             $content = $this->combineDocumentSections($request->sections, $request->type);
-            
+
             $document = Document::create([
                 'title' => $request->title,
                 'description' => 'AI-generated document submitted for legal review',
@@ -2674,7 +3059,7 @@ class LegalController extends Controller
             try {
                 $geminiService = app(\App\Services\GeminiService::class);
                 $analysis = $geminiService->analyzeDocument($content);
-                
+
                 if (is_array($analysis) && empty($analysis['error'])) {
                     $document->update([
                         'ai_analysis' => $analysis,
@@ -2730,14 +3115,14 @@ class LegalController extends Controller
         }
 
         return "You are a legal document expert. Generate professional, legally sound content for the following request:\n\n" .
-               "Document Type: {$documentType}\n" .
-               "Request: {$basePrompt}{$contextStr}\n\n" .
-               "Please provide:\n" .
-               "1. Professional, clear, and legally appropriate content\n" .
-               "2. Proper legal terminology and structure\n" .
-               "3. Complete sentences and paragraphs\n" .
-               "4. No placeholders or incomplete sections\n\n" .
-               "Generate the content now:";
+            "Document Type: {$documentType}\n" .
+            "Request: {$basePrompt}{$contextStr}\n\n" .
+            "Please provide:\n" .
+            "1. Professional, clear, and legally appropriate content\n" .
+            "2. Proper legal terminology and structure\n" .
+            "3. Complete sentences and paragraphs\n" .
+            "4. No placeholders or incomplete sections\n\n" .
+            "Generate the content now:";
     }
 
     /**
@@ -2753,15 +3138,15 @@ class LegalController extends Controller
         }
 
         return "You are a legal document expert. Analyze this {$documentType} document and provide suggestions:\n\n" .
-               "Document: {$title}\n" .
-               "Department: {$department}\n" .
-               "Priority: {$priority}\n" .
-               "Content: {$sectionsContent}\n\n" .
-               "Please provide suggestions in this format:\n" .
-               "STRUCTURE: [suggestions for document structure]\n" .
-               "CONTENT: [suggestions for content improvement]\n" .
-               "COMPLIANCE: [legal compliance recommendations]\n\n" .
-               "Analyze and provide suggestions:";
+            "Document: {$title}\n" .
+            "Department: {$department}\n" .
+            "Priority: {$priority}\n" .
+            "Content: {$sectionsContent}\n\n" .
+            "Please provide suggestions in this format:\n" .
+            "STRUCTURE: [suggestions for document structure]\n" .
+            "CONTENT: [suggestions for content improvement]\n" .
+            "COMPLIANCE: [legal compliance recommendations]\n\n" .
+            "Analyze and provide suggestions:";
     }
 
     /**
@@ -2770,7 +3155,7 @@ class LegalController extends Controller
     public function parseDocumentSuggestions($response)
     {
         $content = is_array($response) ? ($response['content'] ?? $response) : $response;
-        
+
         $suggestions = [
             'structure' => 'No specific structure suggestions.',
             'content' => 'No specific content suggestions.',
@@ -2797,14 +3182,14 @@ class LegalController extends Controller
     public function combineDocumentSections($sections, $documentType)
     {
         $content = "<h1>{$documentType}</h1>\n\n";
-        
+
         foreach ($sections as $sectionId => $sectionContent) {
             if (!empty($sectionContent)) {
                 $content .= "<h2>Section: {$sectionId}</h2>\n";
                 $content .= "<p>{$sectionContent}</p>\n\n";
             }
         }
-        
+
         return $content;
     }
 
@@ -2825,7 +3210,7 @@ class LegalController extends Controller
         foreach ($request->file('files') as $file) {
             try {
                 $path = $file->store('legal_documents', 'public');
-                
+
                 Document::create([
                     'title' => $file->getClientOriginalName(),
                     'description' => 'Bulk uploaded document',
@@ -2837,7 +3222,7 @@ class LegalController extends Controller
                     'uploader_id' => auth()->id(),
                     'uploaded_by' => auth()->id(),
                 ]);
-                
+
                 $uploadedCount++;
             } catch (\Exception $e) {
                 $errors[] = "Failed to upload {$file->getClientOriginalName()}: " . $e->getMessage();
@@ -2955,8 +3340,8 @@ class LegalController extends Controller
         if ($search) {
             $complaints->where(function ($query) use ($search) {
                 $query->where('case_id', 'like', "%{$search}%")
-                      ->orWhere('complainant_name', 'like', "%{$search}%")
-                      ->orWhere('complaint_description', 'like', "%{$search}%");
+                    ->orWhere('complainant_name', 'like', "%{$search}%")
+                    ->orWhere('complaint_description', 'like', "%{$search}%");
             });
         }
 
@@ -3015,7 +3400,7 @@ class LegalController extends Controller
     {
         $complaint = EmployeeComplaint::findOrFail($id);
         $aiResults = LegalAiResult::where('case_id', $complaint->case_id)->get();
-        
+
         return view('legal.show_complaint', compact('complaint', 'aiResults'));
     }
 
@@ -3034,8 +3419,8 @@ class LegalController extends Controller
         if ($search) {
             $reports->where(function ($query) use ($search) {
                 $query->where('report_id', 'like', "%{$search}%")
-                      ->orWhere('reporter_name', 'like', "%{$search}%")
-                      ->orWhere('violation_description', 'like', "%{$search}%");
+                    ->orWhere('reporter_name', 'like', "%{$search}%")
+                    ->orWhere('violation_description', 'like', "%{$search}%");
             });
         }
 
@@ -3094,7 +3479,7 @@ class LegalController extends Controller
     {
         $report = ViolationReport::findOrFail($id);
         $aiResults = LegalAiResult::where('report_id', $report->report_id)->get();
-        
+
         return view('legal.show_violation_report', compact('report', 'aiResults'));
     }
 
@@ -3106,42 +3491,42 @@ class LegalController extends Controller
         $search = $request->input('search');
         $status = $request->input('status');
         $priority = $request->input('priority');
-        
+
         // Get all legal cases that are facility damage type
         // Debug: Log total cases before filtering
         $totalCases = \App\Models\LegalCase::count();
         $facilityDamageCases = \App\Models\LegalCase::where('case_type', 'facility_damage')->count();
-        
+
         Log::info('Facility Damage Cases Query', [
             'total_cases' => $totalCases,
             'facility_damage_cases' => $facilityDamageCases,
         ]);
-        
+
         $query = \App\Models\LegalCase::where('case_type', 'facility_damage')
             ->with(['assignedTo', 'createdBy'])
             ->latest();
-        
+
         // Apply search filter
         if (!empty($search)) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('case_title', 'LIKE', '%' . $search . '%')
-                  ->orWhere('case_description', 'LIKE', '%' . $search . '%')
-                  ->orWhere('case_number', 'LIKE', '%' . $search . '%');
+                    ->orWhere('case_description', 'LIKE', '%' . $search . '%')
+                    ->orWhere('case_number', 'LIKE', '%' . $search . '%');
             });
         }
-        
+
         // Apply status filter
         if (!empty($status)) {
             $query->where('status', $status);
         }
-        
+
         // Apply priority filter
         if (!empty($priority)) {
             $query->where('priority', $priority);
         }
-        
+
         $cases = $query->paginate(20)->withQueryString();
-        
+
         // Get statistics
         $stats = [
             'total' => \App\Models\LegalCase::where('case_type', 'facility_damage')->count(),
@@ -3150,12 +3535,12 @@ class LegalController extends Controller
             'completed' => \App\Models\LegalCase::where('case_type', 'facility_damage')->where('status', 'completed')->count(),
             'total_damage_cost' => \App\Models\LegalCase::where('case_type', 'facility_damage')
                 ->get()
-                ->sum(function($case) {
+                ->sum(function ($case) {
                     $metadata = $case->metadata ?? [];
                     return (float) ($metadata['damage_cost'] ?? 0);
                 }),
         ];
-        
+
         return view('legal.facility_damage_cases', compact('cases', 'stats'));
     }
 
@@ -3166,14 +3551,14 @@ class LegalController extends Controller
     {
         $case = \App\Models\LegalCase::with(['assignedTo', 'createdBy', 'documents'])
             ->findOrFail($id);
-        
+
         // Get the related facility reservation
         $reservation = null;
         if ($case->metadata && isset($case->metadata['facility_reservation_id'])) {
             $reservation = FacilityReservation::with(['facility', 'reserver'])
                 ->find($case->metadata['facility_reservation_id']);
         }
-        
+
         return view('legal.show_facility_damage_case', compact('case', 'reservation'));
     }
 
@@ -3210,7 +3595,7 @@ class LegalController extends Controller
     public function showAiAnalysis($id)
     {
         $analysis = LegalAiResult::with(['document', 'complaint', 'violationReport'])->findOrFail($id);
-        
+
         return view('legal.show_ai_analysis', compact('analysis'));
     }
 
@@ -3251,7 +3636,7 @@ class LegalController extends Controller
         $stats = $this->legalManagementService->getDashboardStats();
         $highRiskDocuments = $this->legalManagementService->getHighRiskDocuments();
         $recentAnalyses = $this->legalManagementService->getRecentAiAnalyses(10);
-        
+
         return view('legal.enhanced_dashboard', compact('stats', 'highRiskDocuments', 'recentAnalyses'));
     }
 
@@ -3277,34 +3662,6 @@ class LegalController extends Controller
     }
 
     /**
-     * Bulk AI Analysis
-     */
-    public function bulkAiAnalysis(Request $request)
-    {
-        $documentIds = $request->input('document_ids', []);
-        $results = [];
-
-        foreach ($documentIds as $documentId) {
-            $document = Document::find($documentId);
-            if ($document) {
-                $result = $this->legalManagementService->processDocument($document);
-                $results[] = [
-                    'document_id' => $documentId,
-                    'title' => $document->title,
-                    'success' => $result !== false,
-                    'ai_result' => $result
-                ];
-            }
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Bulk AI analysis completed.',
-            'results' => $results
-        ]);
-    }
-
-    /**
      * Enhanced Document Management - Main view with advanced filtering
      */
     public function enhancedDocumentManagement(Request $request)
@@ -3315,10 +3672,10 @@ class LegalController extends Controller
             // Apply filters
             if ($request->filled('search')) {
                 $search = $request->input('search');
-                $query->where(function($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('title', 'like', "%{$search}%")
-                      ->orWhere('description', 'like', "%{$search}%")
-                      ->orWhere('author', 'like', "%{$search}%");
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('author', 'like', "%{$search}%");
                 });
             }
 
@@ -3376,7 +3733,7 @@ class LegalController extends Controller
         try {
             $document = Document::findOrFail($id);
             $document->logAccess('view');
-            
+
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -3391,7 +3748,7 @@ class LegalController extends Controller
         try {
             $document = Document::findOrFail($id);
             $document->logAccess('download');
-            
+
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -3405,7 +3762,7 @@ class LegalController extends Controller
     {
         try {
             $document = Document::findOrFail($id);
-            
+
             return response()->json([
                 'success' => true,
                 'editing_history' => $document->getEditingHistory(),
@@ -3425,45 +3782,47 @@ class LegalController extends Controller
     {
         try {
             $document = Document::findOrFail($id);
-            
+
             // Get query parameters for filtering and pagination
             $perPage = $request->get('per_page', 10);
             $userFilter = $request->get('user');
             $actionFilter = $request->get('action');
             $dateFrom = $request->get('date_from');
             $dateTo = $request->get('date_to');
-            
+
             // Build the query for AccessLog entries related to this document
             $query = AccessLog::where('document_id', $id)
-                ->with(['user' => function($q) {
-                    $q->select('Dept_no', 'employee_name', 'dept_name');
-                }])
+                ->with([
+                    'user' => function ($q) {
+                        $q->select('Dept_no', 'employee_name', 'dept_name');
+                    }
+                ])
                 ->orderBy('created_at', 'desc');
-            
+
             // Apply filters
             if ($userFilter) {
-                $query->whereHas('user', function($q) use ($userFilter) {
+                $query->whereHas('user', function ($q) use ($userFilter) {
                     $q->where('employee_name', 'like', '%' . $userFilter . '%');
                 });
             }
-            
+
             if ($actionFilter) {
                 $query->where('action', 'like', '%' . $actionFilter . '%');
             }
-            
+
             if ($dateFrom) {
                 $query->whereDate('created_at', '>=', $dateFrom);
             }
-            
+
             if ($dateTo) {
                 $query->whereDate('created_at', '<=', $dateTo);
             }
-            
+
             // Get paginated results
             $activityLog = $query->paginate($perPage);
-            
+
             // Format the data for frontend
-            $formattedLog = $activityLog->map(function($log) {
+            $formattedLog = $activityLog->map(function ($log) {
                 $userName = 'Unknown User';
                 if ($log->user) {
                     $userName = $log->user->employee_name ?? 'User #' . $log->user_id;
@@ -3476,7 +3835,7 @@ class LegalController extends Controller
                         $userName = 'User #' . $log->user_id;
                     }
                 }
-                
+
                 return [
                     'id' => $log->id,
                     'user_name' => $userName,
@@ -3488,7 +3847,7 @@ class LegalController extends Controller
                     'metadata' => $log->metadata
                 ];
             });
-            
+
             return response()->json([
                 'success' => true,
                 'activity_log' => $formattedLog,
@@ -3513,9 +3872,9 @@ class LegalController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Failed to load activity tracking: ' . $e->getMessage()
             ], 500);
         }
@@ -3550,7 +3909,7 @@ class LegalController extends Controller
             'document_lifecycle_routed_to_lm' => 'Lifecycle: Routed to LM',
             'document_lifecycle_archived' => 'Lifecycle: Archived'
         ];
-        
+
         return $actionMap[$action] ?? ucwords(str_replace('_', ' ', $action));
     }
 
@@ -3591,24 +3950,24 @@ class LegalController extends Controller
     {
         try {
             \Log::info("Getting collaborators for document ID: $id");
-            
+
             $document = Document::findOrFail($id);
             \Log::info("Document found: " . $document->title);
-            
+
             // Get collaborators from access_logs table
             $logs = \App\Models\AccessLog::where('document_id', $id)
                 ->where('action', 'collaborator_added')
                 ->get();
-                
+
             \Log::info("Found " . $logs->count() . " collaborator logs for document $id");
-            
-            $collaborators = $logs->map(function($log) {
+
+            $collaborators = $logs->map(function ($log) {
                 \Log::info("Processing log: user_id={$log->user_id}, metadata=" . json_encode($log->metadata));
-                
+
                 // Get user name from User model using the user_id
                 $user = \App\Models\User::find($log->user_id);
                 $userName = $user ? $user->name : 'User ' . $log->user_id;
-                
+
                 return [
                     'user_id' => $log->user_id,
                     'user_name' => $userName,
@@ -3636,7 +3995,7 @@ class LegalController extends Controller
     {
         try {
             $document = Document::findOrFail($id);
-            
+
             $request->validate([
                 'user_id' => 'required|exists:users,id',
                 'role' => 'required|in:viewer,editor,reviewer,admin'
@@ -3722,5 +4081,90 @@ class LegalController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Handle document upload for Legal Management
+     */
+    public function uploadDocument(Request $request): JsonResponse
+    {
+        $request->validate([
+            'document_id' => 'required',
+            'document_file' => 'required|file|mimes:pdf,doc,docx,jpg,png|max:10240',
+        ]);
+
+        try {
+            $id = $request->input('document_id');
+
+            $document = Document::find($id);
+
+            if (!$document) {
+                $case = LegalCase::find($id);
+                if ($case) {
+                    $document = new Document();
+                    $document->title = "Uploaded Document for " . $case->case_title;
+                    $document->linked_case_id = $case->id;
+                    $document->source = 'legal_management';
+                    $document->status = 'active';
+                    $document->category = 'general';
+                    $document->uploaded_by = Auth::id();
+                    $document->department = $case->assignedTo->dept_name ?? 'Legal';
+                } else {
+                    return response()->json(['success' => false, 'message' => 'Target entity not found.'], 404);
+                }
+            }
+
+            if ($request->hasFile('document_file')) {
+                $file = $request->file('document_file');
+                $filename = time() . '_' . str_replace(' ', '_', $file->getClientOriginalName());
+                $path = $file->storeAs('legal_documents', $filename, 'public');
+
+                $document->file_path = $path;
+                $document->save();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Document uploaded successfully.',
+                    'file_path' => asset('storage/' . $path)
+                ]);
+            }
+
+            return response()->json(['success' => false, 'message' => 'No file uploaded.'], 400);
+        } catch (\Exception $e) {
+            Log::error('Legal document upload error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Upload failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Search for legal documents or cases for the upload dropdown
+     */
+    public function searchDocumentsDropdown(Request $request): JsonResponse
+    {
+        $query = $request->get('query', '');
+
+        $documents = Document::where('title', 'like', "%{$query}%")
+            ->orWhere('legal_document_id', 'like', "%{$query}%")
+            ->take(10)
+            ->get()
+            ->map(function ($doc) {
+                return [
+                    'id' => $doc->id,
+                    'text' => "[DOC] " . $doc->title . " (" . ($doc->legal_document_id ?? 'LD-' . $doc->id) . ")",
+                ];
+            });
+
+        $cases = LegalCase::where('case_title', 'like', "%{$query}%")
+            ->orWhere('case_number', 'like', "%{$query}%")
+            ->take(10)
+            ->get()
+            ->map(function ($case) {
+                return [
+                    'id' => $case->id,
+                    'text' => "[CASE] " . $case->case_title . " (" . $case->case_number . ")",
+                ];
+            });
+
+        return response()->json($documents->merge($cases));
     }
 }

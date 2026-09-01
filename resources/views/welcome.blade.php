@@ -6,7 +6,7 @@
     <title>{{ config('app.name', 'Hotel & Restaurant Management System') }}</title>
     <script>
         // Redirect to dashboard
-        window.location.href = "{{ route('dashboard') }}";
+        window.location.href = "{{ route('home') }}";
     </script>
 </head>
 <body>
@@ -14,7 +14,7 @@
         <div style="text-align: center;">
             <h1>{{ config('app.name', 'Hotel & Restaurant Management System') }}</h1>
             <p>Redirecting to dashboard...</p>
-            <p><a href="{{ route('dashboard') }}">Click here if not redirected automatically</a></p>
+            <p><a href="{{ route('home') }}">Click here if not redirected automatically</a></p>
         </div>
     </div>
 </body>

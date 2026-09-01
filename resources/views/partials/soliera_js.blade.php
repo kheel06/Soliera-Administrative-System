@@ -4,49 +4,65 @@
   
   // Check if mobile view
   function isMobileView() {
-    return window.innerWidth < 768; // Tailwind's md breakpoint
+    return window.innerWidth < 1024; // Tailwind's lg breakpoint
   }
 
-  // Toggle sidebar function
-  function toggleSidebar() {
+  // Toggle sidebar function - exposed globally for onclick handlers
+  window.toggleSidebar = function() {
     const sidebar = document.getElementById('sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
     const sidebarLogo = document.getElementById('sidebar-logo');
     const sonlyLogo = document.getElementById('sonly');
     if (!sidebar) { return; }
     
     if (isMobileView()) {
-      // Mobile behavior - toggle visibility
+      // Mobile/Tablet behavior - toggle visibility
       if (sidebar.classList.contains('translate-x-0')) {
         // Closing sidebar on mobile
         sidebar.classList.remove('translate-x-0');
         sidebar.classList.add('-translate-x-full');
+        if (overlay) overlay.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
       } else {
         // Opening sidebar on mobile
         sidebar.classList.remove('-translate-x-full');
         sidebar.classList.add('translate-x-0');
+        if (overlay) overlay.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
       }
-          } else {
-        // Desktop behavior - toggle between expanded (w-64) and collapsed (w-20)
-        const currentlyCollapsed = sidebar.classList.contains('w-20');
-        const nextCollapsed = !currentlyCollapsed;
-        sidebar.classList.remove('w-64', 'w-20');
-        sidebar.classList.add(nextCollapsed ? 'w-20' : 'w-64');
-        localStorage.setItem('sidebarCollapsed', nextCollapsed);
+    } else {
+      // Desktop behavior - toggle between expanded and collapsed
+      const currentlyCollapsed = sidebar.classList.contains('collapsed') || sidebar.classList.contains('w-20') || sidebar.classList.contains('w-16');
+      const nextCollapsed = !currentlyCollapsed;
+      
+      // Remove all width and collapsed classes
+      sidebar.classList.remove('w-64', 'w-20', 'w-16', 'collapsed');
+      
+      if (nextCollapsed) {
+        // Collapsed state - show only icons
+        sidebar.classList.add('collapsed');
+        sidebar.style.width = '4.5rem';
+        localStorage.setItem('sidebarCollapsed', 'true');
         
-        // Update text visibility based on collapsed state
-        document.querySelectorAll('.sidebar-text').forEach(text => {
-          text.classList.toggle('hidden', nextCollapsed);
+        // Toggle logos
+        if (sidebarLogo) sidebarLogo.classList.add('hidden');
+        if (sonlyLogo) sonlyLogo.classList.remove('hidden');
+        
+        // Close all dropdowns when collapsing
+        document.querySelectorAll('#sidebar .sidebar-dropdown input[type="checkbox"]').forEach(cb => {
+          cb.checked = false;
         });
+      } else {
+        // Expanded state
+        sidebar.classList.add('w-60');
+        sidebar.style.width = '';
+        localStorage.setItem('sidebarCollapsed', 'false');
         
-        // Toggle logos based on collapsed state
-        if (nextCollapsed) {
-          sidebarLogo.classList.add('hidden');
-          sonlyLogo.classList.remove('hidden');
-        } else {
-          sidebarLogo.classList.remove('hidden');
-          sonlyLogo.classList.add('hidden');
-        }
+        // Toggle logos
+        if (sidebarLogo) sidebarLogo.classList.remove('hidden');
+        if (sonlyLogo) sonlyLogo.classList.add('hidden');
       }
+    }
     
     // Update dropdown indicators
     updateDropdownIndicators();
@@ -55,7 +71,7 @@
   // Update dropdown indicators
   function updateDropdownIndicators() {
     const sidebar = document.getElementById('sidebar');
-    const isCollapsed = sidebar.classList.contains('w-20') && !isMobileView();
+    const isCollapsed = (sidebar.classList.contains('collapsed') || sidebar.classList.contains('w-20') || sidebar.classList.contains('w-16')) && !isMobileView();
     const dropdownIcons = document.querySelectorAll('.dropdown-icon');
     
     dropdownIcons.forEach(icon => {
@@ -90,21 +106,18 @@
           } else {
         // On desktop, apply the saved collapsed state
         const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-        sidebar.classList.remove('-translate-x-full', 'translate-x-0');
-        sidebar.classList.toggle('w-64', !isCollapsed);
-        sidebar.classList.toggle('w-20', isCollapsed);
+        sidebar.classList.remove('-translate-x-full', 'translate-x-0', 'w-64', 'w-20', 'w-16', 'collapsed');
         
-        document.querySelectorAll('.sidebar-text').forEach(text => {
-          text.classList.toggle('hidden', isCollapsed);
-        });
-        
-        // Toggle logos based on collapsed state
         if (isCollapsed) {
-          sidebarLogo.classList.add('hidden');
-          sonlyLogo.classList.remove('hidden');
+          sidebar.classList.add('collapsed');
+          sidebar.style.width = '4.5rem';
+          if (sidebarLogo) sidebarLogo.classList.add('hidden');
+          if (sonlyLogo) sonlyLogo.classList.remove('hidden');
         } else {
-          sidebarLogo.classList.remove('hidden');
-          sonlyLogo.classList.add('hidden');
+          sidebar.classList.add('w-60');
+          sidebar.style.width = '';
+          if (sidebarLogo) sidebarLogo.classList.remove('hidden');
+          if (sonlyLogo) sonlyLogo.classList.add('hidden');
         }
       }
     
@@ -117,28 +130,47 @@
     const sidebarLogo = document.getElementById('sidebar-logo');
     const sonlyLogo = document.getElementById('sonly');
     if (!sidebar) { return; }
-    
+
     if (isMobileView()) {
       // Start hidden on mobile with full logo
-      sidebar.classList.add('-translate-x-full');
-      sidebarLogo.classList.remove('hidden');
-      sonlyLogo.classList.add('hidden');
+      sidebar.classList.remove('w-20', 'w-16', 'collapsed', 'translate-x-0');
+      sidebar.classList.add('-translate-x-full', 'w-60');
+      if (sidebarLogo) sidebarLogo.classList.remove('hidden');
+      if (sonlyLogo) sonlyLogo.classList.add('hidden');
     } else {
       // Start with saved state on desktop
       const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-      sidebar.classList.add(isCollapsed ? 'w-20' : 'w-64');
       
-      document.querySelectorAll('.sidebar-text').forEach(text => {
-        text.classList.toggle('hidden', isCollapsed);
-      });
+      // Remove translate classes and all width/collapsed classes for desktop
+      sidebar.classList.remove('-translate-x-full', 'translate-x-0', 'w-64', 'w-20', 'w-16', 'collapsed');
       
+      // Set collapsed or expanded state
+      if (isCollapsed) {
+        sidebar.classList.add('collapsed');
+        sidebar.style.width = '4.5rem';
+        if (sidebarLogo) sidebarLogo.classList.add('hidden');
+        if (sonlyLogo) sonlyLogo.classList.remove('hidden');
+      } else {
+        sidebar.classList.add('w-60');
+        sidebar.style.width = '';
+        if (sidebarLogo) sidebarLogo.classList.remove('hidden');
+        if (sonlyLogo) sonlyLogo.classList.add('hidden');
+      }
+
       // Toggle logos based on collapsed state
       if (isCollapsed) {
-        sidebarLogo.classList.add('hidden');
-        sonlyLogo.classList.remove('hidden');
+        if (sidebarLogo) sidebarLogo.classList.add('hidden');
+        if (sonlyLogo) sonlyLogo.classList.remove('hidden');
       } else {
-        sidebarLogo.classList.remove('hidden');
-        sonlyLogo.classList.add('hidden');
+        if (sidebarLogo) sidebarLogo.classList.remove('hidden');
+        if (sonlyLogo) sonlyLogo.classList.add('hidden');
+      }
+      
+      // Close all dropdowns if collapsed
+      if (isCollapsed) {
+        document.querySelectorAll('#sidebar .collapse input[type="checkbox"]').forEach(cb => {
+          cb.checked = false;
+        });
       }
     }
     
@@ -157,25 +189,35 @@
 
  function displayPhilippineTime() {
   // Create a date object for Philippine time (UTC+8)
-  const options = {
-    timeZone: 'Asia/Manila',
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true
-  };
-
-  // Get the formatted date and time string
-  const philippineDateTime = new Date().toLocaleString('en-PH', options);
+  const now = new Date();
+  const options = { timeZone: 'Asia/Manila' };
+  
+  // Get individual components
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  // Convert to Manila time
+  const manilaTime = new Date(now.toLocaleString('en-US', options));
+  
+  const dayName = days[manilaTime.getDay()];
+  const month = months[manilaTime.getMonth()];
+  const day = manilaTime.getDate();
+  const year = manilaTime.getFullYear();
+  
+  let hours = manilaTime.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const hoursStr = hours.toString().padStart(2, '0');
+  const minutes = manilaTime.getMinutes().toString().padStart(2, '0');
+  const seconds = manilaTime.getSeconds().toString().padStart(2, '0');
+  
+  const formattedTime = `${dayName}, ${month} ${day}, ${year}, ${hoursStr}:${minutes}:${seconds} ${ampm}`;
   
   // Update the element with the current time
   const timeElement = document.getElementById('philippineTime');
   if (timeElement) {
-    timeElement.textContent = philippineDateTime;
+    timeElement.textContent = formattedTime;
   }
 }
 
@@ -189,32 +231,51 @@ setInterval(displayPhilippineTime, 1000);
  // Initialize when DOM loads
  document.addEventListener('DOMContentLoaded', initSidebar);
 
- // Global Notification Function with Progress Bar Animation
+ // Global Notification Function with Soliera Design Theme
  // This function is available across all pages that include soliera_js
  if (typeof window.showNotification === 'undefined') {
-   window.showNotification = function(message, type = 'info', duration = 3000) {
-     // Remove any existing notification progress style if it exists
-     if (!document.getElementById('notification-progress-style')) {
-       const style = document.createElement('style');
-       style.id = 'notification-progress-style';
-       style.textContent = `
-         @keyframes progressBar {
-           from {
-             width: 100%;
-           }
-           to {
-             width: 0%;
-           }
-         }
-       `;
-       document.head.appendChild(style);
+   // Create toast container if it doesn't exist
+   function getToastContainer() {
+     let container = document.getElementById('soliera-toast-container');
+     if (!container) {
+       container = document.createElement('div');
+       container.id = 'soliera-toast-container';
+       container.className = 'soliera-toast-container';
+       // Ensure it's appended to body and positioned correctly
+       document.body.appendChild(container);
+       // Force positioning to ensure it's in the viewport (bottom-right, not behind sidebar)
+       container.style.cssText = 'position: fixed !important; bottom: 1rem !important; right: 1rem !important; z-index: 10000 !important; left: auto !important; top: auto !important;';
      }
-
-     // Create notification element
-     const notification = document.createElement('div');
-     const alertType = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-     notification.className = `alert alert-${alertType} fixed bottom-4 right-4 z-[9999] max-w-sm shadow-lg relative overflow-hidden`;
-     notification.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; max-width: 24rem; animation: slideInRight 0.3s ease-out;';
+     return container;
+   }
+   
+   window.showNotification = function(message, type = 'info', duration = 3000) {
+     // Remove duplicate question marks - keep only one
+     message = message.replace(/\?+/g, '?');
+     
+     // Parse message - if it contains a colon, treat first part as title
+     let title = '';
+     let body = message;
+     if (message.includes(':') && message.split(':').length > 1) {
+       const parts = message.split(':');
+       title = parts[0].trim();
+       body = parts.slice(1).join(':').trim();
+     }
+     
+     // If no title, use type as title
+     if (!title) {
+       const titleMap = {
+         'success': 'Success',
+         'error': 'Error',
+         'warning': 'Warning',
+         'info': 'Information'
+       };
+       title = titleMap[type] || 'Notification';
+     }
+     
+     // Ensure title and body also have only one question mark each
+     title = title.replace(/\?+/g, '?');
+     body = body.replace(/\?+/g, '?');
      
      // Set icon based on type
      const iconMap = {
@@ -225,36 +286,51 @@ setInterval(displayPhilippineTime, 1000);
      };
      const icon = iconMap[type] || 'info';
      
+     // Get toast container
+     const container = getToastContainer();
+     
+     // Create notification element with Soliera theme
+     const notification = document.createElement('div');
+     notification.className = 'soliera-toast';
+     notification.setAttribute('role', 'alert');
+     notification.setAttribute('aria-live', 'polite');
+     
+     // Build HTML structure
      notification.innerHTML = `
-       <div class="flex items-center gap-2 px-4 py-3">
-         <i data-lucide="${icon}" class="w-5 h-5"></i>
-         <span>${message}</span>
+       <div class="soliera-toast-content">
+         <div class="soliera-toast-icon">
+           <i data-lucide="${icon}"></i>
+         </div>
+         <div class="soliera-toast-text">
+           <div class="soliera-toast-title">${title}</div>
+           <div class="soliera-toast-body">${body}</div>
+         </div>
+         <button class="soliera-toast-close" aria-label="Close notification" type="button">
+           <i data-lucide="x"></i>
+         </button>
        </div>
-       <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-         <div class="notification-progress h-full bg-white/50" style="width: 100%; animation: progressBar ${duration}ms linear forwards;"></div>
+       <div class="soliera-toast-progress">
+         <div class="soliera-toast-progress-bar" style="animation: progressBar ${duration}ms linear forwards;"></div>
        </div>
      `;
      
-     // Add slide-in animation if not exists
-     if (!document.getElementById('notification-slide-style')) {
-       const slideStyle = document.createElement('style');
-       slideStyle.id = 'notification-slide-style';
-       slideStyle.textContent = `
-         @keyframes slideInRight {
-           from {
-             transform: translateX(100%);
-             opacity: 0;
-           }
-           to {
-             transform: translateX(0);
-             opacity: 1;
-           }
+     // Add close button functionality
+     const closeBtn = notification.querySelector('.soliera-toast-close');
+     const closeNotification = () => {
+       notification.style.opacity = '0';
+       notification.style.transform = 'translateX(100%)';
+       notification.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+       setTimeout(() => {
+         if (notification.parentNode) {
+           notification.remove();
          }
-       `;
-       document.head.appendChild(slideStyle);
-     }
+       }, 300);
+     };
      
-     document.body.appendChild(notification);
+     closeBtn.addEventListener('click', closeNotification);
+     
+     // Append to container (flexbox will handle stacking automatically)
+     container.appendChild(notification);
      
      // Force reflow to ensure animation starts
      notification.offsetHeight;
@@ -266,13 +342,9 @@ setInterval(displayPhilippineTime, 1000);
      
      // Auto remove after duration
      setTimeout(() => {
-       notification.style.opacity = '0';
-       notification.style.transition = 'opacity 0.3s ease-out';
-       setTimeout(() => {
-         if (notification.parentNode) {
-           notification.remove();
-         }
-       }, 300);
+       if (notification.parentNode) {
+         closeNotification();
+       }
      }, duration);
    };
  }

@@ -38,8 +38,8 @@ class CaseActivity extends Model
     {
         return self::create([
             'legal_case_id' => $caseId,
-            'user_id' => auth()->user()->Dept_no ?? null,
-            'user_name' => auth()->user()->Fname . ' ' . auth()->user()->Lname ?? 'System',
+            'user_id' => auth()->id(),
+            'user_name' => auth()->user()?->name ?? auth()->user()?->employee_name ?? 'System',
             'action_type' => $actionType,
             'action_description' => $actionDescription,
             'changes' => $changes,

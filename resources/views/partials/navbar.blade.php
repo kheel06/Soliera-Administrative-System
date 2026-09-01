@@ -8,267 +8,280 @@
         </div>
        <div class="flex items-center gap-4">
          <!-- Time Display -->
-         <div class="animate-fadeIn">
-           <span id="philippineTime" class="font-medium max-md:text-sm"></span>
+         <div class="flex items-center">
+           <span id="philippineTime" class="font-medium text-sm text-gray-600 whitespace-nowrap">{{ now()->timezone('Asia/Manila')->format('D, M j, Y, h:i:s A') }}</span>
          </div>
          
           <!-- Notification Dropdown -->
-          <div class="dropdown dropdown-end">
-            <!-- Button (standard indicator layout) -->
-            <button
-              id="notification-button"
-              tabindex="0"
-              class="btn btn-ghost btn-circle cursor-pointer w-12 h-12 md:w-14 md:h-14 transition-transform hover:scale-105"
-            >
-              <div class="indicator">
-                <i data-lucide="bell" class="text-2xl md:text-3xl lg:text-[38px] transition-all duration-300 ease-in-out hover:text-accent"></i>
-                @php
-                  $unreadCount = auth()->user() ? auth()->user()->unreadNotifications()->count() : 0;
-                @endphp
-                @if($unreadCount > 0)
-                  <span class="badge badge-xs badge-error indicator-item">{{ $unreadCount }}</span>
-                @endif
-              </div>
-            </button>
-            
-            <!-- Dropdown Content - Responsive with proper width -->
-            <ul tabindex="0" class="dropdown-content menu mt-3 z-[1] bg-[#001f54] rounded-lg shadow-xl overflow-hidden w-72">
-              <!-- Header -->
-              <li class="px-3 py-2.5 border-b border-blue-700 flex justify-between items-center sticky top-0 bg-[#001f54] backdrop-blur-sm z-10">
-                <div class="flex items-center gap-2">
-                  <i data-lucide="bell" class="text-lg text-white"></i>
-                  <span class="font-semibold text-white text-sm">Notifications</span>
-                </div>
-                <button class="text-white hover:text-blue-300 text-xs flex items-center gap-1 cursor-pointer transition-colors" id="clearAllNotificationsBtn">
-                  <i data-lucide="trash-2" class="text-sm"></i>
-                  <span>Clear All</span>
-                </button>
-              </li>
-              
-              <!-- Notification Items Container - Scrollable -->
-              <div class="max-h-96 overflow-y-auto" id="notificationsContainer">
-                @php
-                  $notifications = auth()->user() ? auth()->user()->unreadNotifications()->latest()->take(10)->get() : collect();
-                @endphp
-                
-                @if($notifications->count() > 0)
-                  @foreach($notifications as $notification)
-                    <li class="px-3 py-2.5 hover:bg-blue-800/50 transition-all notification-item border-b border-blue-800/30" data-notification-id="{{ $notification->id }}">
-                      <a class="flex items-start gap-2.5 cursor-pointer" onclick="markAsRead('{{ $notification->id }}')">
-                        @php
-                          $data = is_string($notification->data) ? json_decode($notification->data, true) : $notification->data;
-                          $type = $notification->type;
-                          $title = $data['title'] ?? 'Notification';
-                          $message = $data['message'] ?? $data['body'] ?? '';
-                          $notificationType = $data['type'] ?? 'info';
-                          
-                          // Determine icon and color based on type
-                          $icon = 'bell';
-                          $bgColor = 'bg-blue-600/30';
-                          $iconColor = 'text-blue-300';
-                          $badge = '';
-                          $bgCard = 'bg-blue-700/50';
-                          
-                          if (isset($data['model_type'])) {
-                            // Use model_type from data if available
-                            $modelType = strtolower($data['model_type']);
-                            
-                            if ($modelType === 'document' || str_contains(strtolower($type), 'document') || str_contains(strtolower($type), 'expiration')) {
-                            $icon = 'file-text';
-                            $bgColor = 'bg-yellow-600/30';
-                            $iconColor = 'text-yellow-300';
-                            $badge = '<span class="text-xs px-1.5 py-0.5 bg-yellow-600 rounded-full">Expiring</span>';
-                            $bgCard = 'bg-yellow-700/50';
-                            } elseif ($modelType === 'facility' || str_contains(strtolower($type), 'facility')) {
-                              $icon = 'building';
-                              $bgColor = 'bg-blue-600/30';
-                              $iconColor = 'text-blue-300';
-                              $badge = '<span class="text-xs px-1.5 py-0.5 bg-blue-600 rounded-full">New</span>';
-                              $bgCard = 'bg-blue-700/50';
-                            } elseif ($modelType === 'visitor' || str_contains(strtolower($type), 'visitor') || str_contains(strtolower($type), 'check')) {
-                              $icon = 'check-circle';
-                              $bgColor = 'bg-green-600/30';
-                              $iconColor = 'text-green-300';
-                              $badge = '<span class="text-xs px-1.5 py-0.5 bg-green-600 rounded-full">New</span>';
-                              $bgCard = 'bg-green-700/50';
-                            } elseif ($modelType === 'legal_case' || str_contains(strtolower($type), 'legal')) {
-                              $icon = 'scale';
-                              $bgColor = 'bg-purple-600/30';
-                              $iconColor = 'text-purple-300';
-                              $bgCard = 'bg-purple-700/50';
-                            } elseif (str_contains(strtolower($type), 'maintenance') || str_contains(strtolower($type), 'alert') || str_contains(strtolower($type), 'security')) {
-                              $icon = 'alert-triangle';
-                              $bgColor = 'bg-red-600/30';
-                              $iconColor = 'text-red-300';
-                              $badge = '<span class="text-xs px-1.5 py-0.5 bg-red-600 rounded-full">Urgent</span>';
-                              $bgCard = 'bg-red-600';
-                            } elseif (str_contains(strtolower($type), 'reservation')) {
-                              $icon = 'calendar-check';
-                              $bgColor = 'bg-blue-600/30';
-                              $iconColor = 'text-blue-300';
-                              $badge = '<span class="text-xs px-1.5 py-0.5 bg-blue-600 rounded-full">New</span>';
-                              $bgCard = 'bg-blue-700/50';
-                            } elseif (str_contains(strtolower($type), 'message')) {
-                              $icon = 'message-circle';
-                              $bgColor = 'bg-purple-600/30';
-                              $iconColor = 'text-purple-300';
-                              $bgCard = 'bg-purple-700/50';
-                            } elseif (str_contains(strtolower($type), 'payment')) {
-                              $icon = 'credit-card';
-                              $bgColor = 'bg-green-600/30';
-                              $iconColor = 'text-green-300';
-                              $bgCard = 'bg-green-700/50';
-                            }
-                          } elseif (str_contains(strtolower($type), 'document') || str_contains(strtolower($type), 'expiration')) {
-                            $icon = 'file-text';
-                            $bgColor = 'bg-yellow-600/30';
-                            $iconColor = 'text-yellow-300';
-                            $badge = '<span class="text-xs px-1.5 py-0.5 bg-yellow-600 rounded-full">Expiring</span>';
-                            $bgCard = 'bg-yellow-700/50';
-                          } elseif (str_contains(strtolower($type), 'maintenance') || str_contains(strtolower($type), 'alert')) {
-                            $icon = 'alert-triangle';
-                            $bgColor = 'bg-red-600/30';
-                            $iconColor = 'text-red-300';
-                            $badge = '<span class="text-xs px-1.5 py-0.5 bg-red-600 rounded-full">Urgent</span>';
-                            $bgCard = 'bg-red-600';
-                          } elseif (str_contains(strtolower($type), 'visitor') || str_contains(strtolower($type), 'check')) {
-                            $icon = 'check-circle';
-                            $bgColor = 'bg-green-600/30';
-                            $iconColor = 'text-green-300';
-                            $badge = '<span class="text-xs px-1.5 py-0.5 bg-green-600 rounded-full">New</span>';
-                            $bgCard = 'bg-green-700/50';
-                          } elseif (str_contains(strtolower($type), 'reservation')) {
-                            $icon = 'calendar-check';
-                            $bgColor = 'bg-blue-600/30';
-                            $iconColor = 'text-blue-300';
-                            $badge = '<span class="text-xs px-1.5 py-0.5 bg-blue-600 rounded-full">New</span>';
-                            $bgCard = 'bg-blue-700/50';
-                          } elseif (str_contains(strtolower($type), 'security')) {
-                            $icon = 'alert-octagon';
-                            $bgColor = 'bg-red-600/30';
-                            $iconColor = 'text-red-300';
-                            $badge = '<span class="text-xs px-1.5 py-0.5 bg-red-600 rounded-full">Alert</span>';
-                            $bgCard = 'bg-red-600';
-                          } elseif (str_contains(strtolower($type), 'message')) {
-                            $icon = 'message-circle';
-                            $bgColor = 'bg-purple-600/30';
-                            $iconColor = 'text-purple-300';
-                            $bgCard = 'bg-purple-700/50';
-                          } elseif (str_contains(strtolower($type), 'payment')) {
-                            $icon = 'credit-card';
-                            $bgColor = 'bg-green-600/30';
-                            $iconColor = 'text-green-300';
-                            $bgCard = 'bg-green-700/50';
-                          }
-                        @endphp
-                        <div class="p-2 rounded-full {{ $bgColor }} flex-shrink-0">
-                          <i data-lucide="{{ $icon }}" class="text-base text-white"></i>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                          <p class="font-medium text-white text-xs flex items-center gap-1.5 mb-0.5">
-                            {{ $title }}
-                            {!! $badge !!}
-                          </p>
-                          <p class="text-xs text-blue-200 mt-0.5 line-clamp-2">{{ $message }}</p>
-                          <p class="text-[10px] text-blue-300 mt-1 flex items-center gap-1">
-                            <i data-lucide="clock" class="w-2.5 h-2.5"></i>
-                            {{ $notification->created_at->diffForHumans() }}
-                          </p>
-                        </div>
-                      </a>
-                    </li>
-                  @endforeach
-                @else
-                  <!-- Empty State -->
-                  <li class="px-4 py-8 text-center">
-                    <div class="flex flex-col items-center gap-2">
-                      <div class="p-3 rounded-full bg-blue-600/20">
-                        <i data-lucide="bell-off" class="text-3xl text-blue-300"></i>
-                      </div>
-                      <p class="text-white font-semibold text-sm">No notifications</p>
-                      <p class="text-xs text-blue-300">You're all caught up!</p>
-                    </div>
-                  </li>
-                @endif
-              </div>
-              
-              <!-- Footer -->
-              <li class="px-3 py-2 border-t border-blue-700 sticky bottom-0 bg-[#001f54] backdrop-blur-sm">
-                <a href="#" class="text-center text-white hover:text-blue-300 text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors">
-                  <i data-lucide="list" class="text-sm"></i>
-                  <span>View All Notifications</span>
-                </a>
-              </li>
-            </ul>
-          </div>
+           <div class="dropdown dropdown-end">
+             <!-- Button -->
+             <button id="notification-button" onclick="handleNotificationClick(this)" tabindex="0" class="btn btn-ghost btn-circle relative cursor-pointer w-12 h-12 md:w-14 md:h-14 transition-transform hover:scale-105">
+                 <i data-lucide="bell" class="text-2xl md:text-3xl lg:text-[38px] transition-all duration-300 ease-in-out hover:text-accent"></i>
+                 @php
+                  $unreadCount = 0;
+                  try {
+                    $account = auth()->user();
+                    if ($account) {
+                      $unreadCount = \Illuminate\Support\Facades\DB::table('notifications')
+                        ->where('notifiable_id', $account->Dept_no ?? $account->id)
+                        ->where('notifiable_type', get_class($account))
+                        ->whereNull('read_at')
+                        ->count();
+                    }
+                  } catch (\Throwable $e) {
+                    $unreadCount = 0;
+                  }
+                 @endphp
+                 <span id="notificationBadge" 
+                       class="absolute top-[8px] right-[8px] flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white border-2 border-white shadow-sm z-10" 
+                       style="display: {{ $unreadCount > 0 ? 'flex' : 'none' }};">
+                   {{ $unreadCount }}
+                 </span>
+             </button>
+             
+             <!-- Dropdown Content -->
+             <ul tabindex="0" class="dropdown-content mt-3 z-[100] bg-[#001f54] rounded-2xl shadow-2xl border border-blue-700/50 overflow-hidden w-80 md:w-96 p-0">
+               <!-- Header -->
+               <li class="px-4 py-3 border-b border-blue-700/50 flex items-center justify-between bg-[#001f54]">
+                 <div class="flex items-center gap-2">
+                   <div class="p-1.5 rounded-lg bg-blue-600/20">
+                     <i data-lucide="bell" class="w-4 h-4 text-white"></i>
+                   </div>
+                   <span class="font-bold text-white text-sm uppercase tracking-wider">Notifications</span>
+                 </div>
+                 <button class="text-blue-300 hover:text-white text-[10px] uppercase font-bold flex items-center gap-1.5 cursor-pointer transition-all hover:bg-white/5 px-2 py-1 rounded-md" id="clearAllNotificationsBtn">
+                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                   <span>Clear All</span>
+                 </button>
+               </li>
 
+               
+               <!-- Items Container -->
+               <div class="max-h-[300px] overflow-y-auto soliera-scrollbar" id="notificationsContainer">
+                 @php
+                  $notifications = collect();
+                  try {
+                    $account = auth()->user();
+                    if ($account) {
+                      $rawNotifications = \Illuminate\Support\Facades\DB::table('notifications')
+                        ->where('notifiable_id', $account->Dept_no ?? $account->id)
+                        ->where('notifiable_type', get_class($account))
+                        ->whereNull('read_at')
+                        ->latest()
+                        ->take(10)
+                        ->get();
+
+                      $notifications = $rawNotifications->map(function ($n) {
+                        $n->data = json_decode($n->data, true);
+                        return $n;
+                      });
+                    }
+                  } catch (\Throwable $e) {
+                    $notifications = collect();
+                  }
+                 @endphp
+                 
+                 @if($notifications->count() > 0)
+                   @foreach($notifications as $n)
+                     @php
+                      $d = $n->data;
+                      $category = $d['category'] ?? $d['model_type'] ?? 'general';
+                      $severity = $d['severity'] ?? 'low';
+                      $categoriesArr = [
+                        'visitor' => ['icon' => 'user-check', 'bg' => 'bg-emerald-600/30'],
+                        'document' => ['icon' => 'file-text', 'bg' => 'bg-blue-600/30'],
+                        'folder' => ['icon' => 'folder', 'bg' => 'bg-blue-500/30'],
+                        'contract' => ['icon' => 'file-signature', 'bg' => 'bg-amber-600/30'],
+                        'approval' => ['icon' => 'check-circle', 'bg' => 'bg-cyan-600/30'],
+                        'permit' => ['icon' => 'shield-check', 'bg' => 'bg-indigo-600/30'],
+                        'legal' => ['icon' => 'balance-scale', 'bg' => 'bg-purple-600/30'],
+                        'risk' => ['icon' => 'alert-triangle', 'bg' => 'bg-rose-600/30'],
+                        'facility' => ['icon' => 'building', 'bg' => 'bg-sky-600/30'],
+                        'ai_analysis' => ['icon' => 'brain', 'bg' => 'bg-fuchsia-600/30'],
+                        'template' => ['icon' => 'layout', 'bg' => 'bg-teal-600/30'],
+                        'clause' => ['icon' => 'list', 'bg' => 'bg-orange-600/30'],
+                        'integration' => ['icon' => 'refresh-cw', 'bg' => 'bg-slate-600/30'],
+                        'system' => ['icon' => 'settings', 'bg' => 'bg-gray-600/30'],
+                      ];
+                      $config = $categoriesArr[$category] ?? ['icon' => 'bell', 'bg' => 'bg-blue-600/30'];
+                     @endphp
+                     <li class="px-4 py-3 hover:bg-blue-800/40 transition-all notification-item border-b border-blue-800/20" data-notification-id="{{ $n->id }}" data-category="{{ $category }}" data-severity="{{ $severity }}">
+                       <a class="flex items-start gap-3.5 cursor-pointer" onclick="markAsRead('{{ $n->id }}', '{{ $d['url'] ?? '#' }}'); return false;">
+                         <div class="p-2.5 rounded-full {{ $config['bg'] }} flex-shrink-0">
+                           <i data-lucide="{{ $d['icon'] ?? $config['icon'] }}" class="text-base text-white"></i>
+                         </div>
+                         <div class="flex-1 min-w-0">
+                           <div class="flex items-center gap-2 mb-0.5">
+                                <p class="font-bold text-white text-xs truncate">{{ $d['title'] ?? 'Update' }}</p>
+                                @if($severity === 'high') <span class="px-1.5 py-0.5 bg-red-600 text-[8px] rounded-full uppercase font-bold text-white ml-auto">Urgent</span> @endif
+                                @if($severity === 'critical') <span class="px-1.5 py-0.5 bg-red-800 text-[8px] rounded-full uppercase font-bold text-white ml-auto animate-pulse">Critical</span> @endif
+                           </div>
+                           <p class="text-[11px] text-blue-100/90 leading-relaxed">{{ $d['message'] ?? '' }}</p>
+                           <div class="flex items-center justify-between mt-1.5">
+                              <p class="text-[9px] text-blue-400 font-medium flex items-center gap-1">
+                                <i data-lucide="clock" class="w-2.5 h-2.5"></i>
+                                {{ \Carbon\Carbon::parse($n->created_at)->diffForHumans() }}
+                              </p>
+                              <p class="text-[8px] text-blue-500 uppercase tracking-tighter opacity-60">{{ $category }}</p>
+                           </div>
+                         </div>
+                       </a>
+                     </li>
+                   @endforeach
+                 @else
+                   <li class="px-4 py-12 text-center empty-notifications">
+                     <div class="flex flex-col items-center gap-3">
+                       <div class="p-4 rounded-full bg-blue-600/10 border border-blue-600/20">
+                         <i data-lucide="bell-off" class="text-4xl text-blue-500/50"></i>
+                       </div>
+                       <p class="text-white font-bold text-sm">Quiet Day</p>
+                       <p class="text-[11px] text-blue-300/70">No new notifications to show.</p>
+                     </div>
+                   </li>
+                 @endif
+               </div>
+               
+               <!-- Footer -->
+               <li class="px-4 py-3 border-t border-blue-700/50 bg-[#001f54]">
+                 <a href="{{ route('notifications.index') }}" class="w-full py-2 bg-blue-600/20 hover:bg-blue-600/40 rounded-xl text-center text-white font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all group border border-blue-600/30">
+                   <i data-lucide="layout-grid" class="w-3.5 h-3.5 group-hover:rotate-90 transition-transform"></i>
+                   <span>View All Notifications</span>
+                 </a>
+               </li>
+             </ul>
+           </div>
           <!-- User Dropdown -->
+          @php
+            // Resolve current employee_id with fallbacks
+            $navEmpId = session('emp_id');
+            $navDisplayName = 'User';
+            $navDisplayRole = 'User';
+            $navProfilePicture = null;
+            $navProfilePictureVersion = null;
+
+            // Try to get from auth user if available
+            try {
+              $authUser = auth()->user();
+              if ($authUser) {
+                if (empty($navEmpId)) {
+                  $navEmpId = $authUser->employee_id ?? null;
+                }
+                if (empty($navEmpId) && $authUser->email) {
+                  if (strpos($authUser->email, '@') !== false) {
+                    $navEmpId = substr($authUser->email, 0, strpos($authUser->email, '@'));
+                  }
+                }
+                $navDisplayName = $authUser->name ?? 'User';
+                $navDisplayRole = $authUser->role ?? 'User';
+                $navProfilePicture = $authUser->profile_picture ?? null;
+              }
+            } catch (\Throwable $e) {
+              // Silently ignore if users table doesn't exist
+            }
+
+            // Always prefer department_accounts data if we have an employee_id
+            if (!empty($navEmpId)) {
+              try {
+                $navDeptUser = \Illuminate\Support\Facades\DB::table('department_accounts')->where('employee_id', $navEmpId)->first();
+                if ($navDeptUser) {
+                  $navDisplayName = $navDeptUser->employee_name ?: $navDisplayName;
+                  $navDisplayRole = $navDeptUser->role ?: $navDisplayRole;
+                  $navProfilePicture = $navDeptUser->profile_picture ?: $navProfilePicture;
+
+                  // Generate cache-busting version from profile_picture path (contains timestamp)
+                  if ($navProfilePicture) {
+                    // Extract timestamp from filename if available (format: profile_EMPLOYEEID_TIMESTAMP.ext)
+                    if (preg_match('/_(\d+)\./', $navProfilePicture, $matches)) {
+                      $navProfilePictureVersion = $matches[1];
+                    } else {
+                      // Fallback to file modification time if file exists
+                      $filePath = storage_path('app/public/' . $navProfilePicture);
+                      if (file_exists($filePath)) {
+                        $navProfilePictureVersion = filemtime($filePath);
+                      } else {
+                        $navProfilePictureVersion = time();
+                      }
+                    }
+                  }
+                }
+              } catch (\Throwable $e) { /* silent fallback */
+              }
+            }
+          @endphp
           <div class="dropdown dropdown-end">
-            <label tabindex="0" class="btn btn-ghost btn-circle avatar cursor-pointer">
-              <div class="w-8 rounded-full">
-                <img src="{{asset('images/avatars/empl.jpg')}}" alt="User Avatar" />
+            <label tabindex="0" class="btn btn-ghost btn-circle avatar cursor-pointer hover:ring-2 hover:ring-[#F7B32B] transition-all">
+              <div class="w-10 rounded-full overflow-hidden ring-2 ring-offset-2 ring-offset-base-100 ring-[#001f54]">
+                @if($navProfilePicture)
+                  <img src="{{ asset('storage/' . $navProfilePicture) }}@if($navProfilePictureVersion)?v={{ $navProfilePictureVersion }}@endif" alt="User Avatar" class="w-full h-full object-cover" id="navbar-avatar-img" />
+                @else
+                  <div class="w-full h-full bg-gradient-to-br from-[#F7B32B] to-[#e09800] flex items-center justify-center" id="navbar-avatar-fallback">
+                    <span class="text-sm font-bold text-white">{{ strtoupper(substr($navDisplayName ?? 'U', 0, 1)) }}</span>
+                  </div>
+                @endif
               </div>
             </label>
-            <ul tabindex="0" class="dropdown-content menu mt-1 z-[100] w-52 bg-[#001f54] rounded-box shadow-xl">
+            <ul tabindex="0" class="dropdown-content menu mt-3 z-[100] w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden p-0">
               <!-- User Profile Section -->
-              <li class="p-3 border-b ">
-                <div class="bg-blue-700/50 rounded-md shadow-md flex items-center gap-3">
+              <li class="menu-title !p-0 !m-0 !bg-transparent" style="padding: 0 !important; margin: 0 !important; background: transparent !important;">
+                <div class="flex items-center gap-3 p-4 w-full cursor-default rounded-t-lg" style="background: linear-gradient(135deg, #001f54 0%, #003087 100%) !important; color: white !important;">
                   <div class="avatar">
-                    <div class="w-10 rounded-full">
-                      <img src="{{asset('images/avatars/empl.jpg')}}" alt="User Avatar" class="dark:brightness-90" />
+                    <div class="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white/30">
+                      @if($navProfilePicture)
+                        <img src="{{ asset('storage/' . $navProfilePicture) }}@if($navProfilePictureVersion)?v={{ $navProfilePictureVersion }}@endif" alt="User Avatar" class="w-full h-full object-cover" id="navbar-dropdown-avatar-img" />
+                      @else
+                        <div class="w-full h-full bg-gradient-to-br from-[#F7B32B] to-[#e09800] flex items-center justify-center" id="navbar-dropdown-avatar-fallback">
+                          <span class="text-xl font-bold text-white">{{ strtoupper(substr($navDisplayName ?? 'U', 0, 1)) }}</span>
+                        </div>
+                      @endif
                     </div>
                   </div>
-                  <div>
-                    @php
-                      // Resolve current employee_id with fallbacks
-                      $empId = session('emp_id');
-                      if (empty($empId)) {
-                        $empId = auth()->user()->employee_id ?? null;
-                      }
-                      if (empty($empId)) {
-                        $email = auth()->user()->email ?? '';
-                        if (strpos($email, '@') !== false) {
-                          $empId = substr($email, 0, strpos($email, '@'));
-                        }
-                      }
-                      $displayName = auth()->user()->name ?? null;
-                      $displayRole = auth()->user()->role ?? null;
-                      // Prefer department_accounts data if we have an employee_id
-                      if (!empty($empId)) {
-                        try {
-                          $deptUser = \Illuminate\Support\Facades\DB::table('department_accounts')->where('employee_id', $empId)->first();
-                          if ($deptUser) {
-                            $displayName = $deptUser->employee_name ?: $displayName;
-                            $displayRole = $deptUser->role ?: $displayRole;
-                          }
-                        } catch (\Throwable $e) { /* silent fallback */ }
-                      }
-                    @endphp
-                    <p class="font-medium text-white">{{ $displayName ?? 'User' }}</p>
-                    <p class="text-xs text-white">{{ ucfirst($displayRole ?? 'User') }}</p>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-white truncate text-base" style="color: white !important;">{{ $navDisplayName ?? 'User' }}</p>
+                    <p class="text-xs text-blue-200 font-medium" style="color: #bfdbfe !important;">{{ ucfirst($navDisplayRole ?? 'User') }}</p>
                   </div>
                 </div>
               </li>
               
               <!-- Menu Items -->
-              <li>
-                <a class="flex items-center gap-2 px-4 py-2 text-white hover:bg-blue-700/50 transition-colors cursor-pointer">
-                  <i data-lucide="user" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out hover:text-accent"></i>
-                  <span>Profile</span>
-                </a>
-              </li>
-              <li>
-                <a class="flex items-center gap-2 px-4 py-2 text-white hover:bg-blue-700/50 transition-colors cursor-pointer">
-                  <i data-lucide="settings" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out hover:text-accent"></i>
-                  <span>Settings</span>
-                </a>
-              </li>
-              <li>
-                <a href="{{ route('logout') }}" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="flex items-center gap-2 px-4 py-2 text-white hover:bg-blue-700/50 transition-colors cursor-pointer">
-                  <i data-lucide="log-out" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out hover:text-accent"></i>
-                  <span>Sign out</span>
-                </a>
-              </li>
+              <div class="p-2">
+                <li>
+                  <a href="{{ route('profile.show') }}" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-gray-50 rounded-lg transition-all cursor-pointer group">
+                    <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                      <i data-lucide="user" class="w-5 h-5 text-blue-600"></i>
+                    </div>
+                    <div>
+                      <span class="font-medium">My Profile</span>
+                      <p class="text-xs text-gray-400">View your profile</p>
+                    </div>
+                  </a>
+                </li>
+                <li>
+                  <a href="{{ route('settings.index') }}" class="flex items-center gap-3 px-3 py-2.5 text-gray-700 hover:bg-gray-50 rounded-lg transition-all cursor-pointer group">
+                    <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                      <i data-lucide="settings" class="w-5 h-5 text-gray-600"></i>
+                    </div>
+                    <div>
+                      <span class="font-medium">Settings</span>
+                      <p class="text-xs text-gray-400">Manage preferences</p>
+                    </div>
+                  </a>
+                </li>
+              </div>
+              
+              <!-- Sign Out -->
+              <div class="border-t border-gray-100 p-2">
+                <li>
+                  <a href="{{ route('logout') }}" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer group">
+                    <div class="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center group-hover:bg-red-100 transition-colors">
+                      <i data-lucide="log-out" class="w-5 h-5 text-red-500"></i>
+                    </div>
+                    <div>
+                      <span class="font-medium">Sign Out</span>
+                      <p class="text-xs text-red-400">Log out of your account</p>
+                    </div>
+                  </a>
+                </li>
+              </div>
             </ul>
             <!-- Hidden logout form -->
             <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden">
@@ -278,213 +291,262 @@
         </div>
       </div>
     </div>
-  </header>
+</header>
+
+@include('partials.session-timeout-assets')
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const clearAllBtn = document.getElementById('clearAllNotificationsBtn');
-    const notificationItems = document.querySelectorAll('.notification-item');
+    // Philippine Time Display
+    function updatePhilippineTime() {
+        const now = new Date();
+        const options = { timeZone: 'Asia/Manila' };
+        
+        // Get individual components
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        // Convert to Manila time
+        const manilaTime = new Date(now.toLocaleString('en-US', options));
+        
+        const dayName = days[manilaTime.getDay()];
+        const month = months[manilaTime.getMonth()];
+        const day = manilaTime.getDate();
+        const year = manilaTime.getFullYear();
+        
+        let hours = manilaTime.getHours();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 becomes 12
+        const hoursStr = hours.toString().padStart(2, '0');
+        const minutes = manilaTime.getMinutes().toString().padStart(2, '0');
+        const seconds = manilaTime.getSeconds().toString().padStart(2, '0');
+        
+        const formattedTime = `${dayName}, ${month} ${day}, ${year}, ${hoursStr}:${minutes}:${seconds} ${ampm}`;
+        
+        const timeElement = document.getElementById('philippineTime');
+        if (timeElement) {
+            timeElement.textContent = formattedTime;
+        }
+    }
     
-    // Clear All Notifications functionality
+    // Update time immediately and then every second
+    updatePhilippineTime();
+    setInterval(updatePhilippineTime, 1000);
+
+    const clearAllBtn = document.getElementById('clearAllNotificationsBtn');
+    const notificationButton = document.getElementById('notification-button');
+    
+    // Function to show notification messages
+    const showLocalNotification = (message, type = 'info') => {
+        if (window.showNotification) {
+            window.showNotification(message, type);
+        } else {
+            console.log(`[Notification ${type}]: ${message}`);
+        }
+    };
+
+    // Robust Handler for Bell Click
+    window.handleNotificationClick = function() {
+        // 1. Instant UI update
+        const badge = document.getElementById('notificationBadge');
+        if (badge) {
+            badge.style.display = 'none';
+            badge.textContent = '0';
+            badge.classList.add('hidden');
+        }
+
+        // 2. Persist state globally (across tabs) as fallback
+        localStorage.setItem('notifications_last_clear_all', Date.now());
+
+        // 3. Mark as read in DB
+        fetch('/notifications/mark-all-as-read', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Notifications marked as read');
+            // 4. Update other tabs via custom event if they are on same origin
+            window.dispatchEvent(new CustomEvent('notifications:cleared_all'));
+            
+            // 5. Refresh the list to show them as "read" (less opaque)
+            refreshNotificationDropdown();
+        })
+        .catch(err => console.error('Failed to mark notifications read:', err));
+    };
+
+    // Attach listener to bell button
+    if (notificationButton) {
+        notificationButton.addEventListener('click', handleNotificationClick);
+        // Also handle focus for keyboard navigation/DaisyUI dropdown opening
+        notificationButton.addEventListener('focus', function() {
+            if (parseInt(document.getElementById('notificationBadge')?.textContent || '0') > 0) {
+                handleNotificationClick();
+            }
+        });
+    }
+
+    // Clear All Notifications button functionality
     if (clearAllBtn) {
         clearAllBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             
-            // Show confirmation
-            if (confirm('Are you sure you want to clear all notifications?')) {
-                // Call API to mark all notifications as read
-                fetch('/notifications/mark-all-as-read', {
+            if (confirm('Are you sure you want to clear all notifications permanently?')) {
+                fetch('/api/notifications/clear-all', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                     }
                 })
-                .then(response => response.json())
+                .then(res => res.json())
                 .then(data => {
-                    // Remove all notification items except View All button
-                    const itemsToRemove = document.querySelectorAll('.notification-item');
-                    itemsToRemove.forEach(item => {
-                        item.style.transition = 'opacity 0.3s ease-out';
-                        item.style.opacity = '0';
-                        setTimeout(() => {
-                            item.remove();
-                        }, 300);
-                    });
-                    
-                    // Update badge count to 0
-                    const badge = document.querySelector('.badge-error.indicator-item');
-                    if (badge) {
-                        badge.style.display = 'none';
+                    if (data.success) {
+                        const container = document.getElementById('notificationsContainer');
+                        if (container) container.innerHTML = '';
+                        window.refreshNotificationDropdown();
+                        showLocalNotification('All notifications cleared successfully!', 'success');
                     }
-                    
-                    // Show success message
-                    showNotification('All notifications cleared successfully!', 'success');
                 })
-                .catch(error => {
-                    console.error('Error clearing notifications:', error);
-                    showNotification('Error clearing notifications', 'error');
-                });
+                .catch(err => console.error('Error clearing:', err));
             }
         });
     }
-    
-    // View All Notifications functionality
-    const viewAllLinks = document.querySelectorAll('.dropdown-content li a');
-    if (viewAllLinks.length > 0) {
-        // Find the link with "View All Notifications" text (the last one)
-        const viewAllLink = Array.from(viewAllLinks).find(link => 
-            link.textContent.trim().includes('View All')
-        );
-        
-        if (viewAllLink) {
-            viewAllLink.addEventListener('click', function(e) {
-                e.preventDefault();
-                showNotification('Redirecting to all notifications page...', 'info');
-                
-                // You can uncomment this to redirect to a notifications page if you have one
-                // window.location.href = '/notifications';
-            });
-        }
-    }
-    
-    // Handle individual notification clicks
-    notificationItems.forEach(item => {
-        const link = item.querySelector('a');
-        if (link) {
-            link.addEventListener('click', function(e) {
-                // Mark as read by adding visual feedback
-                if (!this.classList.contains('opacity-70')) {
-                    this.classList.add('opacity-70');
-                }
-                
-                // You can add more functionality here for specific notification types
-                const notificationTitle = this.querySelector('.font-medium')?.textContent;
-                
-                if (notificationTitle) {
-                    // Example: Route to specific pages based on notification type
-                    if (notificationTitle.includes('Reservation')) {
-                        // Handle reservation notification
-                        console.log('Reservation notification clicked');
-                    } else if (notificationTitle.includes('Maintenance')) {
-                        // Handle maintenance notification
-                        console.log('Maintenance notification clicked');
-                    } else if (notificationTitle.includes('Check-in')) {
-                        // Handle check-in notification
-                        console.log('Check-in notification clicked');
-                    }
+
+    // Individual Mark as Read
+    window.markAsRead = async function(id, url) {
+        try {
+            await fetch(`/notifications/${id}/mark-as-read`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                    'Accept': 'application/json'
                 }
             });
-        }
-    });
-    
-    // Function to show notification messages
-    // Use global showNotification with progress bar if available
-    if (typeof window.showNotification === 'undefined' || window.showNotification.toString().indexOf('progressBar') === -1) {
-      window.showNotification = function(message, type = 'info', duration = 3000) {
-        if (!document.getElementById('notification-progress-style')) {
-          const style = document.createElement('style');
-          style.id = 'notification-progress-style';
-          style.textContent = `
-            @keyframes progressBar {
-              from { width: 100%; }
-              to { width: 0%; }
-            }
-            @keyframes slideInRight {
-              from { transform: translateX(100%); opacity: 0; }
-              to { transform: translateX(0); opacity: 1; }
-            }
-          `;
-          document.head.appendChild(style);
-        }
-
-        const notification = document.createElement('div');
-        const alertType = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-        notification.className = `alert alert-${alertType} fixed bottom-4 right-4 z-[9999] max-w-sm shadow-lg relative overflow-hidden`;
-        notification.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; max-width: 24rem; animation: slideInRight 0.3s ease-out;';
-        
-        const iconMap = { 'success': 'check-circle', 'error': 'alert-circle', 'warning': 'alert-triangle', 'info': 'info' };
-        const icon = iconMap[type] || 'info';
-        
-        notification.innerHTML = `
-          <div class="flex items-center gap-2 px-4 py-3">
-            <i data-lucide="${icon}" class="w-5 h-5"></i>
-            <span>${message}</span>
-          </div>
-          <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-            <div class="notification-progress h-full bg-white/50" style="width: 100%; animation: progressBar ${duration}ms linear forwards;"></div>
-          </div>
-        `;
-        
-        document.body.appendChild(notification);
-        notification.offsetHeight;
-        
-        if (window.lucide && window.lucide.createIcons) {
-          window.lucide.createIcons();
-        }
-        
-        setTimeout(() => {
-          notification.style.opacity = '0';
-          notification.style.transition = 'opacity 0.3s ease-out';
-          setTimeout(() => {
-            if (notification.parentNode) notification.remove();
-          }, 300);
-        }, duration);
-      };
-    }
-    
-    // Auto-refresh notification count every 2 seconds
-    let lastNotificationCount = {{ auth()->user() ? auth()->user()->unreadNotifications()->count() : 0 }};
-    
-    setInterval(() => {
-        fetch('/api/notifications/count', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.count !== lastNotificationCount) {
-                // If new notifications arrived, reload the page to show them
-                if (data.count > lastNotificationCount) {
-                    location.reload();
-                } else {
-                    lastNotificationCount = data.count;
-                }
-            }
-        })
-        .catch(error => console.error('Error checking notifications:', error));
-    }, 2000); // Check every 2 seconds
-});
-
-// Mark notification as read
-function markAsRead(notificationId) {
-    fetch('/notifications/' + notificationId + '/mark-as-read', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Update badge count
-        const badge = document.querySelector('.badge-error.indicator-item');
-        if (badge) {
-            const currentCount = parseInt(badge.textContent) || 0;
-            const newCount = Math.max(0, currentCount - 1);
-            if (newCount > 0) {
-                badge.textContent = newCount;
+            
+            if (url && url !== '#') {
+                window.location.href = url;
             } else {
-                badge.style.display = 'none';
+                refreshNotificationDropdown();
             }
+        } catch (e) {
+            console.error('Error:', e);
+            if (url && url !== '#') window.location.href = url;
         }
-    })
-    .catch(error => {
-        console.error('Error marking notification as read:', error);
+    };
+
+    // Refresh UI Logic
+    window.refreshNotificationDropdown = async function() {
+        const container = document.getElementById('notificationsContainer');
+        const badge = document.getElementById('notificationBadge');
+        if (!container) return;
+
+        try {
+            const response = await fetch('/api/notifications/list?status=all&limit=10');
+            const data = await response.json();
+            if (!data || !data.success) return;
+
+            // Real-time check: If cleared recently in another tab (via localStorage), override count
+            const lastCleared = localStorage.getItem('notifications_last_clear_all');
+            const recentlyCleared = lastCleared && (Date.now() - parseInt(lastCleared) < 10000);
+            
+            const currentUnread = recentlyCleared ? 0 : (data.unread_count ?? data.count ?? 0);
+            
+            if (badge) {
+                badge.textContent = currentUnread;
+                badge.style.display = currentUnread > 0 ? 'flex' : 'none';
+                if (currentUnread > 0) badge.classList.remove('hidden'); else badge.classList.add('hidden');
+            }
+
+            container.innerHTML = '';
+            if (!data.notifications || data.notifications.length === 0) {
+                container.innerHTML = `
+                    <li class="px-4 py-12 text-center empty-notifications">
+                      <div class="flex flex-col items-center gap-3">
+                        <div class="p-4 rounded-full bg-blue-600/10">
+                          <i data-lucide="bell-off" class="text-4xl text-blue-500/50"></i>
+                        </div>
+                        <p class="text-white font-bold text-sm">Quiet Day</p>
+                        <p class="text-[11px] text-blue-300/70">No new notifications to show.</p>
+                      </div>
+                    </li>
+                `;
+            } else {
+                data.notifications.forEach(n => {
+                    const li = document.createElement('li');
+                    li.className = `px-4 py-3 hover:bg-blue-800/40 transition-all notification-item border-b border-blue-800/20 ${n.read_at ? 'opacity-60' : ''}`;
+                    const d = n.data || {};
+                    const category = d.category || d.model_type || 'general';
+                    const severity = d.severity || 'low';
+                    
+                    li.innerHTML = `
+                       <a class="flex items-start gap-3.5 cursor-pointer" onclick="markAsRead('${n.id}', '${d.url || '#'}'); return false;">
+                         <div class="p-2.5 rounded-full bg-blue-600/30 flex-shrink-0">
+                           <i data-lucide="${d.icon || 'bell'}" class="text-base text-white"></i>
+                         </div>
+                         <div class="flex-1 min-w-0">
+                           <div class="flex items-center gap-2 mb-0.5">
+                                <p class="font-bold text-white text-xs truncate">${d.title || 'Update'}</p>
+                                ${severity === 'high' ? '<span class="px-1.5 py-0.5 bg-red-600 text-[8px] rounded-full uppercase font-bold text-white ml-auto">Urgent</span>' : ''}
+                           </div>
+                           <p class="text-[11px] text-blue-100/90 leading-relaxed">${d.message || ''}</p>
+                         </div>
+                       </a>
+                    `;
+                    container.appendChild(li);
+                });
+            }
+            if (window.lucide) window.lucide.createIcons();
+        } catch (e) {
+            console.error('Refresh failed:', e);
+        }
+    };
+
+    // Cross-tab Synchronization fallback
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'notifications_last_clear_all') {
+            refreshNotificationDropdown();
+        }
     });
-}
+    
+    window.addEventListener('notifications:cleared_all', refreshNotificationDropdown);
+
+    // Initial time update
+    updatePhilippineTime();
+    setInterval(updatePhilippineTime, 1000);
+
+    // Poll for new notifications if websocket is not available
+    let lastNotifCount = {{ $unreadCount ?? 0 }};
+    setInterval(async () => {
+        if (window.notificationClient && window.notificationClient.echo) return; 
+        
+        try {
+            const res = await fetch('/api/notifications/count');
+            const data = await res.json();
+            
+            // Respect recent clear actions (within 5 seconds)
+            const recentlyCleared = window.lastBadgeClearTime && (Date.now() - window.lastBadgeClearTime < 5000);
+            
+            if (recentlyCleared) return;
+
+            if (data.count !== lastNotifCount) {
+                lastNotifCount = data.count;
+                const badge = document.getElementById('notificationBadge');
+                if (badge) {
+                    badge.textContent = data.count;
+                    badge.style.display = data.count > 0 ? 'flex' : 'none';
+                    if (data.count > 0) badge.classList.remove('hidden');
+                    else badge.classList.add('hidden');
+                }
+            }
+        } catch (e) {}
+    }, 15000);
+});
 </script>

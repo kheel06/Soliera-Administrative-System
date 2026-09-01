@@ -17,7 +17,34 @@ class RedirectIfAuthenticated
 
         foreach ($guards as $guard) {
             if (Auth::guard($guard)->check()) {
-                return redirect('/dashboard'); // or your home route
+                $user = Auth::guard($guard)->user();
+                $role = $user->role ?? ''; // Assuming 'role' is a property of the user model
+
+                if (strpos(strtolower($role), 'owner') !== false) {
+                    return redirect()->route('executive.overview');
+                }
+
+                if (strpos(strtolower($role), 'admin manager') !== false) {
+                    return redirect()->route('access.users');
+                }
+
+                if (strpos(strtolower($role), 'legal officer') !== false) {
+                    return redirect()->route('legal.contracts.workspace');
+                }
+
+                if (strpos(strtolower($role), 'compliance lead') !== false) {
+                    return redirect()->route('compliance.permits');
+                }
+
+                if (strpos(strtolower($role), 'security supervisor') !== false) {
+                    return redirect()->route('visitors.check_in_form');
+                }
+
+                if (strpos(strtolower($role), 'front office manager') !== false) {
+                    return redirect()->route('visitors.pre_registrations');
+                }
+
+                return redirect('/dashboard');
             }
         }
 

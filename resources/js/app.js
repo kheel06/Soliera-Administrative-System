@@ -1,8 +1,9 @@
-import 'alpinejs';
-import { createIcons } from 'lucide';
+import './bootstrap';
+import AOS from 'aos';
 
-document.addEventListener('DOMContentLoaded', function() {
-  if (createIcons) {
-    createIcons();
-  }
+document.addEventListener('DOMContentLoaded', () => {
+    AOS.init({
+        duration: 1000,
+        once: true
+    });
 });

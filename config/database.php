@@ -16,6 +16,7 @@ return [
     */
 
     'default' => env('DB_CONNECTION', 'mysql'),
+    'require_connection' => env('DB_REQUIRE_CONNECTION', false),
 
     /*
     |--------------------------------------------------------------------------

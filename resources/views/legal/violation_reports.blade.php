@@ -9,8 +9,8 @@
         <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between">
                 <h1 class="text-3xl font-bold text-gray-900">Violation Reports</h1>
-                <a href="{{ route('legal.violation_reports.create') }}" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
-                    <i class="fas fa-plus mr-2"></i>Report Violation
+                <a href="{{ route('legal.violation_reports.create') }}" class="bg-[#F7B32B] text-[#001F54] px-4 py-2 rounded-lg hover:bg-[#f5a623] transition-colors flex items-center">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Report Violation
                 </a>
             </div>
         </div>
@@ -49,8 +49,8 @@
                         </select>
                     </div>
                     <div class="flex items-end">
-                        <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
-                            <i class="fas fa-search mr-2"></i>Filter
+                        <button type="submit" class="bg-[#F7B32B] text-[#001F54] px-4 py-2 rounded-lg hover:bg-[#f5a623] transition-colors flex items-center">
+                            <i data-lucide="search" class="w-4 h-4 mr-2"></i>Filter
                         </button>
                     </div>
                 </form>
@@ -114,8 +114,7 @@
                                         {{ $report->created_at->format('M d, Y') }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <a href="{{ route('legal.violation_reports.show', $report->id) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">View</a>
-                                        <button onclick="updateReportStatus({{ $report->id }})" class="text-blue-600 hover:text-blue-900">Update</button>
+                                        <a href="{{ route('legal.violation_reports.show', $report->id) }}" class="text-indigo-600 hover:text-indigo-900">View</a>
                                     </td>
                                 </tr>
                                 @endforeach
@@ -124,11 +123,11 @@
                     </x-table-card>
                 @else
                     <div class="text-center py-8">
-                        <i class="fas fa-flag text-4xl text-gray-400 mb-4"></i>
+                        <i data-lucide="flag" class="w-16 h-16 text-gray-400 mb-4 mx-auto"></i>
                         <h3 class="text-lg font-medium text-gray-900 mb-2">No violation reports found</h3>
                         <p class="text-gray-500 mb-4">No reports match your current filters.</p>
-                        <a href="{{ route('legal.violation_reports.create') }}" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
-                            <i class="fas fa-plus mr-2"></i>Report Violation
+                        <a href="{{ route('legal.violation_reports.create') }}" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors inline-flex items-center">
+                            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Report Violation
                         </a>
                     </div>
                 @endif
@@ -137,67 +136,13 @@
     </div>
 </div>
 
-<!-- Status Update Modal -->
-<div id="statusModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium text-gray-900">Update Status</h3>
-                <button onclick="closeStatusModal()" class="text-gray-400 hover:text-gray-600">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <form id="statusForm">
-                <div class="mb-4">
-                    <label for="newStatus" class="block text-sm font-medium text-gray-700">New Status</label>
-                    <select name="status" id="newStatus" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 sm:text-sm">
-                        <option value="reported">Reported</option>
-                        <option value="under_investigation">Under Investigation</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="dismissed">Dismissed</option>
-                    </select>
-                </div>
-                <div class="mb-4">
-                    <label for="notes" class="block text-sm font-medium text-gray-700">Investigation Notes</label>
-                    <textarea name="notes" id="notes" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 sm:text-sm"></textarea>
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button type="button" onclick="closeStatusModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors">
-                        Cancel
-                    </button>
-                    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
-                        Update Status
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
+@push('scripts')
 <script>
-function updateReportStatus(reportId) {
-    document.getElementById('statusModal').classList.remove('hidden');
-    document.getElementById('statusForm').setAttribute('data-report-id', reportId);
-}
-
-function closeStatusModal() {
-    document.getElementById('statusModal').classList.add('hidden');
-    document.getElementById('statusForm').reset();
-}
-
-document.getElementById('statusForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const reportId = this.getAttribute('data-report-id');
-    const status = document.getElementById('newStatus').value;
-    const notes = document.getElementById('notes').value;
-    
-    // This would make an AJAX request to update the status
-    console.log('Updating report', reportId, 'to status', status, 'with notes', notes);
-    
-    // Simulate success
-    closeStatusModal();
-    location.reload();
-});
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
 </script>
+@endpush
 @endsection

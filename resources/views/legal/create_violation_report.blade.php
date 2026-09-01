@@ -9,8 +9,8 @@
         <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between">
                 <h1 class="text-3xl font-bold text-gray-900">Report Violation</h1>
-                <a href="{{ route('legal.violation_reports') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
-                    <i class="fas fa-arrow-left mr-2"></i>Back to Reports
+                <a href="{{ route('legal.violation_reports') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Reports
                 </a>
             </div>
         </div>
@@ -174,8 +174,8 @@
                     </div>
                 </div>
                 
-                <button type="button" onclick="addWitness()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
-                    <i class="fas fa-plus mr-2"></i>Add Witness
+                <button type="button" onclick="addWitness()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Witness
                 </button>
             </div>
 
@@ -196,7 +196,7 @@
             <div class="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div class="flex">
                     <div class="flex-shrink-0">
-                        <i class="fas fa-shield-alt text-red-400"></i>
+                        <i data-lucide="shield" class="w-5 h-5 text-red-400"></i>
                     </div>
                     <div class="ml-3">
                         <h3 class="text-sm font-medium text-red-800">Confidentiality Notice</h3>
@@ -212,8 +212,8 @@
                 <a href="{{ route('legal.violation_reports') }}" class="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition-colors">
                     Cancel
                 </a>
-                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors">
-                    <i class="fas fa-flag mr-2"></i>Submit Report
+                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center">
+                    <i data-lucide="flag" class="w-4 h-4 mr-2"></i>Submit Report
                 </button>
             </div>
         </form>
@@ -242,4 +242,64 @@ function addWitness() {
 // Set default incident date to today
 document.getElementById('incident_date').value = new Date().toISOString().split('T')[0];
 </script>
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
 @endsection

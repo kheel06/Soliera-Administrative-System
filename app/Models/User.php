@@ -23,6 +23,7 @@ class User extends Authenticatable
         'role',
         'employee_id',
         'department',
+        'profile_picture',
     ];
 
     /**
@@ -52,4 +53,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(UserConsent::class);
     }
-} 
+
+    /**
+     * The channels the user receives notification broadcasts on.
+     */
+    public function receivesBroadcastNotificationsOn()
+    {
+        return 'user.' . $this->id;
+    }
+}

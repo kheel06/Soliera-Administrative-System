@@ -9,8 +9,8 @@
         <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between">
                 <h1 class="text-3xl font-bold text-gray-900">Employee Complaints</h1>
-                <a href="{{ route('legal.complaints.create') }}" class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
-                    <i class="fas fa-plus mr-2"></i>File Complaint
+                <a href="{{ route('legal.complaints.create') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 text-sm font-medium" style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;" onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'" onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>File Complaint
                 </a>
             </div>
         </div>
@@ -49,8 +49,8 @@
                         </select>
                     </div>
                     <div class="flex items-end">
-                        <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
-                            <i class="fas fa-search mr-2"></i>Filter
+                        <button type="submit" class="inline-flex items-center justify-center px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 text-sm font-medium" style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;" onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'" onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
+                            <i data-lucide="search" class="w-4 h-4 mr-2"></i>Filter
                         </button>
                     </div>
                 </form>
@@ -100,11 +100,11 @@
             </table>
           @else
             <div class="text-center py-8">
-              <i class="fas fa-comments text-4xl text-gray-400 mb-4"></i>
+              <i data-lucide="message-square" class="w-16 h-16 text-gray-400 mb-4 mx-auto"></i>
               <h3 class="text-lg font-medium text-gray-900 mb-2">No complaints found</h3>
               <p class="text-gray-500 mb-4">No complaints match your current filters.</p>
-              <a href="{{ route('legal.complaints.create') }}" class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
-                <i class="fas fa-plus mr-2"></i>File Complaint
+              <a href="{{ route('legal.complaints.create') }}" class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors inline-flex items-center">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>File Complaint
               </a>
             </div>
           @endif
@@ -119,7 +119,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-medium text-gray-900">Update Status</h3>
                 <button onclick="closeStatusModal()" class="text-gray-400 hover:text-gray-600">
-                    <i class="fas fa-times"></i>
+                    <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
             <form id="statusForm">
@@ -175,4 +175,64 @@ document.getElementById('statusForm').addEventListener('submit', function(e) {
     location.reload();
 });
 </script>
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
+@endsection
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+@endpush
 @endsection

@@ -1,17 +1,21 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Visitor Management - Soliera</title>
+  <title>Visitors | Soliera</title>
+  @include('partials.favicon')
   <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  @vite(['resources/css/soliera.css'])
+  @vite(['resources/css/app.css', 'resources/css/soliera.css', 'resources/js/app.js'])
 </head>
+
 <body class="bg-base-100">
+  @include('partials.page-loader')
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     @include('partials.sidebarr')
@@ -21,406 +25,552 @@
       @include('partials.navbar')
 
       <!-- Visitor Management Content -->
-      <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 transition-slow">
-        <div class="pb-5 border-b border-base-300 animate-fadeIn">
-          <h1 class="text-2xl font-semibold bg-white bg-clip-text text-[#191970]" style="color: var(--color-charcoal-ink);">Visitor Management</h1>
+      <main class="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 transition-slow bg-gray-50">
+        <!-- Page Header -->
+        <div class="mb-4 sm:mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex items-center gap-2 sm:gap-3">
+              <div
+                class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="users" class="w-5 h-5 sm:w-6 sm:h-6 text-[#F7B32B]"></i>
+              </div>
+              <div>
+                <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Visitor Management</h1>
+                <p class="text-gray-500 text-xs sm:text-sm">Track and manage all visitors in your facility</p>
+              </div>
+            </div>
+          </div>
         </div>
-        
+
         @if(session('success'))
-          <div class="alert alert-success mb-6 animate-fadeIn hidden" style="background-color: var(--color-modern-teal); color: var(--color-white);">
-            <i data-lucide="check-circle" class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+          <div class="alert alert-success mb-6 animate-fadeIn hidden"
+            style="background-color: var(--color-modern-teal); color: var(--color-white);">
+            <i data-lucide="check-circle"
+              class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
             <span>{{ session('success') }}</span>
           </div>
         @endif
-        
+
         <!-- Alert Section -->
         @if($pendingExitVisitors->count() > 0 || $approachingTimeoutVisitors->count() > 0)
-        <div class="mt-8 space-y-4">
-          <!-- Pending Exit Alert -->
-          @if($pendingExitVisitors->count() > 0)
-          <div class="alert alert-error shadow-lg animate-pulse">
-            <i data-lucide="alert-triangle" class="text-2xl md:text-3xl lg:text-4xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
-            <div>
-              <h3 class="font-bold">⚠️ URGENT: {{ $pendingExitVisitors->count() }} Visitor(s) Overdue</h3>
-              <div class="text-sm">These visitors have exceeded their expected checkout time and are marked as PENDING EXIT.</div>
-            </div>
+          <div class="mt-8 space-y-4">
+            <!-- Pending Exit Alert -->
+            @if($pendingExitVisitors->count() > 0)
+              <div class="alert alert-error shadow-lg animate-pulse">
+                <i data-lucide="alert-triangle"
+                  class="text-2xl md:text-3xl lg:text-4xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                <div>
+                  <h3 class="font-bold">⚠️ URGENT: {{ $pendingExitVisitors->count() }} Visitor(s) Overdue</h3>
+                  <div class="text-sm">These visitors have exceeded their expected checkout time and are marked as PENDING
+                    EXIT.</div>
+                </div>
+              </div>
+            @endif
+
+            <!-- Approaching Timeout Alert -->
+            @if($approachingTimeoutVisitors->count() > 0)
+              <div class="alert alert-warning shadow-lg">
+                <i data-lucide="clock"
+                  class="text-2xl md:text-3xl lg:text-4xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                <div>
+                  <h3 class="font-bold">⏰ {{ $approachingTimeoutVisitors->count() }} Visitor(s) Approaching Timeout</h3>
+                  <div class="text-sm">These visitors are within 10 minutes of their expected checkout time.</div>
+                </div>
+              </div>
+            @endif
           </div>
-          @endif
-          
-          <!-- Approaching Timeout Alert -->
-          @if($approachingTimeoutVisitors->count() > 0)
-          <div class="alert alert-warning shadow-lg">
-            <i data-lucide="clock" class="text-2xl md:text-3xl lg:text-4xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
-            <div>
-              <h3 class="font-bold">⏰ {{ $approachingTimeoutVisitors->count() }} Visitor(s) Approaching Timeout</h3>
-              <div class="text-sm">These visitors are within 10 minutes of their expected checkout time.</div>
-            </div>
-          </div>
-          @endif
-        </div>
         @endif
 
-        <!-- Stats Cards (DaisyUI, same as Visitor Logs) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mt-4 sm:mt-6">
           <!-- Total Visitors -->
-          <x-stat-card 
-            title="Total Visitors" 
-            :value="$visitors->count()" 
-            icon="fa-users" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
-          
-          <!-- Active Visitors -->
-          <x-stat-card 
-            title="Currently In" 
-            :value="$visitors->whereNull('time_out')->count()" 
-            icon="fa-user-check" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
-          
+          <div
+            class="bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="order-2 sm:order-1">
+                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Total Visitors</p>
+                <p class="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 sm:mt-1">{{ $visitors->count() }}</p>
+              </div>
+              <div
+                class="order-1 sm:order-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="users" class="w-4 h-4 sm:w-5 sm:h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Currently In -->
+          <div
+            class="bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="order-2 sm:order-1">
+                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Currently In</p>
+                <p class="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 sm:mt-1">
+                  {{ $visitors->whereNull('time_out')->count() }}</p>
+              </div>
+              <div
+                class="order-1 sm:order-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="user-check" class="w-4 h-4 sm:w-5 sm:h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
           <!-- Today's Visitors -->
-          <x-stat-card 
-            title="Today's Visitors" 
-            :value="$visitors->where('time_in', '>=', now()->startOfDay())->count()" 
-            icon="fa-calendar" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
-          
-          <!-- Completed Visits -->
-          <x-stat-card 
-            title="Completed" 
-            :value="$visitors->whereNotNull('time_out')->count()" 
-            icon="fa-check-circle" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
+          <div
+            class="bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="order-2 sm:order-1">
+                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Today's</p>
+                <p class="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 sm:mt-1">
+                  {{ $visitors->where('time_in', '>=', now()->startOfDay())->count() }}</p>
+              </div>
+              <div
+                class="order-1 sm:order-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="calendar" class="w-4 h-4 sm:w-5 sm:h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Completed -->
+          <div
+            class="bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="order-2 sm:order-1">
+                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</p>
+                <p class="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 sm:mt-1">
+                  {{ $visitors->whereNotNull('time_out')->count() }}</p>
+              </div>
+              <div
+                class="order-1 sm:order-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="check-circle" class="w-4 h-4 sm:w-5 sm:h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
         </div>
-        
+
         <!-- Action Buttons -->
-        <div class="flex justify-end items-center mt-8 mb-6">
-          <div class="flex gap-2">
-            <a href="{{ route('visitor.management.landing') }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm hover:scale-105 transition-all" style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;" onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'" onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
-              <i data-lucide="home" class="w-4 h-4 mr-1" style="color: #1f2937; fill: none;"></i>Landing Page
+        <div class="flex justify-end items-center mt-4 sm:mt-6 mb-4 sm:mb-6">
+          <div class="flex gap-1.5 sm:gap-2">
+            <a href="{{ route('visitor.management.landing') }}" target="_blank" rel="noopener noreferrer"
+              class="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">
+              <i data-lucide="home" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
+              <span class="hidden sm:inline">Landing Page</span>
+              <span class="sm:hidden">Landing</span>
             </a>
-            <a href="{{ route('visitor.export.excel') }}" class="btn btn-sm hover:scale-105 transition-all" style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;" onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'" onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
-              <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-1" style="color: #1f2937; fill: none;"></i>Export Excel
+            <a href="{{ route('visitor.export.excel') }}"
+              class="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all shadow-sm hover:shadow-md"
+              style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937;">
+              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
+              <span class="hidden sm:inline">Export Excel</span>
+              <span class="sm:hidden">Export</span>
             </a>
           </div>
         </div>
-        
-        <!-- MODERN VISITOR INTERFACE -->
-        <div class="mt-8">
-          <!-- Clickable Breadcrumb Navigation -->
-          <div class="mb-6">
-            <nav class="flex items-center space-x-2 text-sm">
-              <button id="nav-current" class="text-blue-600 hover:text-blue-800 font-medium flex items-center transition-colors duration-200 {{ $activeTab==='current' ? 'text-blue-800 font-semibold' : '' }}" onclick="showTab('current')">
-                <i data-lucide="users" class="w-4 h-4 mr-1"></i>
-                Current Visitors
-              </button>
 
-              <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
-              <button id="nav-previsit" class="text-gray-600 hover:text-blue-600 font-medium flex items-center transition-colors duration-200 {{ $activeTab==='previsit' ? 'text-blue-600 font-semibold' : '' }}" onclick="showTab('previsit')">
-                <i data-lucide="calendar-clock" class="w-4 h-4 inline mr-1"></i>
+        <!-- MODERN VISITOR INTERFACE -->
+        <div class="mt-3 sm:mt-4">
+          <!-- Tab Navigation -->
+          <div class="mb-4 sm:mb-6">
+            <div class="flex flex-wrap gap-1.5 sm:gap-2">
+              <button id="nav-current" onclick="showTab('current')"
+                class="tab-btn flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 {{ $activeTab === 'current' ? 'bg-[#001F54] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200' }}">
+                <div
+                  class="w-5 h-5 sm:w-7 sm:h-7 rounded {{ $activeTab === 'current' ? 'bg-white/20' : 'bg-[#001F54]' }} flex items-center justify-center">
+                  <i data-lucide="users" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#F7B32B]"></i>
+                </div>
+                <span class="hidden sm:inline">Current Visitors</span>
+                <span class="sm:hidden">Current</span>
+              </button>
+              <button id="nav-previsit" onclick="showTab('previsit')"
+                class="tab-btn flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 {{ $activeTab === 'previsit' ? 'bg-[#001F54] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200' }}">
+                <div
+                  class="w-5 h-5 sm:w-7 sm:h-7 rounded {{ $activeTab === 'previsit' ? 'bg-white/20' : 'bg-[#001F54]' }} flex items-center justify-center">
+                  <i data-lucide="calendar-clock" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#F7B32B]"></i>
+                </div>
                 Pre-Visit
               </button>
-
-              <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
-              <button id="nav-monitoring" class="text-gray-600 hover:text-blue-600 font-medium flex items-center transition-colors duration-200 {{ $activeTab==='monitoring' ? 'text-blue-600 font-semibold' : '' }}" onclick="showTab('monitoring')">
-                <i data-lucide="activity" class="w-4 h-4 inline mr-1"></i>
-                Monitoring
+              <button id="nav-monitoring" onclick="showTab('monitoring')"
+                class="tab-btn flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 {{ $activeTab === 'monitoring' ? 'bg-[#001F54] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200' }}">
+                <div
+                  class="w-5 h-5 sm:w-7 sm:h-7 rounded {{ $activeTab === 'monitoring' ? 'bg-white/20' : 'bg-[#001F54]' }} flex items-center justify-center">
+                  <i data-lucide="activity" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#F7B32B]"></i>
+                </div>
+                <span class="hidden xs:inline">Monitoring</span>
+                <span class="xs:hidden">Monitor</span>
               </button>
-            </nav>
+            </div>
           </div>
 
           <!-- Main Content -->
-          <div class="bg-white rounded-lg border border-gray-200 mt-0" style="background-color: var(--color-white); border-color: var(--color-snow-mist);">
+          <div class="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <!-- Current Visitors Tab -->
-            <div id="current-tab" class="h-96 flex">
+            <div id="current-tab" class="min-h-64 sm:min-h-96 flex">
               <!-- Left Panel - Current Visitors List -->
               <div class="w-full overflow-y-auto">
-                <!-- Blue Banner Header -->
-                <div class="bg-blue-900 text-white px-6 py-4 rounded-t-xl">
-                  <h2 class="text-lg font-semibold">Current Visitors</h2>
-                </div>
-                
-                <!-- Content Section -->
-                <div class="p-6">
-                <div class="mb-6">
-                  <p class="text-gray-600" style="color: var(--color-charcoal-ink); opacity: 0.8;">Visitors currently in the building</p>
-                </div>
-                
-                <!-- Search Bar -->
-                <div class="mb-6">
-                  <div class="relative">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" style="color: var(--color-charcoal-ink); opacity: 0.5;"></i>
-                    <input type="text" placeholder="Search visitors..." class="input input-bordered w-full pl-10" id="visitorSearch" style="color: var(--color-charcoal-ink); background-color: var(--color-white); border-color: var(--color-snow-mist);"/>
+                <!-- Header with Search -->
+                <div class="bg-[#001F54] px-3 sm:px-6 py-3 sm:py-4">
+                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+                    <h3 class="text-sm sm:text-lg font-semibold text-white flex items-center gap-2 sm:gap-3">
+                      <div
+                        class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="users" class="w-3 h-3 sm:w-4 sm:h-4 text-[#F7B32B]"></i>
+                      </div>
+                      <div>
+                        <span>Current Visitors</span>
+                        <p class="text-xs sm:text-sm text-white/70 font-normal">Visitors currently in the building</p>
+                      </div>
+                    </h3>
+                    <!-- Search Bar -->
+                    <div
+                      class="flex items-center w-full sm:w-72 bg-white rounded-lg focus-within:ring-2 focus-within:ring-blue-300">
+                      <i data-lucide="search" class="ml-3 w-4 h-4 text-gray-400 flex-shrink-0"></i>
+                      <input type="text" placeholder="Search..."
+                        class="w-full bg-transparent text-gray-800 border-0 text-xs sm:text-sm placeholder-gray-400 py-1.5 sm:py-2 pl-2 pr-3 sm:pr-4 focus:outline-none"
+                        id="visitorSearch" />
+                    </div>
                   </div>
                 </div>
-                
-                
-                <!-- Visitor Cards -->
-                <div class="space-y-4">
-                  @forelse($visitors->whereNotNull('time_in')->whereNull('time_out') as $visitor) {{-- Only show visitors actually checked in --}}
-                    <div class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer visitor-card" 
-                         data-visitor-id="{{ $visitor->id }}"
-                         onclick="selectVisitor({{ $visitor->id }})" style="background-color: var(--color-white); border-color: var(--color-snow-mist);">
-                      <div class="flex items-center justify-between">
-                        <div class="flex-1">
-                          <h3 class="font-semibold text-gray-900" style="color: var(--color-charcoal-ink);">{{ $visitor->name }}</h3>
-                          <p class="text-sm text-gray-600" style="color: var(--color-charcoal-ink); opacity: 0.8;">{{ $visitor->company ?? 'No Company' }}</p>
-                          
-                          <div class="flex items-center gap-4 mt-2">
-                            @if($visitor->time_out)
-                              <span class="badge badge-outline text-gray-500" style="border-color: var(--color-charcoal-ink); color: var(--color-charcoal-ink); opacity: 0.7;">Checked Out</span>
-                            @else
-                              <span class="badge badge-primary" style="background-color: var(--color-regal-navy); color: var(--color-white);">Checked In</span>
-                            @endif
-                            
-                            <span class="badge badge-outline text-gray-600" style="border-color: var(--color-regal-navy); color: var(--color-regal-navy);">{{ $visitor->purpose }}</span>
-                            
-                            @if($visitor->pass_id)
-                              <span class="badge badge-info" style="background-color: var(--color-modern-teal); color: var(--color-white);">
-                                <i data-lucide="id-card" class="w-3 h-3 mr-1"></i>
-                                {{ ucfirst(str_replace('_', ' ', $visitor->pass_type ?? 'Pass')) }}
-                              </span>
-                            @endif
-                            
-                            <div class="flex items-center gap-1 text-sm text-gray-500" style="color: var(--color-charcoal-ink); opacity: 0.7;">
-                              <i data-lucide="clock" class="w-3 h-3"></i>
-                              <span>In: {{ \Carbon\Carbon::parse($visitor->time_in)->format('h:i A') }}</span>
-                              @if($visitor->time_out)
-                                <span>Out: {{ \Carbon\Carbon::parse($visitor->time_out)->format('h:i A') }}</span>
-                              @endif
+
+                <!-- Content Section -->
+                <div class="p-3 sm:p-6">
+
+
+                  <!-- Visitor Cards -->
+                  <div class="space-y-2 sm:space-y-3">
+                    @forelse($visitors->whereNotNull('time_in')->whereNull('time_out') as $visitor) {{-- Only show
+                      visitors actually checked in --}}
+                      <div
+                        class="bg-white rounded-lg sm:rounded-xl border border-gray-100 p-3 sm:p-4 hover:shadow-lg hover:border-blue-200 transition-all duration-200 cursor-pointer visitor-card"
+                        data-visitor-id="{{ $visitor->id }}" onclick="selectVisitor({{ $visitor->id }})">
+                        <div class="flex items-start justify-between gap-2 sm:gap-4">
+                          <!-- Left: Visitor Info -->
+                          <div class="flex items-start gap-2 sm:gap-4 flex-1 min-w-0">
+                            <!-- Avatar -->
+                            <div
+                              class="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                              <span
+                                class="text-xs sm:text-sm font-semibold text-[#F7B32B]">{{ strtoupper(substr($visitor->name, 0, 2)) }}</span>
                             </div>
-                            
-                            <div class="flex items-center gap-1 text-sm text-gray-500" style="color: var(--color-charcoal-ink); opacity: 0.7;">
-                              <i data-lucide="building" class="w-3 h-3"></i>
-                              <span>{{ $visitor->facility->name ?? 'No Location' }}</span>
+
+                            <!-- Info -->
+                            <div class="flex-1 min-w-0">
+                              <h3 class="font-semibold text-gray-900 text-base">{{ $visitor->name }}</h3>
+                              <p class="text-sm text-gray-500">{{ $visitor->company ?? 'No Company' }}</p>
+
+                              <!-- Badges Row -->
+                              <div class="flex flex-wrap items-center gap-2 mt-2">
+                                @if($visitor->time_out)
+                                  <span
+                                    class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                    <i data-lucide="log-out" class="w-3 h-3"></i>
+                                    Checked Out
+                                  </span>
+                                @else
+                                  <span
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <i data-lucide="check-circle" class="w-3 h-3"></i>
+                                    Checked In
+                                  </span>
+                                @endif
+
+                                <span
+                                  class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                  {{ $visitor->purpose }}
+                                </span>
+
+                                @if($visitor->pass_id)
+                                  <span
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                                    <i data-lucide="id-card" class="w-3 h-3"></i>
+                                    {{ ucfirst(str_replace('_', ' ', $visitor->pass_type ?? 'Visitor')) }}
+                                  </span>
+                                @endif
+                              </div>
+
+                              <!-- Meta Info Row -->
+                              <div class="flex flex-wrap items-center gap-4 mt-3 text-xs text-gray-500">
+                                <div class="flex items-center gap-1.5">
+                                  <i data-lucide="clock" class="w-3.5 h-3.5 text-gray-400"></i>
+                                  <span>In: {{ \Carbon\Carbon::parse($visitor->time_in)->format('h:i A') }}</span>
+                                </div>
+
+                                <div class="flex items-center gap-1.5">
+                                  <i data-lucide="building-2" class="w-3.5 h-3.5 text-gray-400"></i>
+                                  <span>{{ $visitor->facility->name ?? 'No Location' }}</span>
+                                </div>
+
+                                @if($visitor->pass_id)
+                                  <div class="flex items-center gap-1.5">
+                                    <i data-lucide="key" class="w-3.5 h-3.5 text-gray-400"></i>
+                                    <span>{{ $visitor->pass_id }}</span>
+                                    @if($visitor->pass_valid_until)
+                                      <span class="text-gray-400">•</span>
+                                      <span>Valid:
+                                        {{ \Carbon\Carbon::parse($visitor->pass_valid_until)->format('M d, h:i A') }}</span>
+                                    @endif
+                                  </div>
+                                @endif
+                              </div>
                             </div>
                           </div>
-                          
-                          @if($visitor->pass_id)
-                            <div class="mt-2 text-xs text-gray-500" style="color: var(--color-charcoal-ink); opacity: 0.6;">
-                              <i data-lucide="key" class="w-3 h-3 inline mr-1"></i>
-                              Pass ID: {{ $visitor->pass_id }}
-                              @if($visitor->pass_valid_until)
-                                | Valid until: {{ \Carbon\Carbon::parse($visitor->pass_valid_until)->format('M d, h:i A') }}
-                              @endif
-                            </div>
-                          @endif
-                        </div>
-                        <div class="flex items-center gap-2 ml-4">
-                          @if($visitor->pass_id)
-                            <button 
-                              class="vm-view-pass-btn btn btn-sm btn-primary"
-                              data-visitor-id="{{ $visitor->id }}"
-                              data-visitor-name="{{ $visitor->name }}"
-                              data-pass-url="{{ url('/visitor') }}/"
-                              onclick="event.stopPropagation();"
-                              style="background-color: var(--color-regal-navy); color: var(--color-white);">
-                              <i data-lucide="eye" class="w-4 h-4 mr-1"></i>View Pass
-                            </button>
-                          @endif
+
+                          <!-- Right: Actions -->
+                          <div class="flex items-center gap-2 flex-shrink-0">
+                            @if($visitor->pass_id)
+                              <button
+                                class="vm-view-pass-btn inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:shadow-md"
+                                data-visitor-id="{{ $visitor->id }}" data-visitor-name="{{ $visitor->name }}"
+                                data-pass-url="{{ url('/visitor') }}/" onclick="event.stopPropagation();"
+                                style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937;">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                                View Pass
+                              </button>
+                            @endif
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  @empty
-                    <div class="text-center py-8" style="color: var(--color-charcoal-ink); opacity: 0.7;">
-                      <i data-lucide="users" class="w-12 h-12 text-gray-400 mx-auto mb-4" style="color: var(--color-charcoal-ink); opacity: 0.5;"></i>
-                      <p class="text-gray-500">No visitors currently in the building</p>
-                    </div>
-                  @endforelse
-                </div>
+                    @empty
+                      <div class="text-center py-12">
+                        <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <i data-lucide="users" class="w-8 h-8 text-blue-300"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-1">No Active Visitors</h3>
+                        <p class="text-sm text-gray-500">No visitors currently in the building</p>
+                      </div>
+                    @endforelse
+                  </div>
                 </div>
                 <!-- End Content Section -->
               </div>
-              
+
             </div>
-            
-            
-                    
+
+
+
             <!-- Monitoring Tab -->
             <div id="monitoring-tab" class="h-96 overflow-y-auto hidden">
-              <!-- Blue Banner Header with Search -->
-              <div class="bg-blue-900 text-white px-6 py-4 rounded-t-xl">
-                <div class="flex items-center justify-between">
-                  <h2 class="text-lg font-semibold">Monitoring</h2>
-                  <div class="relative w-64">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                    <input type="text" placeholder="Search visitors..." class="input input-sm w-full pl-9 bg-white text-gray-800 placeholder-gray-400" id="monitoringSearch"/>
+              <!-- Header with Search -->
+              <div class="bg-[#001F54] px-6 py-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <h3 class="text-lg font-semibold text-white flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                      <i data-lucide="activity" class="w-4 h-4 text-[#F7B32B]"></i>
+                    </div>
+                    Monitoring
+                  </h3>
+                  <div class="relative w-full sm:w-64">
+                    <i data-lucide="search"
+                      class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                    <input type="text" placeholder="Search visitors..."
+                      class="w-full pl-10 pr-4 py-2 bg-white text-gray-800 rounded-lg border-0 text-sm focus:ring-2 focus:ring-blue-300 placeholder-gray-400"
+                      id="monitoringSearch" />
                   </div>
                 </div>
               </div>
-              
+
               <!-- Content Section -->
               <div class="p-6">
                 <div class="mb-6">
-                  <p class="text-gray-600" style="color: var(--color-charcoal-ink); opacity: 0.8;">Visitors with passes and their current status</p>
+                  <p class="text-gray-600" style="color: var(--color-charcoal-ink); opacity: 0.8;">Visitors with passes
+                    and their current status</p>
                 </div>
 
-              <!-- Pending Exit Visitors Section -->
-              @if($pendingExitVisitors->count() > 0)
-              <div class="mb-6">
-                <div class="alert alert-error shadow-lg">
-                  <i data-lucide="alert-triangle" class="text-2xl md:text-3xl lg:text-4xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
-                  <div>
-                    <h3 class="font-bold">🚨 OVERDUE VISITORS ({{ $pendingExitVisitors->count() }})</h3>
-                    <div class="text-sm">These visitors have exceeded their expected checkout time and require immediate attention.</div>
-                  </div>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                  @foreach($pendingExitVisitors as $visitor)
-                  <div class="card bg-error/10 border border-error/30 shadow-lg">
-                    <div class="card-body p-4">
-                      <div class="flex items-start justify-between mb-3">
-                        <div class="avatar placeholder">
-                          <div class="bg-error text-error-content rounded-full w-10 h-10">
-                            <i data-lucide="user" class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
-                          </div>
-                        </div>
-                        <div class="badge badge-error badge-outline text-xs animate-pulse">OVERDUE</div>
-                      </div>
-                      
-                      <h3 class="font-bold text-lg text-error mb-2">{{ $visitor->name }}</h3>
-                      <p class="text-sm text-base-content/70 mb-2">{{ $visitor->company ?? 'No Company' }}</p>
-                      
-                      <div class="space-y-1 text-sm">
-                        <div class="flex justify-between">
-                          <span class="text-base-content/60">Expected Out:</span>
-                          <span class="font-medium">{{ $visitor->expected_time_out }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                          <span class="text-base-content/60">Overdue Since:</span>
-                          <span class="font-medium text-error">{{ $visitor->pending_exit_at ? $visitor->pending_exit_at->diffForHumans() : 'Unknown' }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                          <span class="text-base-content/60">Host:</span>
-                          <span class="font-medium">{{ $visitor->host_employee ?? 'N/A' }}</span>
-                        </div>
-                      </div>
-                      
-                      <div class="card-actions justify-end mt-4">
-                        <button class="btn btn-error btn-sm" onclick="checkOutVisitor({{ $visitor->id }})">
-                          <i data-lucide="log-out" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
-                          Check Out
-                        </button>
+                <!-- Pending Exit Visitors Section -->
+                @if($pendingExitVisitors->count() > 0)
+                  <div class="mb-6">
+                    <div class="alert alert-error shadow-lg">
+                      <i data-lucide="alert-triangle"
+                        class="text-2xl md:text-3xl lg:text-4xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                      <div>
+                        <h3 class="font-bold">🚨 OVERDUE VISITORS ({{ $pendingExitVisitors->count() }})</h3>
+                        <div class="text-sm">These visitors have exceeded their expected checkout time and require
+                          immediate attention.</div>
                       </div>
                     </div>
-                  </div>
-                  @endforeach
-                </div>
-              </div>
-              @endif
 
-              <!-- Approaching Timeout Visitors Section -->
-              @if($approachingTimeoutVisitors->count() > 0)
-              <div class="mb-6">
-                <div class="alert alert-warning shadow-lg">
-                  <i data-lucide="clock" class="text-2xl md:text-3xl lg:text-4xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
-                  <div>
-                    <h3 class="font-bold">⏰ APPROACHING TIMEOUT ({{ $approachingTimeoutVisitors->count() }})</h3>
-                    <div class="text-sm">These visitors are within 10 minutes of their expected checkout time.</div>
-                  </div>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                  @foreach($approachingTimeoutVisitors as $visitor)
-                  <div class="card bg-warning/10 border border-warning/30 shadow-lg">
-                    <div class="card-body p-4">
-                      <div class="flex items-start justify-between mb-3">
-                        <div class="avatar placeholder">
-                          <div class="bg-warning text-warning-content rounded-full w-10 h-10">
-                            <i data-lucide="user" class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                      @foreach($pendingExitVisitors as $visitor)
+                        <div class="card bg-error/10 border border-error/30 shadow-lg">
+                          <div class="card-body p-4">
+                            <div class="flex items-start justify-between mb-3">
+                              <div class="avatar placeholder">
+                                <div class="bg-error text-error-content rounded-full w-10 h-10">
+                                  <i data-lucide="user"
+                                    class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                                </div>
+                              </div>
+                              <div class="badge badge-error badge-outline text-xs animate-pulse">OVERDUE</div>
+                            </div>
+
+                            <h3 class="font-bold text-lg text-error mb-2">{{ $visitor->name }}</h3>
+                            <p class="text-sm text-base-content/70 mb-2">{{ $visitor->company ?? 'No Company' }}</p>
+
+                            <div class="space-y-1 text-sm">
+                              <div class="flex justify-between">
+                                <span class="text-base-content/60">Expected Out:</span>
+                                <span class="font-medium">{{ $visitor->expected_time_out }}</span>
+                              </div>
+                              <div class="flex justify-between">
+                                <span class="text-base-content/60">Overdue Since:</span>
+                                <span
+                                  class="font-medium text-error">{{ $visitor->pending_exit_at ? $visitor->pending_exit_at->diffForHumans() : 'Unknown' }}</span>
+                              </div>
+                              <div class="flex justify-between">
+                                <span class="text-base-content/60">Host:</span>
+                                <span class="font-medium">{{ $visitor->host_employee ?? 'N/A' }}</span>
+                              </div>
+                            </div>
+
+                            <div class="card-actions justify-end mt-4">
+                              <button class="btn btn-error btn-sm" onclick="checkOutVisitor({{ $visitor->id }})">
+                                <i data-lucide="log-out"
+                                  class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                                Check Out
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div class="badge badge-warning badge-outline text-xs">APPROACHING</div>
-                      </div>
-                      
-                      <h3 class="font-bold text-lg text-warning mb-2">{{ $visitor->name }}</h3>
-                      <p class="text-sm text-base-content/70 mb-2">{{ $visitor->company ?? 'No Company' }}</p>
-                      
-                      <div class="space-y-1 text-sm">
-                        <div class="flex justify-between">
-                          <span class="text-base-content/60">Expected Out:</span>
-                          <span class="font-medium">{{ $visitor->expected_time_out }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                          <span class="text-base-content/60">Time Remaining:</span>
-                          <span class="font-medium text-warning">
-                            @php
-                              $now = \Carbon\Carbon::now();
-                              $expectedCheckout = \Carbon\Carbon::parse($visitor->expected_time_out);
-                              $minutesRemaining = $now->diffInMinutes($expectedCheckout, false);
-                            @endphp
-                            {{ $minutesRemaining > 0 ? $minutesRemaining . ' minutes' : 'Overdue' }}
-                          </span>
-                        </div>
-                        <div class="flex justify-between">
-                          <span class="text-base-content/60">Host:</span>
-                          <span class="font-medium">{{ $visitor->host_employee ?? 'N/A' }}</span>
-                        </div>
-                      </div>
-                      
-                      <div class="card-actions justify-end mt-4">
-                        <button class="btn btn-warning btn-sm" onclick="checkOutVisitor({{ $visitor->id }})">
-                          <i data-lucide="log-out" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
-                          Check Out
-                        </button>
-                      </div>
+                      @endforeach
                     </div>
                   </div>
-                  @endforeach
-                </div>
-              </div>
-              @endif
+                @endif
 
-              <!-- Visitor Cards Grid -->
-              <div id="monitoring-visitors-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Loading state -->
-                <div class="col-span-full text-center py-8" style="color: var(--color-charcoal-ink); opacity: 0.7;">
-                            <i data-lucide="users" class="w-12 h-12 text-gray-400 mx-auto mb-4" style="color: var(--color-charcoal-ink); opacity: 0.5;"></i>
-                            <p class="text-gray-500">Loading visitors...</p>
+                <!-- Approaching Timeout Visitors Section -->
+                @if($approachingTimeoutVisitors->count() > 0)
+                  <div class="mb-6">
+                    <div class="alert alert-warning shadow-lg">
+                      <i data-lucide="clock"
+                        class="text-2xl md:text-3xl lg:text-4xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                      <div>
+                        <h3 class="font-bold">⏰ APPROACHING TIMEOUT ({{ $approachingTimeoutVisitors->count() }})</h3>
+                        <div class="text-sm">These visitors are within 10 minutes of their expected checkout time.</div>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                      @foreach($approachingTimeoutVisitors as $visitor)
+                        <div class="card bg-warning/10 border border-warning/30 shadow-lg">
+                          <div class="card-body p-4">
+                            <div class="flex items-start justify-between mb-3">
+                              <div class="avatar placeholder">
+                                <div class="bg-warning text-warning-content rounded-full w-10 h-10">
+                                  <i data-lucide="user"
+                                    class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                                </div>
+                              </div>
+                              <div class="badge badge-warning badge-outline text-xs">APPROACHING</div>
+                            </div>
+
+                            <h3 class="font-bold text-lg text-warning mb-2">{{ $visitor->name }}</h3>
+                            <p class="text-sm text-base-content/70 mb-2">{{ $visitor->company ?? 'No Company' }}</p>
+
+                            <div class="space-y-1 text-sm">
+                              <div class="flex justify-between">
+                                <span class="text-base-content/60">Expected Out:</span>
+                                <span class="font-medium">{{ $visitor->expected_time_out }}</span>
+                              </div>
+                              <div class="flex justify-between">
+                                <span class="text-base-content/60">Time Remaining:</span>
+                                <span class="font-medium text-warning">
+                                  @php
+                                    $now = \Carbon\Carbon::now();
+                                    $expectedCheckout = \Carbon\Carbon::parse($visitor->expected_time_out);
+                                    $minutesRemaining = $now->diffInMinutes($expectedCheckout, false);
+                                  @endphp
+                                  {{ $minutesRemaining > 0 ? $minutesRemaining . ' minutes' : 'Overdue' }}
+                                </span>
+                              </div>
+                              <div class="flex justify-between">
+                                <span class="text-base-content/60">Host:</span>
+                                <span class="font-medium">{{ $visitor->host_employee ?? 'N/A' }}</span>
+                              </div>
+                            </div>
+
+                            <div class="card-actions justify-end mt-4">
+                              <button class="btn btn-warning btn-sm" onclick="checkOutVisitor({{ $visitor->id }})">
+                                <i data-lucide="log-out"
+                                  class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+                                Check Out
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      @endforeach
+                    </div>
+                  </div>
+                @endif
+
+                <!-- Visitor Cards Grid -->
+                <div id="monitoring-visitors-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <!-- Loading state -->
+                  <div class="col-span-full text-center py-8" style="color: var(--color-charcoal-ink); opacity: 0.7;">
+                    <i data-lucide="users" class="w-12 h-12 text-gray-400 mx-auto mb-4"
+                      style="color: var(--color-charcoal-ink); opacity: 0.5;"></i>
+                    <p class="text-gray-500">Loading visitors...</p>
+                  </div>
                 </div>
-              </div>
               </div>
               <!-- End Content Section -->
             </div>
-            
+
             <!-- Pre-Visit Tab -->
-            <div id="previsit-tab" class="h-96 p-6 overflow-y-auto hidden">
-              <!-- Scheduled Visitors Table with Search in Header -->
-              <x-table-card :title="'Scheduled Visitors'">
-                <x-slot name="headerAction">
-                  <div class="relative w-64">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                    <input type="text" placeholder="Search scheduled visitors..." class="input input-sm w-full pl-9 bg-white text-gray-800 placeholder-gray-400" id="previsitSearch"/>
+            <div id="previsit-tab" class="hidden">
+              <!-- Pre-Visit Header -->
+              <div class="bg-[#001F54] px-6 py-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <h3 class="text-lg font-semibold text-white flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                      <i data-lucide="calendar-clock" class="w-4 h-4 text-[#F7B32B]"></i>
+                    </div>
+                    Scheduled Visitors
+                  </h3>
+                  <div class="relative w-full sm:w-64">
+                    <i data-lucide="search"
+                      class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                    <input type="text" placeholder="Search scheduled visitors..."
+                      class="w-full pl-10 pr-4 py-2 bg-white text-gray-800 rounded-lg border-0 text-sm focus:ring-2 focus:ring-blue-300 placeholder-gray-400"
+                      id="previsitSearch" />
                   </div>
-                </x-slot>
-                <table class="table table-zebra w-full">
+                </div>
+              </div>
+
+              <!-- Table Content -->
+              <div class="overflow-x-auto max-h-80 overflow-y-auto">
+                <table class="table w-full">
                   <thead>
-                    <tr style="background-color: var(--color-snow-mist);">
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">Visitor</th>
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">Company</th>
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">Purpose</th>
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">Host Employee</th>
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">Scheduled Date/Time</th>
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">Duration</th>
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">Status</th>
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">ID Verification</th>
-                      <th style="color: var(--color-charcoal-ink); font-weight: 600;">Actions</th>
+                    <tr class="bg-gray-50 border-b border-gray-100">
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Visitor</th>
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Company</th>
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Purpose</th>
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Host
+                        Employee</th>
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Scheduled Date/Time</th>
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Duration</th>
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Status</th>
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID
+                        Verification</th>
+                      <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Actions</th>
                     </tr>
                   </thead>
-                  <tbody id="previsit-visitors-table">
+                  <tbody id="previsit-visitors-table" class="divide-y divide-gray-100">
                     <!-- Loading state -->
                     <tr>
-                      <td colspan="9" class="text-center py-12" style="color: var(--color-charcoal-ink); opacity: 0.7;">
-                        <i data-lucide="calendar-clock" class="w-12 h-12 text-gray-400 mx-auto mb-4" style="color: var(--color-charcoal-ink); opacity: 0.5;"></i>
+                      <td colspan="9" class="text-center py-12">
+                        <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                          <i data-lucide="calendar-clock" class="w-6 h-6 text-blue-300"></i>
+                        </div>
                         <p class="text-gray-500">Loading scheduled visitors...</p>
                       </td>
                     </tr>
                   </tbody>
                 </table>
-              </x-table-card>
+              </div>
             </div>
 
           </div>
@@ -430,7 +580,7 @@
   </div>
 
   @include('partials.soliera_js')
-  
+
   <style>
     /* ===== MODAL BASE STYLES ===== */
     .modal {
@@ -439,27 +589,35 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      background-color: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(8px);
+      background-color: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       display: none;
       align-items: center;
       justify-content: center;
       z-index: 10000;
-      overflow: hidden;
+      overflow: auto;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 0;
+      margin: 0;
     }
 
     .modal.modal-open {
       display: flex !important;
       visibility: visible !important;
       opacity: 1 !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      padding-left: 5% !important;
     }
 
     /* ===== MODAL BOX ===== */
     .modal-box {
       background: white;
       border-radius: 16px;
-      box-shadow: 
+      box-shadow:
         0 20px 25px -5px rgba(0, 0, 0, 0.1),
         0 10px 10px -5px rgba(0, 0, 0, 0.04),
         0 0 0 1px rgba(0, 0, 0, 0.05);
@@ -469,15 +627,19 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      transform: scale(0.9) translateY(20px);
+      transform: scale(0.9);
       opacity: 0;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
+      margin: auto;
+      align-self: center;
     }
 
     .modal.modal-open .modal-box {
-      transform: scale(1) translateY(0);
+      transform: scale(1);
       opacity: 1;
+      margin: auto;
+      align-self: center;
     }
 
     /* ===== MODAL HEADER ===== */
@@ -708,7 +870,8 @@
       .modal-box {
         width: 95vw;
         max-height: 95vh;
-        margin: 16px;
+        margin: auto;
+        align-self: center;
       }
 
       .modal-header {
@@ -742,7 +905,8 @@
     @media (max-width: 480px) {
       .modal-box {
         width: 98vw;
-        margin: 8px;
+        margin: auto;
+        align-self: center;
       }
 
       .modal-header {
@@ -761,7 +925,8 @@
     /* ===== SIDEBAR AWARE POSITIONING ===== */
     @media (min-width: 1024px) {
       .modal {
-        left: 256px; /* Account for sidebar width */
+        left: 256px;
+        /* Account for sidebar width */
         width: calc(100vw - 256px);
       }
     }
@@ -790,6 +955,7 @@
       from {
         transform: rotate(0deg);
       }
+
       to {
         transform: rotate(360deg);
       }
@@ -805,6 +971,7 @@
         opacity: 0;
         transform: translateX(-20px) scale(0.8);
       }
+
       to {
         opacity: 1;
         transform: translateX(0) scale(1);
@@ -906,6 +1073,7 @@
       from {
         transform: rotate(0deg);
       }
+
       to {
         transform: rotate(360deg);
       }
@@ -951,21 +1119,42 @@
     }
 
     /* Status badge colors */
-    .badge-success { background-color: #22c55e !important; }
-    .badge-warning { background-color: #f59e0b !important; }
-    .badge-info { background-color: #3b82f6 !important; }
-    .badge-neutral { background-color: #6b7280 !important; }
-    .badge-error { background-color: #ef4444 !important; }
-    .badge-ghost { background-color: #9ca3af !important; }
+    .badge-success {
+      background-color: #22c55e !important;
+    }
+
+    .badge-warning {
+      background-color: #f59e0b !important;
+    }
+
+    .badge-info {
+      background-color: #3b82f6 !important;
+    }
+
+    .badge-neutral {
+      background-color: #6b7280 !important;
+    }
+
+    .badge-error {
+      background-color: #ef4444 !important;
+    }
+
+    .badge-ghost {
+      background-color: #9ca3af !important;
+    }
 
     /* ===== SUCCESS MODAL STYLES ===== */
     .success-modal {
       max-width: 1000px;
+      margin: auto;
+      align-self: center;
     }
 
     .success-modal .modal-box {
       max-width: 1000px;
       width: 95vw;
+      margin: auto;
+      align-self: center;
     }
 
     #visitorSuccessModal {
@@ -973,12 +1162,50 @@
       display: none;
       visibility: hidden;
       opacity: 0;
+      align-items: center !important;
+      justify-content: center !important;
+      background-color: rgba(0, 0, 0, 0.4) !important;
+      backdrop-filter: blur(4px) !important;
+      -webkit-backdrop-filter: blur(4px) !important;
+      padding: 0 !important;
+      margin: 0 !important;
     }
 
     #visitorSuccessModal.modal-open {
       display: flex !important;
       visibility: visible !important;
       opacity: 1 !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background-color: rgba(0, 0, 0, 0.4) !important;
+      backdrop-filter: blur(4px) !important;
+      -webkit-backdrop-filter: blur(4px) !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    #visitorSuccessModal .modal-box,
+    #visitorSuccessModal .success-modal {
+      position: relative !important;
+      margin: auto !important;
+      align-self: center !important;
+      flex-shrink: 0 !important;
+      top: auto !important;
+      left: auto !important;
+      right: auto !important;
+      bottom: auto !important;
+      transform-origin: center center !important;
+    }
+
+    #visitorSuccessModal.modal-open .modal-box,
+    #visitorSuccessModal.modal-open .success-modal {
+      transform: scale(1) !important;
+      margin: auto !important;
+      align-self: center !important;
+      top: auto !important;
+      left: auto !important;
+      right: auto !important;
+      bottom: auto !important;
     }
 
     .success-message {
@@ -1117,11 +1344,11 @@
         grid-template-columns: 1fr;
         gap: 16px;
       }
-      
+
       .form-grid-small {
         grid-template-columns: 1fr;
       }
-      
+
       .divider-content::before,
       .divider-content::after {
         width: 50px;
@@ -1135,37 +1362,37 @@
         width: 100%;
       }
     }
-    
+
     /* Modal improvements */
     #visitorDetailsModal .modal-box {
       max-height: 90vh;
       overflow-y: auto;
     }
-    
+
     #visitorDetailsModal .modal-box::-webkit-scrollbar {
       width: 6px;
     }
-    
+
     #visitorDetailsModal .modal-box::-webkit-scrollbar-track {
       background: #f1f1f1;
       border-radius: 3px;
     }
-    
+
     #visitorDetailsModal .modal-box::-webkit-scrollbar-thumb {
       background: #c1c1c1;
       border-radius: 3px;
     }
-    
+
     #visitorDetailsModal .modal-box::-webkit-scrollbar-thumb:hover {
       background: #a8a8a8;
     }
-    
+
     /* Ensure cards fit properly */
     .visitor-detail-card {
       min-height: fit-content;
     }
   </style>
-  
+
   <script>
     // Global variables
     let currentVisitorId = null;
@@ -1174,56 +1401,61 @@
     // Tab functionality
     function showTab(tabName) {
       currentTab = tabName;
-      
+
       // Hide all tabs
       document.getElementById('current-tab').classList.add('hidden');
       document.getElementById('previsit-tab').classList.add('hidden');
       document.getElementById('monitoring-tab').classList.add('hidden');
-      
+
       // Show selected tab
       document.getElementById(tabName + '-tab').classList.remove('hidden');
-      
+
       // Reset all navigation buttons
       const nav1 = document.getElementById('nav-current');
       const nav2 = document.getElementById('nav-previsit');
       const nav3 = document.getElementById('nav-monitoring');
-      
-      [nav1, nav2, nav3].forEach(btn => {
-        if (btn) {
-          btn.classList.remove('text-blue-600', 'text-blue-800', 'font-semibold');
-          btn.classList.add('text-gray-600');
+
+      // Helper function to set tab inactive state
+      function setTabInactive(btn) {
+        if (!btn) return;
+        btn.classList.remove('bg-[#001F54]', 'text-white', 'shadow-md');
+        btn.classList.add('bg-white', 'text-gray-600', 'hover:bg-gray-50', 'border', 'border-gray-200');
+        const iconBox = btn.querySelector('div');
+        if (iconBox) {
+          iconBox.classList.remove('bg-white/20');
+          iconBox.classList.add('bg-[#001F54]');
         }
-      });
-      
-      // Update active navigation button
-      if (tabName === 'current' && nav1) {
-        nav1.classList.remove('text-gray-600');
-        nav1.classList.add('text-blue-800', 'font-semibold');
-        // Reflect in URL
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.delete('tab');
-          window.history.replaceState({}, '', url);
-        } catch(e) {}
-      } else if (tabName === 'previsit' && nav2) {
-        nav2.classList.remove('text-gray-600');
-        nav2.classList.add('text-blue-600', 'font-semibold');
-        // Reflect in URL
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.set('tab', 'previsit');
-          window.history.replaceState({}, '', url);
-        } catch(e) {}
-      } else if (tabName === 'monitoring' && nav3) {
-        nav3.classList.remove('text-gray-600');
-        nav3.classList.add('text-blue-600', 'font-semibold');
-        // Reflect in URL
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.set('tab', 'monitoring');
-          window.history.replaceState({}, '', url);
-        } catch(e) {}
       }
+
+      // Helper function to set tab active state
+      function setTabActive(btn) {
+        if (!btn) return;
+        btn.classList.remove('bg-white', 'text-gray-600', 'hover:bg-gray-50', 'border', 'border-gray-200');
+        btn.classList.add('bg-[#001F54]', 'text-white', 'shadow-md');
+        const iconBox = btn.querySelector('div');
+        if (iconBox) {
+          iconBox.classList.remove('bg-[#001F54]');
+          iconBox.classList.add('bg-white/20');
+        }
+      }
+
+      // Reset all tabs to inactive
+      [nav1, nav2, nav3].forEach(btn => setTabInactive(btn));
+
+      // Set active tab
+      const activeNav = document.getElementById('nav-' + tabName);
+      setTabActive(activeNav);
+
+      // Update URL
+      try {
+        const url = new URL(window.location.href);
+        if (tabName === 'current') {
+          url.searchParams.delete('tab');
+        } else {
+          url.searchParams.set('tab', tabName);
+        }
+        window.history.replaceState({}, '', url);
+      } catch (e) { }
 
       // Load data for the selected tab
       loadTabData(tabName);
@@ -1231,15 +1463,15 @@
 
     // Load data for specific tabs
     function loadTabData(tabName) {
-      switch(tabName) {
+      switch (tabName) {
         case 'current':
-           loadCurrentVisitors(false);
+          loadCurrentVisitors(false);
           break;
         case 'previsit':
           loadPrevisitData();
           break;
         case 'monitoring':
-           loadMonitoringData(false);
+          loadMonitoringData(false);
           break;
       }
     }
@@ -1247,22 +1479,21 @@
     // Load current visitors - DISABLED to prevent 404 errors
     function loadCurrentVisitors() {
       // No AJAX call - data is already loaded server-side
-      console.log('Current visitors data is already loaded server-side');
     }
 
 
-     // Helper function to get status badge
-     function getStatusBadge(status) {
-       const statusConfig = {
-         'scheduled': { class: 'bg-yellow-100 text-yellow-800', text: 'Scheduled' },
-         'approved': { class: 'bg-green-100 text-green-800', text: 'Approved' },
-         'declined': { class: 'bg-red-100 text-red-800', text: 'Declined' },
-         'cancelled': { class: 'bg-gray-100 text-gray-800', text: 'Cancelled' }
-       };
-       
-       const config = statusConfig[status] || { class: 'bg-gray-100 text-gray-800', text: status };
-       return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.class}">${config.text}</span>`;
-     }
+    // Helper function to get status badge
+    function getStatusBadge(status) {
+      const statusConfig = {
+        'scheduled': { class: 'bg-yellow-100 text-yellow-800', text: 'Scheduled' },
+        'approved': { class: 'bg-green-100 text-green-800', text: 'Approved' },
+        'declined': { class: 'bg-red-100 text-red-800', text: 'Declined' },
+        'cancelled': { class: 'bg-gray-100 text-gray-800', text: 'Cancelled' }
+      };
+
+      const config = statusConfig[status] || { class: 'bg-gray-100 text-gray-800', text: status };
+      return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.class}">${config.text}</span>`;
+    }
 
 
 
@@ -1294,9 +1525,7 @@
       fetch('{{ route("visitor.monitoring.visitors") }}')
         .then(response => response.json())
         .then(data => {
-          console.log('Monitoring visitors response:', data);
           if (data.success) {
-            console.log('Visitors loaded:', data.data);
             updateMonitoringVisitorsCards(data.data);
           } else {
             console.error('Error loading monitoring visitors:', data.message);
@@ -1309,23 +1538,16 @@
 
     // Load pre-visit data
     function loadPrevisitData() {
-      console.log('Loading pre-visit data...');
-      console.log('Route URL:', '{{ route("visitor.preschedule.list") }}');
-      
       // Load scheduled visitors
       fetch('{{ route("visitor.preschedule.list") }}')
         .then(response => {
-          console.log('Response status:', response.status);
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           return response.json();
         })
         .then(data => {
-          console.log('Pre-visit visitors response:', data);
           if (data.success) {
-            console.log('Scheduled visitors loaded:', data.visitors);
-            console.log('Number of visitors:', data.visitors.length);
             updatePrevisitVisitorsTable(data.visitors);
           } else {
             console.error('Error loading scheduled visitors:', data.message);
@@ -1365,10 +1587,10 @@
       document.getElementById('monitoring-today-registrations').textContent = stats.today_registrations || 0;
       document.getElementById('monitoring-today-checkins').textContent = stats.today_checkins || 0;
       document.getElementById('monitoring-today-checkouts').textContent = stats.today_checkouts || 0;
-      
+
       const mostActiveUser = stats.most_active_user;
       if (mostActiveUser && mostActiveUser.user) {
-        document.getElementById('monitoring-most-active-user').textContent = 
+        document.getElementById('monitoring-most-active-user').textContent =
           `${mostActiveUser.user.name} (${mostActiveUser.activity_count} activities)`;
       } else {
         document.getElementById('monitoring-most-active-user').textContent = 'No data';
@@ -1420,7 +1642,6 @@
 
     // Update monitoring visitors cards
     function updateMonitoringVisitorsCards(visitors) {
-      console.log('Updating monitoring visitors cards with:', visitors);
       const container = document.getElementById('monitoring-visitors-cards');
       if (!container) return;
 
@@ -1437,39 +1658,18 @@
       container.innerHTML = visitors.map(visitor => {
         // Use the status from backend (it's already properly determined)
         let status = (visitor.status || 'Pending').toLowerCase();
-        
-        // Debug logging
-        console.log('Visitor:', visitor.name, 'Status:', status, 'Original status:', visitor.status);
-        console.log('Check in time:', visitor.check_in_time, 'Expected time out:', visitor.expected_time_out);
-        console.log('Actual check in time:', visitor.actual_check_in_time);
-        console.log('Actual check out time:', visitor.actual_check_out_time);
-        console.log('Raw time_in:', visitor.time_in, 'Raw time_out:', visitor.time_out);
-        console.log('Current time:', new Date().toLocaleString());
-        console.log('Pending exit:', visitor.pending_exit);
-        
+
         const statusConfig = getStatusConfig(status);
         // Calculate duration from actual check-in to checkout time or now
         // For completed visitors, use time_out; for active visitors, use null (current time)
         const duration = calculateDuration(visitor.time_in, visitor.time_out);
-        console.log('Calculated duration:', duration);
-        
+
         // Add real-time duration update for active visitors
         let durationElement = null;
         if (!visitor.time_out && visitor.time_in) {
           durationElement = `data-duration-start="${visitor.time_in}"`;
         }
-        
-        // Additional debug for duration calculation
-        if (visitor.time_in) {
-          const start = new Date(visitor.time_in);
-          const end = visitor.time_out ? new Date(visitor.time_out) : new Date();
-          const diffMs = end - start;
-          console.log('Start time:', start.toLocaleString());
-          console.log('End time:', end.toLocaleString());
-          console.log('Difference in ms:', diffMs);
-          console.log('Difference in minutes:', Math.floor(diffMs / (1000 * 60)));
-        }
-        
+
         return `
           <div class="monitoring-visitor-card bg-white rounded-lg border-2 border-gray-100 p-4 hover:shadow-2xl hover:border-blue-200 transition-all duration-300 shadow-lg" 
                style="background-color: var(--color-white); border-color: #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
@@ -1649,10 +1849,10 @@
 
       // Add event listeners for View Pass buttons
       addViewPassEventListeners();
-      
+
       // Start real-time duration updates
       startDurationUpdates();
-      
+
       // Also update durations immediately
       updateAllDurations();
     }
@@ -1660,9 +1860,7 @@
 
     // Update pre-visit visitors table
     function updatePrevisitVisitorsTable(visitors) {
-      console.log('Updating pre-visit visitors table with:', visitors);
       const container = document.getElementById('previsit-visitors-table');
-      console.log('Container found:', container);
       if (!container) {
         console.error('Pre-visit visitors table container not found!');
         return;
@@ -1683,28 +1881,17 @@
       container.innerHTML = visitors.map(visitor => {
         const status = visitor.status || 'scheduled';
         const statusConfig = getPrevisitStatusConfig(status);
-        
-        // Debug logging for button visibility
-        console.log('Visitor:', visitor.name, 'Status:', status, 'Will show buttons:', status === 'scheduled');
-        console.log('Status type:', typeof status, 'Status value:', JSON.stringify(status));
-        
+
         // Format scheduled date and time properly
         let formattedDate = 'N/A';
         let formattedTime = 'N/A';
-        
+
         if (visitor.scheduled_date && visitor.scheduled_time) {
           try {
-            console.log('Processing visitor date/time:', {
-              name: visitor.name,
-              scheduled_date: visitor.scheduled_date,
-              scheduled_time: visitor.scheduled_time,
-              scheduled_time_type: typeof visitor.scheduled_time
-            });
-            
             // Parse the date and time separately to avoid parsing issues
             const date = new Date(visitor.scheduled_date);
             const time = visitor.scheduled_time;
-            
+
             // Check if date is valid
             if (isNaN(date.getTime())) {
               console.error('Invalid date:', visitor.scheduled_date);
@@ -1717,33 +1904,29 @@
                 day: 'numeric'
               });
             }
-            
+
             // Format time to 12-hour format
             if (time) {
               let timeToFormat = time;
-              console.log('Original time:', time);
-              
+
               // Handle different time formats
               if (time.includes('T')) {
-                console.log('Detected ISO datetime format, converting...');
                 // Handle ISO datetime format (2025-09-18T02:33:00.000000Z)
                 const timeDate = new Date(time);
                 if (!isNaN(timeDate.getTime())) {
                   timeToFormat = timeDate.toTimeString().split(' ')[0]; // Extract HH:MM:SS
-                  console.log('Converted to time string:', timeToFormat);
                 }
               }
-              
+
               const timeParts = timeToFormat.split(':');
               if (timeParts.length >= 2) {
                 const hour = parseInt(timeParts[0]);
                 const minute = parseInt(timeParts[1]);
-                
+
                 if (!isNaN(hour) && !isNaN(minute) && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
                   const ampm = hour >= 12 ? 'PM' : 'AM';
                   const displayHour = hour % 12 || 12;
                   formattedTime = `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
-                  console.log('Final formatted time:', formattedTime, 'from hour:', hour, 'minute:', minute);
                 } else {
                   console.error('Invalid time format after processing:', timeToFormat, 'Original:', time);
                   formattedTime = time;
@@ -1759,7 +1942,7 @@
             formattedTime = visitor.scheduled_time || 'N/A';
           }
         }
-        
+
         return `
           <tr class="previsit-visitor-row hover:bg-gray-50" data-visitor-id="${visitor.id}" style="border-bottom: 1px solid var(--color-snow-mist);">
             <!-- Visitor Info -->
@@ -1816,66 +1999,66 @@
             
             <!-- ID Verification Status -->
             <td class="py-4">
-              ${visitor.id_verified ? 
-                '<div class="badge badge-success"><i data-lucide="shield-check" class="w-3 h-3 mr-1"></i>Verified</div>' : 
-                '<div class="badge badge-warning"><i data-lucide="shield-alert" class="w-3 h-3 mr-1"></i>Pending</div>'
-              }
+              ${visitor.id_verified ?
+            '<div class="badge badge-success"><i data-lucide="shield-check" class="w-3 h-3 mr-1"></i>Verified</div>' :
+            '<div class="badge badge-warning"><i data-lucide="shield-alert" class="w-3 h-3 mr-1"></i>Pending</div>'
+          }
             </td>
             
             <!-- Actions -->
 <td class="py-4">
   <div class="flex gap-2 justify-center">
-    <button 
-      onclick="approveScheduledVisitor({{ $visitor->id }})" 
-      class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
-      style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
-      onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-      onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
-      title="Approve & Send QR Code">
-      <i data-lucide="check-circle" class="w-4 h-4" style="fill: none;"></i>
-    </button>
-    
-    <button 
-      onclick="declineScheduledVisitor({{ $visitor->id }})" 
-      class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
-      style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
-      onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-      onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
-      title="Decline Visit">
-      <i data-lucide="x-circle" class="w-4 h-4" style="fill: none;"></i>
-    </button>
-
-    <button 
-      onclick="cancelScheduledVisitor({{ $visitor->id }})" 
-      class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
-      style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
-      onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-      onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
-      title="Cancel Visit">
-      <i data-lucide="slash" class="w-4 h-4" style="fill: none;"></i>
-    </button>
-
-    @if($visitor->status === 'cancelled' || $visitor->status === 'declined')
-    <button 
-      onclick="restoreScheduledVisitor({{ $visitor->id }})" 
-      class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
-      style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
-      onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-      onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
-      title="Restore Visit">
-      <i data-lucide="refresh-ccw" class="w-4 h-4" style="fill: none;"></i>
-    </button>
-    @endif
-
-    <button 
-      onclick="viewScheduledVisitorDetails({{ $visitor->id }})" 
-      class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
-      style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
-      onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-      onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
-      title="View Details">
-      <i data-lucide="eye" class="w-4 h-4" style="fill: none;"></i>
-    </button>
+                <button 
+                  onclick="approveScheduledVisitor(${visitor.id})" 
+                  class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
+                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
+                  onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
+                  onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
+                  title="Approve & Send QR Code">
+                  <i data-lucide="check-circle" class="w-4 h-4" style="fill: none;"></i>
+                </button>
+                
+                <button 
+                  onclick="declineScheduledVisitor(${visitor.id})" 
+                  class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
+                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
+                  onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
+                  onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
+                  title="Decline Visit">
+                  <i data-lucide="x-circle" class="w-4 h-4" style="fill: none;"></i>
+                </button>
+            
+                <button 
+                  onclick="cancelScheduledVisitor(${visitor.id})" 
+                  class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
+                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
+                  onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
+                  onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
+                  title="Cancel Visit">
+                  <i data-lucide="slash" class="w-4 h-4" style="fill: none;"></i>
+                </button>
+            
+                ${(visitor.status === 'cancelled' || visitor.status === 'declined') ? `
+                <button 
+                  onclick="restoreScheduledVisitor(${visitor.id})" 
+                  class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
+                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
+                  onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
+                  onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
+                  title="Restore Visit">
+                  <i data-lucide="refresh-ccw" class="w-4 h-4" style="fill: none;"></i>
+                </button>
+                ` : ''}
+            
+                <button 
+                  onclick="viewScheduledVisitorDetails(${visitor.id})" 
+                  class="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-110"
+                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25);"
+                  onmouseover="this.style.background='#E6940F'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
+                  onmouseout="this.style.background='#F7A923'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'"
+                  title="View Details">
+                  <i data-lucide="eye" class="w-4 h-4" style="fill: none;"></i>
+                </button>
   </div>
 </td>
 
@@ -1924,7 +2107,7 @@
         const originalContent = button.innerHTML;
         button.innerHTML = '⏳';
         button.disabled = true;
-        
+
         fetch(`/visitor/scheduled/${visitorId}/approve`, {
           method: 'POST',
           headers: {
@@ -1932,25 +2115,25 @@
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
           }
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            showNotification('✅ Visitor approved successfully! An email with QR code and access code has been sent.', 'success');
-            loadPrevisitData(); // Refresh the data
-          } else {
-            showNotification('❌ Error: ' + (data.message || 'Failed to approve visitor'), 'error');
-          }
-        })
-        .catch(error => {
-          console.error('Error approving visitor:', error);
-          showNotification('❌ Failed to approve visitor', 'error');
-        })
-        .finally(() => {
-          // Restore button state
-          button.innerHTML = originalContent;
-          button.disabled = false;
-          // Icons are simple text, no re-initialization needed
-        });
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification('✅ Visitor approved successfully! An email with QR code and access code has been sent.', 'success');
+              loadPrevisitData(); // Refresh the data
+            } else {
+              showNotification('❌ Error: ' + (data.message || 'Failed to approve visitor'), 'error');
+            }
+          })
+          .catch(error => {
+            console.error('Error approving visitor:', error);
+            showNotification('❌ Failed to approve visitor', 'error');
+          })
+          .finally(() => {
+            // Restore button state
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            // Icons are simple text, no re-initialization needed
+          });
       }
     }
 
@@ -1961,7 +2144,7 @@
         const originalContent = button.innerHTML;
         button.innerHTML = '⏳';
         button.disabled = true;
-        
+
         fetch(`/visitor/scheduled/${visitorId}/cancel`, {
           method: 'POST',
           headers: {
@@ -1969,25 +2152,25 @@
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
           }
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            showNotification('❌ Visitor cancelled successfully! Email notification sent.', 'success');
-            loadPrevisitData(); // Refresh the data
-          } else {
-            showNotification('❌ Error: ' + (data.message || 'Failed to cancel visitor'), 'error');
-          }
-        })
-        .catch(error => {
-          console.error('Error cancelling visitor:', error);
-          showNotification('❌ Failed to cancel visitor', 'error');
-        })
-        .finally(() => {
-          // Restore button state
-          button.innerHTML = originalContent;
-          button.disabled = false;
-          // Icons are simple text, no re-initialization needed
-        });
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification('❌ Visitor cancelled successfully! Email notification sent.', 'success');
+              loadPrevisitData(); // Refresh the data
+            } else {
+              showNotification('❌ Error: ' + (data.message || 'Failed to cancel visitor'), 'error');
+            }
+          })
+          .catch(error => {
+            console.error('Error cancelling visitor:', error);
+            showNotification('❌ Failed to cancel visitor', 'error');
+          })
+          .finally(() => {
+            // Restore button state
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            // Icons are simple text, no re-initialization needed
+          });
       }
     }
 
@@ -1998,7 +2181,7 @@
         const originalContent = button.innerHTML;
         button.innerHTML = '⏳';
         button.disabled = true;
-        
+
         fetch(`/visitor/scheduled/${visitorId}/restore`, {
           method: 'POST',
           headers: {
@@ -2006,32 +2189,30 @@
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
           }
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            showNotification('🔄 Visitor restored successfully!', 'success');
-            loadPrevisitData(); // Refresh the data
-          } else {
-            showNotification('❌ Error: ' + (data.message || 'Failed to restore visitor'), 'error');
-          }
-        })
-        .catch(error => {
-          console.error('Error restoring visitor:', error);
-          showNotification('❌ Failed to restore visitor', 'error');
-        })
-        .finally(() => {
-          // Restore button state
-          button.innerHTML = originalContent;
-          button.disabled = false;
-          // Icons are simple text, no re-initialization needed
-        });
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification('🔄 Visitor restored successfully!', 'success');
+              loadPrevisitData(); // Refresh the data
+            } else {
+              showNotification('❌ Error: ' + (data.message || 'Failed to restore visitor'), 'error');
+            }
+          })
+          .catch(error => {
+            console.error('Error restoring visitor:', error);
+            showNotification('❌ Failed to restore visitor', 'error');
+          })
+          .finally(() => {
+            // Restore button state
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            // Icons are simple text, no re-initialization needed
+          });
       }
     }
 
     function viewScheduledVisitorDetails(visitorId) {
       // This could open a modal or navigate to a details page
-      console.log('Viewing details for scheduled visitor:', visitorId);
-      
       // For now, show a simple alert with more information
       // You can implement a proper modal later
       fetch(`/visitor/details/${visitorId}`)
@@ -2057,7 +2238,7 @@
         const originalContent = button.innerHTML;
         button.innerHTML = '⏳';
         button.disabled = true;
-        
+
         fetch(`/visitor/scheduled/${visitorId}/decline`, {
           method: 'POST',
           headers: {
@@ -2065,46 +2246,28 @@
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
           }
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            showNotification('❌ Visitor declined successfully! Email notification sent.', 'success');
-            loadPrevisitData(); // Refresh the data
-          } else {
-            showNotification('❌ Error: ' + (data.message || 'Failed to decline visitor'), 'error');
-          }
-        })
-        .catch(error => {
-          console.error('Error declining visitor:', error);
-          showNotification('❌ Failed to decline visitor', 'error');
-        })
-        .finally(() => {
-          // Restore button state
-          button.innerHTML = originalContent;
-          button.disabled = false;
-          // Icons are simple text, no re-initialization needed
-        });
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification('❌ Visitor declined successfully! Email notification sent.', 'success');
+              loadPrevisitData(); // Refresh the data
+            } else {
+              showNotification('❌ Error: ' + (data.message || 'Failed to decline visitor'), 'error');
+            }
+          })
+          .catch(error => {
+            console.error('Error declining visitor:', error);
+            showNotification('❌ Failed to decline visitor', 'error');
+          })
+          .finally(() => {
+            // Restore button state
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            // Icons are simple text, no re-initialization needed
+          });
       }
     }
 
-    // Test function to debug scheduled visitors
-        function testScheduledVisitors() {
-          console.log('Testing scheduled visitors...');
-          fetch('{{ route("visitor.preschedule.list") }}')
-        .then(response => response.json())
-        .then(data => {
-          console.log('Debug response:', data);
-          if (data.success) {
-            alert(`Found ${data.visitors.length} scheduled visitors. Check console for details.`);
-          } else {
-            alert(`Error: ${data.message}`);
-          }
-        })
-        .catch(error => {
-          console.error('Debug error:', error);
-          alert('Debug failed. Check console for details.');
-        });
-        }
 
     // Start real-time duration updates
     function startDurationUpdates() {
@@ -2117,29 +2280,24 @@
     // Update all duration displays
     function updateAllDurations() {
       const cards = document.querySelectorAll('.monitoring-visitor-card');
-      console.log('Updating durations for', cards.length, 'cards');
-      
+
       cards.forEach(card => {
         const actualCheckInEl = card.querySelector('[data-field="actual-check-in"]');
         const actualCheckOutEl = card.querySelector('[data-field="actual-check-out"]');
         const durationEl = card.querySelector('[data-field="duration"]');
         const statusEl = card.querySelector('[data-field="status"]');
-        
+
         if (actualCheckInEl && durationEl) {
           const actualCheckIn = actualCheckInEl.textContent;
           const actualCheckOut = actualCheckOutEl ? actualCheckOutEl.textContent : null;
           const status = statusEl ? statusEl.textContent : '';
-          
-          console.log('Found check-in time:', actualCheckIn);
-          console.log('Found check-out time:', actualCheckOut);
-          console.log('Status:', status);
-          
+
+
           if (actualCheckIn && actualCheckIn !== 'N/A') {
             // Only update duration for active visitors (not completed)
             if (status !== 'Completed' && !actualCheckOut) {
               // Calculate duration from actual check-in to now (for active visitors)
               const duration = calculateDuration(actualCheckIn, null);
-              console.log('Calculated duration for active visitor:', duration);
               if (duration) {
                 durationEl.textContent = duration;
               }
@@ -2153,23 +2311,18 @@
 
     // Add event listeners for View Pass buttons
     function addViewPassEventListeners() {
-      console.log('Adding event listeners for View Pass buttons...');
       const viewPassButtons = document.querySelectorAll('.vm-view-pass-btn');
-      console.log('Found', viewPassButtons.length, 'View Pass buttons');
-      
+
       viewPassButtons.forEach((button, index) => {
-        console.log(`Button ${index}:`, button);
-        button.addEventListener('click', function(e) {
+        button.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
-          
-          console.log('View Pass button clicked!');
+
           const visitorId = this.getAttribute('data-visitor-id');
           const visitorName = this.getAttribute('data-visitor-name');
           const passUrl = this.getAttribute('data-pass-url');
-          
-          console.log('Button data:', { visitorId, visitorName, passUrl });
-          
+
+
           viewVisitorPass(visitorId, visitorName, this, passUrl);
         });
       });
@@ -2177,17 +2330,12 @@
 
     // View visitor pass
     function viewVisitorPass(visitorId, visitorName, button, passUrl = null) {
-      console.log('=== VIEW VISITOR PASS FUNCTION CALLED ===');
-      console.log('Visitor ID:', visitorId);
-      console.log('Visitor Name:', visitorName);
-      console.log('Button:', button);
-      console.log('Pass URL:', passUrl);
-      
+
       // Disable button and show loading state
       const originalText = button.innerHTML;
       button.disabled = true;
       button.innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 mr-1 animate-spin"></i>Loading...';
-      
+
       // Re-initialize Lucide icons for the spinner
       if (typeof lucide !== 'undefined') {
         lucide.createIcons();
@@ -2195,11 +2343,9 @@
 
       // Use provided URL or generate one
       const url = passUrl ? `${passUrl}${visitorId}/pass` : `{{ url('/visitor') }}/${visitorId}/pass`;
-      
+
       // Fetch visitor pass data
-      console.log('Fetching pass for visitor ID:', visitorId);
-      console.log('Final URL:', url);
-      
+
       fetch(url, {
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
@@ -2208,9 +2354,7 @@
         }
       })
         .then(response => {
-          console.log('Response status:', response.status);
-          console.log('Response headers:', response.headers);
-          
+
           if (!response.ok) {
             if (response.status === 404) {
               throw new Error('No pass found for this visitor');
@@ -2223,10 +2367,8 @@
           return response.json();
         })
         .then(data => {
-          console.log('Response data:', data);
           if (data.success) {
             // Open the existing pass modal with the fetched data
-            console.log('Opening modal with data:', data.data);
             openVisitorPassModal(data.data);
           } else {
             console.error('API returned error:', data.message);
@@ -2236,7 +2378,7 @@
         .catch(error => {
           console.error('Error loading visitor pass:', error);
           console.error('Error details:', error);
-          
+
           // Handle different error types
           if (error.message.includes('404') || error.message.includes('No pass found')) {
             showNotification('No pass found for this visitor.', 'error');
@@ -2244,7 +2386,6 @@
             showNotification('You don\'t have permission to view this pass.', 'error');
           } else {
             // For other errors, try to show modal with basic info
-            console.log('Attempting to show modal with basic info...');
             const basicPassData = {
               visitor_name: visitorName,
               company: 'N/A',
@@ -2261,16 +2402,14 @@
           // Re-enable button
           button.disabled = false;
           button.innerHTML = originalText;
-          
+
           // Icons are simple text, no re-initialization needed
         });
     }
 
     // Open visitor pass modal with data (same as TEST MODAL)
     function openVisitorPassModal(passData) {
-      console.log('=== OPENING VISITOR PASS MODAL ===');
-      console.log('Pass data:', passData);
-      
+
       const modal = document.getElementById('visitorSuccessModal');
       if (!modal) {
         console.error('Visitor pass modal not found');
@@ -2302,9 +2441,9 @@
         if (statusEl) {
           statusEl.textContent = passData.status;
           statusEl.className = 'badge';
-          
+
           // Set appropriate badge color based on status
-          switch(passData.status) {
+          switch (passData.status) {
             case 'Active':
               statusEl.classList.add('badge-success');
               break;
@@ -2328,10 +2467,10 @@
           downloadBtn.onclick = () => {
             window.open(passData.download_url, '_blank');
           };
-          
+
           // Disable download for expired, revoked, or used passes
           downloadBtn.disabled = !['Active'].includes(passData.status);
-          
+
           // Update button text based on status
           if (passData.status === 'Expired') {
             downloadBtn.textContent = 'Pass Expired';
@@ -2386,10 +2525,10 @@
               <p class="text-sm text-gray-600" style="color: var(--color-charcoal-ink); opacity: 0.8;">${visitor.company || 'No Company'}</p>
               
               <div class="flex items-center gap-4 mt-2">
-                ${visitor.time_out ? 
-                  '<span class="badge badge-outline text-gray-500" style="border-color: var(--color-charcoal-ink); color: var(--color-charcoal-ink); opacity: 0.7;">Checked Out</span>' : 
-                  '<span class="badge badge-primary" style="background-color: var(--color-regal-navy); color: var(--color-white);">Checked In</span>'
-                }
+                ${visitor.time_out ?
+          '<span class="badge badge-outline text-gray-500" style="border-color: var(--color-charcoal-ink); color: var(--color-charcoal-ink); opacity: 0.7;">Checked Out</span>' :
+          '<span class="badge badge-primary" style="background-color: var(--color-regal-navy); color: var(--color-white);">Checked In</span>'
+        }
                 
                 <span class="badge badge-outline text-gray-600" style="border-color: var(--color-regal-navy); color: var(--color-regal-navy);">${visitor.purpose || 'No Purpose'}</span>
                 
@@ -2410,14 +2549,14 @@
               <button class="vm-view-pass-btn btn btn-sm btn-primary" data-visitor-id="${visitor.id}" data-visitor-name="${visitor.name}" data-pass-url="{{ url('/visitor') }}/" onclick="event.stopPropagation();" style="background-color: var(--color-regal-navy); color: var(--color-white);">
                 <i data-lucide="eye" class="w-4 h-4 mr-1"></i>View Pass
               </button>` : ''}
-              ${!visitor.time_out ? 
-                `<button onclick="checkOutVisitor(${visitor.id})" class="btn btn-sm btn-outline btn-error" style="color: var(--color-danger-red); border-color: var(--color-danger-red);">
+              ${!visitor.time_out ?
+          `<button onclick="checkOutVisitor(${visitor.id})" class="btn btn-sm btn-outline btn-error" style="color: var(--color-danger-red); border-color: var(--color-danger-red);">
                   <i data-lucide="log-out" class="w-4 h-4 mr-1"></i>Check Out
-                </button>` : 
-                `<button onclick="checkInVisitor(${visitor.id})" class="btn btn-sm btn-outline btn-success" style="color: var(--color-modern-teal); border-color: var(--color-modern-teal);">
+                </button>` :
+          `<button onclick="checkInVisitor(${visitor.id})" class="btn btn-sm btn-outline btn-success" style="color: var(--color-modern-teal); border-color: var(--color-modern-teal);">
                   <i data-lucide="log-in" class="w-4 h-4 mr-1"></i>Check In
                 </button>`
-              }
+        }
             </div>
           </div>
         </div>
@@ -2436,17 +2575,17 @@
     // Visitor selection
     function selectVisitor(visitorId) {
       currentVisitorId = visitorId;
-      
+
       // Remove selection from all cards
       document.querySelectorAll('.visitor-card').forEach(card => {
         card.classList.remove('ring-2', 'ring-blue-500');
         card.style.borderColor = 'var(--color-snow-mist)';
       });
-      
+
       // Add selection to clicked card
       event.currentTarget.classList.add('ring-2', 'ring-blue-500');
       event.currentTarget.style.borderColor = 'var(--color-regal-navy)';
-      
+
       // Fetch visitor details
       fetch(`{{ route('visitor.details', '') }}/${visitorId}`)
         .then(response => response.json())
@@ -2468,7 +2607,7 @@
       // Show visitor details
       document.getElementById('no-selection').classList.add('hidden');
       document.getElementById('visitor-details').classList.remove('hidden');
-      
+
       // Update details
       document.getElementById('selected-visitor-name').textContent = visitor.name;
       document.getElementById('detail-name').textContent = visitor.name;
@@ -2487,7 +2626,7 @@
         document.getElementById('detail-pass-type').textContent = visitor.pass_type ? visitor.pass_type.replace('_', ' ').toUpperCase() : 'N/A';
         document.getElementById('detail-access-level').textContent = visitor.access_level ? visitor.access_level.replace('_', ' ').toUpperCase() : 'N/A';
         document.getElementById('detail-valid-until').textContent = visitor.pass_valid_until ? formatTime(visitor.pass_valid_until) : 'N/A';
-        
+
         if (visitor.escort_required && visitor.escort_required !== 'no') {
           document.getElementById('escort-info').classList.remove('hidden');
           document.getElementById('detail-escort-required').textContent = visitor.escort_required.toUpperCase();
@@ -2503,7 +2642,7 @@
       const editBtn = document.querySelector('#visitor-details .btn-primary');
 
       if (editBtn) {
-          editBtn.onclick = () => window.location.href = `{{ route('visitor.edit', '') }}/${visitor.id}`;
+        editBtn.onclick = () => window.location.href = `{{ route('visitor.edit', '') }}/${visitor.id}`;
       }
 
       if (checkoutBtn) {
@@ -2522,15 +2661,15 @@
       // Display Digital Pass info if available
       const digitalPassSection = document.getElementById('digital-pass-section');
       if (visitor.digital_pass) {
-          document.getElementById('pass-id').textContent = visitor.digital_pass.pass_id;
-          document.getElementById('pass-valid-from').textContent = formatDate(visitor.digital_pass.valid_from);
-          document.getElementById('pass-valid-until').textContent = formatDate(visitor.digital_pass.valid_until);
-          document.getElementById('pass-facility').textContent = visitor.digital_pass.facility;
-          document.getElementById('pass-purpose').textContent = visitor.digital_pass.purpose;
-          document.getElementById('pass-access-level').textContent = visitor.digital_pass.access_level;
-          digitalPassSection.classList.remove('hidden');
+        document.getElementById('pass-id').textContent = visitor.digital_pass.pass_id;
+        document.getElementById('pass-valid-from').textContent = formatDate(visitor.digital_pass.valid_from);
+        document.getElementById('pass-valid-until').textContent = formatDate(visitor.digital_pass.valid_until);
+        document.getElementById('pass-facility').textContent = visitor.digital_pass.facility;
+        document.getElementById('pass-purpose').textContent = visitor.digital_pass.purpose;
+        document.getElementById('pass-access-level').textContent = visitor.digital_pass.access_level;
+        digitalPassSection.classList.remove('hidden');
       } else {
-          digitalPassSection.classList.add('hidden');
+        digitalPassSection.classList.add('hidden');
       }
 
       // Recreate icons
@@ -2549,32 +2688,32 @@
             'Content-Type': 'application/json',
           }
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            showNotification(data.message, 'success');
-            // Refresh current visitors
-            loadCurrentVisitors();
-            // Update stats
-            updateStats();
-            // Clear details panel after checkout
-            document.getElementById('visitor-details').classList.add('hidden');
-            document.getElementById('no-selection').classList.remove('hidden');
-          } else {
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification(data.message, 'success');
+              // Refresh current visitors
+              loadCurrentVisitors();
+              // Update stats
+              updateStats();
+              // Clear details panel after checkout
+              document.getElementById('visitor-details').classList.add('hidden');
+              document.getElementById('no-selection').classList.remove('hidden');
+            } else {
+              showNotification('Error checking out visitor', 'error');
+            }
+          })
+          .catch(error => {
+            console.error('Error checking out visitor:', error);
             showNotification('Error checking out visitor', 'error');
-          }
-        })
-        .catch(error => {
-          console.error('Error checking out visitor:', error);
-          showNotification('Error checking out visitor', 'error');
-        });
+          });
       }
     }
 
     // Check in visitor
     function checkInVisitor() {
       const formData = new FormData(document.getElementById('checkin-form'));
-      
+
       fetch('{{ route("visitor.store") }}', {
         method: 'POST',
         headers: {
@@ -2676,10 +2815,10 @@
     // Utility functions
     function formatTime(timeString) {
       const date = new Date(timeString);
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: true 
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
       });
     }
 
@@ -2690,14 +2829,14 @@
 
     function formatDateTime(dateString) {
       const date = new Date(dateString);
-      return date.toLocaleString('en-US', { 
+      return date.toLocaleString('en-US', {
         month: 'numeric',
         day: 'numeric',
         year: 'numeric',
-        hour: '2-digit', 
-        minute: '2-digit', 
+        hour: '2-digit',
+        minute: '2-digit',
         second: '2-digit',
-        hour12: true 
+        hour12: true
       });
     }
 
@@ -2759,23 +2898,23 @@
     // Calculate duration between check-in and check-out times
     function calculateDuration(checkInTime, checkOutTime) {
       if (!checkInTime || checkInTime === 'N/A') return null;
-      
+
       try {
         const start = new Date(checkInTime);
         const end = checkOutTime ? new Date(checkOutTime) : new Date();
-        
+
         // Check if dates are valid
         if (isNaN(start.getTime())) {
           console.error('Invalid check-in time:', checkInTime);
           return 'Invalid time';
         }
-        
+
         const diffMs = end - start;
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
         const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-        
+
         if (diffMs < 0) return '0m'; // Handle negative durations
-        
+
         if (diffHours > 0) {
           return `${diffHours}h ${diffMinutes}m`;
         } else {
@@ -2813,68 +2952,17 @@
       return `<span class="${badgeClass}">${status}</span>`;
     }
 
-    // Use global showNotification from soliera_js if available, otherwise define local one with progress bar
-    if (typeof window.showNotification === 'undefined' || window.showNotification.toString().indexOf('progressBar') === -1) {
-      window.showNotification = function(message, type = 'info', duration = 3000) {
-        if (!document.getElementById('notification-progress-style')) {
-          const style = document.createElement('style');
-          style.id = 'notification-progress-style';
-          style.textContent = `
-            @keyframes progressBar {
-              from { width: 100%; }
-              to { width: 0%; }
-            }
-            @keyframes slideInRight {
-              from { transform: translateX(100%); opacity: 0; }
-              to { transform: translateX(0); opacity: 1; }
-            }
-          `;
-          document.head.appendChild(style);
-        }
-
-        const notification = document.createElement('div');
-        const alertType = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-        notification.className = `alert alert-${alertType} fixed bottom-4 right-4 z-[9999] max-w-sm shadow-lg relative overflow-hidden`;
-        notification.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; max-width: 24rem; animation: slideInRight 0.3s ease-out;';
-        
-        const iconMap = { 'success': 'check-circle', 'error': 'alert-circle', 'warning': 'alert-triangle', 'info': 'info' };
-        const icon = iconMap[type] || 'info';
-        
-        notification.innerHTML = `
-          <div class="flex items-center gap-2 px-4 py-3">
-            <i data-lucide="${icon}" class="w-5 h-5"></i>
-            <span>${message}</span>
-          </div>
-          <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-            <div class="notification-progress h-full bg-white/50" style="width: 100%; animation: progressBar ${duration}ms linear forwards;"></div>
-          </div>
-        `;
-        
-        document.body.appendChild(notification);
-        notification.offsetHeight;
-        
-        if (window.lucide && window.lucide.createIcons) {
-          window.lucide.createIcons();
-        }
-        
-        setTimeout(() => {
-          notification.style.opacity = '0';
-          notification.style.transition = 'opacity 0.3s ease-out';
-          setTimeout(() => {
-            if (notification.parentNode) notification.remove();
-          }, 300);
-        }, duration);
-      };
-    }
+    // Global showNotification is provided by soliera_js.blade.php
+    // No need to define fallback - the global function with Soliera theme is already available
 
     // Search functionality - filters visitor cards in real-time
     function setupSearch() {
       const searchInput = document.getElementById('visitorSearch');
       if (searchInput) {
-        searchInput.addEventListener('input', function() {
+        searchInput.addEventListener('input', function () {
           const searchTerm = this.value.toLowerCase();
           const visitorCards = document.querySelectorAll('.visitor-card');
-          
+
           visitorCards.forEach(card => {
             const text = card.textContent.toLowerCase();
             if (text.includes(searchTerm)) {
@@ -2889,10 +2977,10 @@
       // Setup monitoring search
       const monitoringSearchInput = document.getElementById('monitoringSearch');
       if (monitoringSearchInput) {
-        monitoringSearchInput.addEventListener('input', function() {
+        monitoringSearchInput.addEventListener('input', function () {
           const searchTerm = this.value.toLowerCase();
           const monitoringCards = document.querySelectorAll('.monitoring-visitor-card');
-          
+
           monitoringCards.forEach(card => {
             const text = card.textContent.toLowerCase();
             if (text.includes(searchTerm)) {
@@ -2907,10 +2995,10 @@
       // Setup pre-visit search
       const previsitSearchInput = document.getElementById('previsitSearch');
       if (previsitSearchInput) {
-        previsitSearchInput.addEventListener('input', function() {
+        previsitSearchInput.addEventListener('input', function () {
           const searchTerm = this.value.toLowerCase();
           const previsitRows = document.querySelectorAll('.previsit-visitor-row');
-          
+
           previsitRows.forEach(row => {
             const text = row.textContent.toLowerCase();
             if (text.includes(searchTerm)) {
@@ -2931,7 +3019,7 @@
       const header = document.querySelector('header');
       const sidebar = document.getElementById('sidebar');
       const main = document.querySelector('main');
-      
+
       if (html.classList.contains('dark')) {
         // Switch to light mode
         html.classList.remove('dark');
@@ -2940,19 +3028,19 @@
         icon.setAttribute('data-lucide', 'moon');
         icon.classList.remove('text-yellow-500', 'text-white');
         icon.classList.add('text-gray-600');
-        
+
         const button = icon.closest('.btn');
         if (button) {
           button.classList.remove('bg-blue-600', 'bg-blue-700', 'text-white');
           button.classList.add('btn-ghost');
         }
-        
+
         header.classList.remove('dark:bg-gray-800', 'dark:border-gray-700');
         header.classList.add('bg-white', 'border-gray-200');
-        
+
         if (sidebar) sidebar.classList.remove('dark:bg-gray-900');
         if (main) main.classList.remove('dark:bg-gray-900');
-        
+
       } else {
         // Switch to dark mode
         html.classList.add('dark');
@@ -2961,20 +3049,20 @@
         icon.setAttribute('data-lucide', 'sun');
         icon.classList.remove('text-gray-600');
         icon.classList.add('text-yellow-500');
-        
+
         const button = icon.closest('.btn');
         if (button) {
           button.classList.remove('bg-blue-600', 'bg-blue-700', 'text-white');
           button.classList.add('btn-ghost');
         }
-        
+
         header.classList.remove('bg-white', 'border-gray-200');
         header.classList.add('dark:bg-gray-800', 'dark:border-gray-700');
-        
+
         if (sidebar) sidebar.classList.add('dark:bg-gray-900');
         if (main) main.classList.add('dark:bg-gray-900');
       }
-      
+
       if (window.lucide && window.lucide.createIcons) {
         window.lucide.createIcons();
       }
@@ -2985,10 +3073,10 @@
       const now = new Date();
       const dateElement = document.getElementById('currentDate');
       const timeElement = document.getElementById('currentTime');
-      
+
       const dateOptions = { weekday: 'short', month: 'short', day: 'numeric' };
       const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
-      
+
       if (dateElement) {
         dateElement.textContent = now.toLocaleDateString('en-US', dateOptions);
       }
@@ -3002,10 +3090,10 @@
       const toggle = document.getElementById('darkModeToggle');
       const sunIcon = document.getElementById('sunIcon');
       const moonIcon = document.getElementById('moonIcon');
-      
+
       function updateIcons() {
         if (sunIcon && moonIcon) {
-          if(document.documentElement.classList.contains('dark')) {
+          if (document.documentElement.classList.contains('dark')) {
             sunIcon.classList.remove('hidden');
             moonIcon.classList.add('hidden');
           } else {
@@ -3014,7 +3102,7 @@
           }
         }
       }
-      
+
       // Initial state
       const isDarkMode = localStorage.getItem('darkMode') === 'true';
       if (isDarkMode) {
@@ -3025,28 +3113,25 @@
         document.body.classList.remove('dark');
       }
       updateIcons();
-      
+
       if (toggle) {
-        toggle.addEventListener('click', function() {
-        console.log('Dark mode toggle clicked!');
-        
-        // Direct toggle without relying on global function
-        if (document.documentElement.classList.contains('dark')) {
-          // Switch to light mode
-          document.documentElement.classList.remove('dark');
-          document.body.classList.remove('dark');
-          localStorage.setItem('darkMode', 'false');
-          console.log('Switched to LIGHT mode');
-        } else {
-          // Switch to dark mode
-          document.documentElement.classList.add('dark');
-          document.body.classList.add('dark');
-          localStorage.setItem('darkMode', 'true');
-          console.log('Switched to DARK mode');
-        }
-        
-        updateIcons();
-      });
+        toggle.addEventListener('click', function () {
+
+          // Direct toggle without relying on global function
+          if (document.documentElement.classList.contains('dark')) {
+            // Switch to light mode
+            document.documentElement.classList.remove('dark');
+            document.body.classList.remove('dark');
+            localStorage.setItem('darkMode', 'false');
+          } else {
+            // Switch to dark mode
+            document.documentElement.classList.add('dark');
+            document.body.classList.add('dark');
+            localStorage.setItem('darkMode', 'true');
+          }
+
+          updateIcons();
+        });
       }
     }
 
@@ -3058,24 +3143,24 @@
     }
 
     // Initialize everything when page loads
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       setupDarkMode();
       updateDateTime();
       setupSearch();
-      
+
       // Update time every second
       setInterval(updateDateTime, 1000);
-      
+
       // Load initial data - DISABLED to prevent 404 errors
       // loadCurrentVisitors(); // Disabled - data already loaded server-side
       // updateStats(); // Disabled - stats already loaded server-side
-      
+
       // Load monitoring data on page load
       loadMonitoringData(false);
-      
+
       // Load pre-visit data on page load
       loadPrevisitData();
-      
+
       // Initialize all Lucide icons
       if (window.lucide && window.lucide.createIcons) {
         window.lucide.createIcons();
@@ -3089,33 +3174,30 @@
     });
 
     // ===== VISITOR MODAL FUNCTIONS =====
-    
+
     // Open visitor registration modal
     function openVisitorModal() {
       const modal = document.getElementById('visitorModal');
       modal.classList.add('modal-open');
       document.body.classList.add('modal-open');
       document.body.style.overflow = 'hidden';
-      
+
       // Initialize Lucide icons in the modal
       setTimeout(() => {
         if (window.lucide && window.lucide.createIcons) {
-          console.log('Initializing Lucide icons in modal...');
           window.lucide.createIcons();
-        } else {
-          console.log('Lucide not available:', window.lucide);
         }
       }, 50);
-      
+
       // Focus first input for accessibility
       setTimeout(() => {
         const firstInput = modal.querySelector('input, select, textarea');
         if (firstInput) firstInput.focus();
       }, 100);
-      
+
       // Initialize pass issuance functionality
       setupPassIssuanceModal();
-      
+
       // Add keyboard event listeners
       document.addEventListener('keydown', handleVisitorModalKeyboard);
     }
@@ -3126,11 +3208,11 @@
       modal.classList.remove('modal-open');
       document.body.classList.remove('modal-open');
       document.body.style.overflow = 'auto';
-      
+
       // Reset form
       const form = document.getElementById('visitorRegistrationForm');
       if (form) form.reset();
-      
+
       // Remove keyboard event listeners
       document.removeEventListener('keydown', handleVisitorModalKeyboard);
     }
@@ -3138,124 +3220,105 @@
     // Handle form submission
     const registrationForm = document.getElementById('visitorRegistrationForm');
     if (registrationForm) {
-      registrationForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      console.log('Form submitted!');
-      
-      // Add loading state
-      const submitBtn = this.querySelector('button[type="submit"]');
-      const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i data-lucide="loader-2" class="btn-icon animate-spin"></i>Registering...';
-      submitBtn.disabled = true;
-      
-      // Initialize Lucide icons for the spinner
-      if (window.lucide && window.lucide.createIcons) {
-        window.lucide.createIcons();
-      }
-      
-      // Remove test code - we'll handle this properly with the actual response
-      
-      // Submit form data
-      const formData = new FormData(this);
-      console.log('Form data:', Object.fromEntries(formData));
-      
-      fetch('{{ route("visitor.store") }}', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-          'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'application/json',
+      registrationForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        // Add loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i data-lucide="loader-2" class="btn-icon animate-spin"></i>Registering...';
+        submitBtn.disabled = true;
+
+        // Initialize Lucide icons for the spinner
+        if (window.lucide && window.lucide.createIcons) {
+          window.lucide.createIcons();
         }
-      })
-      .then(response => {
-        console.log('Response received:', response);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log('Data received:', data);
-        
-        // Get form data for modal display - prioritize server response data
-        const formData = new FormData(document.getElementById('visitorRegistrationForm'));
-        const visitorData = {
-          name: data.visitor?.name || formData.get('name') || 'New Visitor',
-          company: data.visitor?.company || formData.get('company') || 'N/A',
-          purpose: data.visitor?.purpose || formData.get('purpose') || 'N/A',
-          pass_id: data.visitor?.pass_id || 'VMS-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
-          time_in: data.visitor?.time_in || null, // Keep null for registered visitors
-          pass_data: data.pass_data || null,
-          expected_date_out: data.visitor?.expected_date_out || formData.get('expected_date_out') || null,
-          expected_time_out: data.visitor?.expected_time_out || formData.get('expected_time_out') || null,
-          arrival_date: data.visitor?.arrival_date || formData.get('arrival_date') || null,
-          arrival_time: data.visitor?.arrival_time || formData.get('arrival_time') || null,
-          validity_period: data.validity_info?.validity_period || null
-        };
-        
-        console.log('Form data extracted:', {
-          name: formData.get('name'),
-          company: formData.get('company'),
-          purpose: formData.get('purpose'),
-          email: formData.get('email')
-        });
-        
-        console.log('Prepared visitor data for modal:', visitorData);
-        
-        // Close registration modal first
-        closeVisitorModal();
-        
-        // Show success modal immediately after registration
-          console.log('About to show success modal...');
-          console.log('Calling showSuccessModal with:', visitorData);
-          showSuccessModal(visitorData);
-        
-        // Show success message
-        if (data.success) {
-          console.log('Registration successful!');
-          showNotification('Visitor registered and pass issued! Please check them in when they arrive.', 'success');
-        } else {
-          console.log('Registration had issues but showing modal anyway');
-          showNotification('Visitor registered (with warnings)', 'warning');
-        }
-        
-        // Refresh visitor list
-        if (typeof loadCurrentVisitors === 'function') {
-          loadCurrentVisitors();
-        }
-        if (typeof updateStats === 'function') {
-          updateStats();
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        // Even if there's an error, try to show success modal with form data
-        const formData = new FormData(document.getElementById('visitorRegistrationForm'));
-        const visitorData = {
-          name: formData.get('name') || 'New Visitor',
-          company: formData.get('company') || 'N/A',
-          purpose: formData.get('purpose') || 'N/A',
-          pass_id: 'VMS-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
-          time_in: null, // Keep null for registered visitors
-          pass_data: null
-        };
-        
-        // Close registration modal
-        closeVisitorModal();
-        
-        // Show success modal immediately
-          console.log('Showing modal after error...');
-          showSuccessModal(visitorData);
-        
-        showNotification('Visitor registered (offline mode)', 'warning');
-      })
-      .finally(() => {
-        // Reset button state
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
+
+        // Remove test code - we'll handle this properly with the actual response
+
+        // Submit form data
+        const formData = new FormData(this);
+
+        fetch('{{ route("visitor.store") }}', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+          }
+        })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            // Get form data for modal display - prioritize server response data
+            const formData = new FormData(document.getElementById('visitorRegistrationForm'));
+            const visitorData = {
+              name: data.visitor?.name || formData.get('name') || 'New Visitor',
+              company: data.visitor?.company || formData.get('company') || 'N/A',
+              purpose: data.visitor?.purpose || formData.get('purpose') || 'N/A',
+              pass_id: data.visitor?.pass_id || 'VMS-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+              time_in: data.visitor?.time_in || null, // Keep null for registered visitors
+              pass_data: data.pass_data || null,
+              expected_date_out: data.visitor?.expected_date_out || formData.get('expected_date_out') || null,
+              expected_time_out: data.visitor?.expected_time_out || formData.get('expected_time_out') || null,
+              arrival_date: data.visitor?.arrival_date || formData.get('arrival_date') || null,
+              arrival_time: data.visitor?.arrival_time || formData.get('arrival_time') || null,
+              validity_period: data.validity_info?.validity_period || null
+            };
+
+            // Close registration modal first
+            closeVisitorModal();
+
+            // Show success modal immediately after registration
+            showSuccessModal(visitorData);
+
+            // Show success message
+            if (data.success) {
+              showNotification('Visitor registered and pass issued! Please check them in when they arrive.', 'success');
+            } else {
+              showNotification('Visitor registered (with warnings)', 'warning');
+            }
+
+            // Refresh visitor list
+            if (typeof loadCurrentVisitors === 'function') {
+              loadCurrentVisitors();
+            }
+            if (typeof updateStats === 'function') {
+              updateStats();
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            // Even if there's an error, try to show success modal with form data
+            const formData = new FormData(document.getElementById('visitorRegistrationForm'));
+            const visitorData = {
+              name: formData.get('name') || 'New Visitor',
+              company: formData.get('company') || 'N/A',
+              purpose: formData.get('purpose') || 'N/A',
+              pass_id: 'VMS-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+              time_in: null, // Keep null for registered visitors
+              pass_data: null
+            };
+
+            // Close registration modal
+            closeVisitorModal();
+
+            // Show success modal immediately
+            showSuccessModal(visitorData);
+
+            showNotification('Visitor registered (offline mode)', 'warning');
+          })
+          .finally(() => {
+            // Reset button state
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+          });
       });
-    });
     }
 
     // Handle keyboard events for visitor modal
@@ -3263,17 +3326,17 @@
       if (event.key === 'Escape') {
         closeVisitorModal();
       }
-      
+
       // Prevent tab from going outside modal
       if (event.key === 'Tab') {
         const modal = document.getElementById('visitorModal');
         const focusableElements = modal.querySelectorAll(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
-        
+
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
-        
+
         if (event.shiftKey) {
           if (document.activeElement === firstElement) {
             event.preventDefault();
@@ -3289,27 +3352,19 @@
     }
 
     // ===== SUCCESS MODAL FUNCTIONS =====
-    
+
     // Show success modal with visitor data
     // Function to calculate validity period based on expected departure time
     function calculateValidityPeriod(visitor) {
-      console.log('Calculating validity period for visitor:', visitor);
-      
       if (visitor.expected_date_out && visitor.expected_time_out) {
-        console.log('Using expected_date_out and expected_time_out');
         // Combine expected date and time
         const expectedDateTime = new Date(visitor.expected_date_out + ' ' + visitor.expected_time_out);
         const now = new Date();
-        
-        console.log('Expected datetime:', expectedDateTime);
-        console.log('Current datetime:', now);
-        
+
         // Calculate difference in hours
         const diffMs = expectedDateTime - now;
         const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
-        
-        console.log('Difference in hours:', diffHours);
-        
+
         if (diffHours <= 0) {
           return 'Expired';
         } else if (diffHours < 24) {
@@ -3324,45 +3379,38 @@
           }
         }
       } else if (visitor.expected_time_out) {
-        console.log('Using only expected_time_out');
         // If only time is provided, assume today
         const today = new Date().toISOString().split('T')[0];
         const expectedDateTime = new Date(today + ' ' + visitor.expected_time_out);
         const now = new Date();
-        
+
         const diffMs = expectedDateTime - now;
         const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
-        
+
         if (diffHours <= 0) {
           return 'Expired';
         } else {
           return `${diffHours} Hour${diffHours > 1 ? 's' : ''}`;
         }
       }
-      
-      console.log('No expected departure time found, using default');
+
       // Default fallback
       return '24 Hours';
     }
 
     function showSuccessModal(visitor) {
-      console.log('=== SHOW SUCCESS MODAL FUNCTION CALLED ===');
-      console.log('Visitor data:', visitor);
-      
       const modal = document.getElementById('visitorSuccessModal');
-      console.log('Modal element found:', modal);
-      
+
       if (!modal) {
         console.error('Success modal not found!');
         showNotification('Success modal not found!', 'error');
         return;
       }
-      
+
       // Update success modal with visitor data
       if (visitor) {
-        console.log('Updating modal with visitor data...');
         const passId = visitor.pass_id || 'VMS-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-        
+
         // Update all the fields
         const passNumberEl = document.getElementById('success-pass-number');
         const visitorNameEl = document.getElementById('success-visitor-name');
@@ -3378,14 +3426,14 @@
         const expectedDateOutValueEl = document.getElementById('success-expected-date-out-value');
         const expectedTimeOutEl = document.getElementById('success-expected-time-out');
         const expectedTimeOutValueEl = document.getElementById('success-expected-time-out-value');
-        
+
         if (passNumberEl) passNumberEl.textContent = passId;
         if (visitorNameEl) visitorNameEl.textContent = visitor.name || 'N/A';
         if (companyEl) companyEl.textContent = visitor.company || 'N/A';
         if (checkinTimeEl) checkinTimeEl.textContent = visitor.time_in ? formatDateTime(visitor.time_in) : 'Not checked in yet';
         if (purposeEl) purposeEl.textContent = visitor.purpose || 'N/A';
         if (statusEl) statusEl.textContent = visitor.time_in ? 'Active' : 'Registered';
-        
+
         // Show/hide arrival date and time fields
         if (visitor.arrival_date) {
           if (arrivalDateEl) arrivalDateEl.style.display = 'flex';
@@ -3393,14 +3441,14 @@
         } else {
           if (arrivalDateEl) arrivalDateEl.style.display = 'none';
         }
-        
+
         if (visitor.arrival_time) {
           if (arrivalTimeEl) arrivalTimeEl.style.display = 'flex';
           if (arrivalTimeValueEl) arrivalTimeValueEl.textContent = visitor.arrival_time;
         } else {
           if (arrivalTimeEl) arrivalTimeEl.style.display = 'none';
         }
-        
+
         // Show/hide expected date and time out fields
         if (visitor.expected_date_out) {
           if (expectedDateOutEl) expectedDateOutEl.style.display = 'flex';
@@ -3408,7 +3456,7 @@
         } else {
           if (expectedDateOutEl) expectedDateOutEl.style.display = 'none';
         }
-        
+
         if (visitor.expected_time_out) {
           if (expectedTimeOutEl) expectedTimeOutEl.style.display = 'flex';
           if (expectedTimeOutValueEl) expectedTimeOutValueEl.textContent = visitor.expected_time_out;
@@ -3417,18 +3465,11 @@
         }
 
         // Update validity period - use backend calculation if available, otherwise calculate frontend
-        console.log('Updating validity period...');
-        console.log('Visitor validity_period:', visitor.validity_period);
-        console.log('Visitor expected_date_out:', visitor.expected_date_out);
-        console.log('Visitor expected_time_out:', visitor.expected_time_out);
-        
         const validityPeriod = visitor.validity_period || calculateValidityPeriod(visitor);
-        console.log('Calculated validity period:', validityPeriod);
-        
+
         const validityEl = document.getElementById('validity-period');
         if (validityEl) {
           validityEl.textContent = validityPeriod;
-          console.log('Updated validity element with:', validityPeriod);
         } else {
           console.error('Validity element not found!');
         }
@@ -3447,21 +3488,18 @@
           qrContainer.appendChild(img);
         }
       }
-      
+
       // Show modal immediately
-      console.log('Showing modal...');
       modal.classList.add('modal-open');
       document.body.classList.add('modal-open');
       document.body.style.overflow = 'hidden';
-      
+
       // Initialize Lucide icons
       setTimeout(() => {
         if (window.lucide && window.lucide.createIcons) {
           window.lucide.createIcons();
         }
       }, 100);
-      
-      console.log('Modal should be visible now!');
     }
 
     // Generate QR Code
@@ -3507,7 +3545,7 @@
         } else {
           qrContainer.appendChild(canvas);
         }
-        
+
         // Re-initialize Lucide icons
         if (window.lucide && window.lucide.createIcons) {
           window.lucide.createIcons();
@@ -3531,7 +3569,7 @@
       const company = document.getElementById('success-company').textContent;
       const checkinTime = document.getElementById('success-checkin-time').textContent;
       const purpose = document.getElementById('success-purpose').textContent;
-      
+
       // Create a simple text-based pass that can be downloaded
       const passContent = `
 VISITOR PASS - SOLIERA
@@ -3551,7 +3589,7 @@ Please keep this pass with you at all times during your visit.
 
 Generated on: ${new Date().toLocaleString()}
       `.trim();
-      
+
       // Create and download the file
       const blob = new Blob([passContent], { type: 'text/plain' });
       const url = window.URL.createObjectURL(blob);
@@ -3562,7 +3600,7 @@ Generated on: ${new Date().toLocaleString()}
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      
+
       showNotification('Visitor pass downloaded successfully!', 'success');
     }
 
@@ -3571,14 +3609,14 @@ Generated on: ${new Date().toLocaleString()}
 
 
     // ===== PASS ISSUANCE MODAL FUNCTIONS =====
-    
+
     // Setup pass issuance functionality in modal
     function setupPassIssuanceModal() {
       const passValiditySelect = document.querySelector('select[name="pass_validity"]');
       const customValiditySection = document.getElementById('customValiditySection');
-      
+
       if (passValiditySelect && customValiditySection) {
-        passValiditySelect.addEventListener('change', function() {
+        passValiditySelect.addEventListener('change', function () {
           if (this.value === 'custom') {
             customValiditySection.classList.remove('hidden');
           } else {
@@ -3586,7 +3624,7 @@ Generated on: ${new Date().toLocaleString()}
           }
         });
       }
-      
+
       // Auto-calculate validity period based on selection
       setupValidityCalculationModal();
     }
@@ -3596,14 +3634,14 @@ Generated on: ${new Date().toLocaleString()}
       const passValiditySelect = document.querySelector('select[name="pass_validity"]');
       const validFromInput = document.querySelector('input[name="pass_valid_from"]');
       const validUntilInput = document.querySelector('input[name="pass_valid_until"]');
-      
+
       if (passValiditySelect && validFromInput && validUntilInput) {
-        passValiditySelect.addEventListener('change', function() {
+        passValiditySelect.addEventListener('change', function () {
           if (this.value !== 'custom' && this.value !== '') {
             const now = new Date();
             let validUntil = new Date(now);
-            
-            switch(this.value) {
+
+            switch (this.value) {
               case '1_hour':
                 validUntil.setHours(validUntil.getHours() + 1);
                 break;
@@ -3623,7 +3661,7 @@ Generated on: ${new Date().toLocaleString()}
                 validUntil.setDate(validUntil.getDate() + 7);
                 break;
             }
-            
+
             validFromInput.value = now.toISOString().slice(0, 16);
             validUntilInput.value = validUntil.toISOString().slice(0, 16);
           }
@@ -3632,7 +3670,7 @@ Generated on: ${new Date().toLocaleString()}
     }
 
     // ===== CHECK-IN/CHECK-OUT FUNCTIONS =====
-    
+
     // Check out a visitor
     function checkOutVisitor(visitorId) {
       if (!confirm('Are you sure you want to check out this visitor?')) {
@@ -3647,24 +3685,24 @@ Generated on: ${new Date().toLocaleString()}
           'Accept': 'application/json',
         }
       })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showNotification('Visitor checked out successfully!', 'success');
-          // Refresh the current visitors list
-          loadCurrentVisitors();
-          // Refresh monitoring data if on monitoring tab
-          if (currentTab === 'monitoring') {
-            loadMonitoringData();
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showNotification('Visitor checked out successfully!', 'success');
+            // Refresh the current visitors list
+            loadCurrentVisitors();
+            // Refresh monitoring data if on monitoring tab
+            if (currentTab === 'monitoring') {
+              loadMonitoringData();
+            }
+          } else {
+            showNotification('Error checking out visitor', 'error');
           }
-        } else {
+        })
+        .catch(error => {
+          console.error('Error:', error);
           showNotification('Error checking out visitor', 'error');
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showNotification('Error checking out visitor', 'error');
-      });
+        });
     }
 
     // Check in a visitor (for visitors who were pre-registered)
@@ -3688,24 +3726,24 @@ Generated on: ${new Date().toLocaleString()}
           time_out: null
         })
       })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showNotification('Visitor checked in successfully!', 'success');
-          // Refresh the current visitors list
-          loadCurrentVisitors();
-          // Refresh monitoring data if on monitoring tab
-          if (currentTab === 'monitoring') {
-            loadMonitoringData();
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showNotification('Visitor checked in successfully!', 'success');
+            // Refresh the current visitors list
+            loadCurrentVisitors();
+            // Refresh monitoring data if on monitoring tab
+            if (currentTab === 'monitoring') {
+              loadMonitoringData();
+            }
+          } else {
+            showNotification('Error checking in visitor', 'error');
           }
-        } else {
+        })
+        .catch(error => {
+          console.error('Error:', error);
           showNotification('Error checking in visitor', 'error');
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showNotification('Error checking in visitor', 'error');
-      });
+        });
     }
 
     // Check in existing registered visitor
@@ -3722,58 +3760,49 @@ Generated on: ${new Date().toLocaleString()}
           'Accept': 'application/json',
         }
       })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showNotification('Visitor checked in successfully!', 'success');
-          // Refresh the current visitors list
-          loadCurrentVisitors();
-          // Refresh monitoring data if on monitoring tab
-          if (currentTab === 'monitoring') {
-            loadMonitoringData();
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showNotification('Visitor checked in successfully!', 'success');
+            // Refresh the current visitors list
+            loadCurrentVisitors();
+            // Refresh monitoring data if on monitoring tab
+            if (currentTab === 'monitoring') {
+              loadMonitoringData();
+            }
+          } else {
+            showNotification(data.message || 'Error checking in visitor', 'error');
           }
-        } else {
-          showNotification(data.message || 'Error checking in visitor', 'error');
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showNotification('Error checking in visitor', 'error');
-      });
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          showNotification('Error checking in visitor', 'error');
+        });
     }
 
     // View visitor details
     function viewVisitorDetails(visitorId) {
-      console.log('Opening visitor details for ID:', visitorId);
-      
       // Show modal and loading state
       const modal = document.getElementById('visitorDetailsModal');
       const loading = document.getElementById('visitorDetailsLoading');
       const content = document.getElementById('visitorDetailsContent');
-      
+
       modal.classList.add('modal-open');
       loading.classList.remove('hidden');
       content.classList.add('hidden');
-      
+
       // Fetch visitor details
       const url = `{{ route('visitor.details', '') }}/${visitorId}`;
-      console.log('Fetching visitor details from:', url);
-      
+
       fetch(url)
         .then(response => {
-          console.log('Response status:', response.status);
-          console.log('Response ok:', response.ok);
-          
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}: Failed to fetch visitor details`);
           }
           return response.json();
         })
         .then(data => {
-          console.log('Response data:', data);
-          
           if (data.success && data.visitor) {
-            console.log('Visitor data received:', data.visitor);
             populateVisitorDetails(data.visitor);
             loading.classList.add('hidden');
             content.classList.remove('hidden');
@@ -3784,11 +3813,10 @@ Generated on: ${new Date().toLocaleString()}
         })
         .catch(error => {
           console.error('Error fetching visitor details:', error);
-          
+
           // Try to get visitor data from current page data as fallback
           const fallbackData = extractVisitorDataFromPage(visitorId);
           if (fallbackData) {
-            console.log('Using fallback data from page');
             populateVisitorDetails(fallbackData);
             loading.classList.add('hidden');
             content.classList.remove('hidden');
@@ -3809,8 +3837,8 @@ Generated on: ${new Date().toLocaleString()}
           return visitor;
         }
       }
-      
-      
+
+
       // Try to find visitor in completed visits
       if (window.completedVisitors) {
         const visitor = window.completedVisitors.find(v => v.id == visitorId);
@@ -3818,24 +3846,23 @@ Generated on: ${new Date().toLocaleString()}
           return visitor;
         }
       }
-      
+
       return null;
     }
 
     // Populate visitor details in the modal
     function populateVisitorDetails(visitor) {
-      console.log('Populating visitor details:', visitor);
-      
+
       // Header information
       document.getElementById('detailVisitorName').textContent = visitor.name || 'Unknown';
       document.getElementById('detailVisitorCompany').textContent = visitor.company || 'No Company';
       document.getElementById('detailVisitorPassId').textContent = visitor.pass_id || 'N/A';
-      
+
       // Status badge - use the status from backend
       const statusEl = document.getElementById('detailVisitorStatus');
       const status = visitor.status || 'Pending';
       statusEl.textContent = status;
-      
+
       // Apply appropriate badge class based on status
       let badgeClass = 'badge-warning'; // default
       if (status === 'Active') {
@@ -3845,13 +3872,13 @@ Generated on: ${new Date().toLocaleString()}
       } else if (status === 'Pending Exit') {
         badgeClass = 'badge-error';
       }
-      
+
       statusEl.className = 'badge ' + badgeClass;
-      
+
       // Duration
       const duration = calculateDuration(visitor.time_in, visitor.time_out);
       document.getElementById('detailVisitorDuration').textContent = duration;
-      
+
       // Personal Information
       document.getElementById('detailName').textContent = visitor.name || '-';
       document.getElementById('detailCompany').textContent = visitor.company || '-';
@@ -3859,21 +3886,21 @@ Generated on: ${new Date().toLocaleString()}
       document.getElementById('detailContact').textContent = visitor.contact || '-';
       document.getElementById('detailIdType').textContent = visitor.id_type || '-';
       document.getElementById('detailIdNumber').textContent = visitor.id_number || '-';
-      
+
       // Visit Information
       document.getElementById('detailPurpose').textContent = visitor.purpose || '-';
       document.getElementById('detailHost').textContent = visitor.host_employee || '-';
       document.getElementById('detailDepartment').textContent = visitor.department || '-';
       document.getElementById('detailFacility').textContent = visitor.facility?.name || '-';
       document.getElementById('detailVehicle').textContent = visitor.vehicle_plate || '-';
-      
+
       // Time Information
       document.getElementById('detailExpectedIn').textContent = formatDateTime(visitor.arrival_date, visitor.arrival_time) || '-';
       document.getElementById('detailActualIn').textContent = formatDateTime(visitor.time_in) || '-';
       document.getElementById('detailExpectedOut').textContent = formatDateTime(visitor.expected_date_out, visitor.expected_time_out) || '-';
       document.getElementById('detailActualOut').textContent = formatDateTime(visitor.time_out) || '-';
       document.getElementById('detailDuration').textContent = duration;
-      
+
       // Pass Information
       document.getElementById('detailPassId').textContent = visitor.pass_id || '-';
       document.getElementById('detailPassType').textContent = visitor.pass_type ? visitor.pass_type.replace('_', ' ').toUpperCase() : '-';
@@ -3881,7 +3908,7 @@ Generated on: ${new Date().toLocaleString()}
       document.getElementById('detailValidFrom').textContent = formatDateTime(visitor.pass_valid_from) || '-';
       document.getElementById('detailValidUntil').textContent = formatDateTime(visitor.pass_valid_until) || '-';
       document.getElementById('detailEscortRequired').textContent = visitor.escort_required ? visitor.escort_required.toUpperCase() : 'NO';
-      
+
       // Store current visitor ID for actions
       window.currentDetailVisitorId = visitor.id;
     }
@@ -3889,16 +3916,16 @@ Generated on: ${new Date().toLocaleString()}
     // Calculate duration between two times
     function calculateDuration(timeIn, timeOut) {
       if (!timeIn) return 'Not checked in';
-      
+
       const start = new Date(timeIn);
       const end = timeOut ? new Date(timeOut) : new Date();
       const diffMs = end - start;
-      
+
       if (diffMs < 0) return '0m';
-      
+
       const hours = Math.floor(diffMs / (1000 * 60 * 60));
       const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-      
+
       if (hours > 0) {
         return `${hours}h ${minutes}m`;
       } else {
@@ -3909,16 +3936,16 @@ Generated on: ${new Date().toLocaleString()}
     // Format date and time
     function formatDateTime(date, time) {
       if (!date) return null;
-      
+
       let dateTime;
       if (time) {
         dateTime = new Date(date + ' ' + time);
       } else {
         dateTime = new Date(date);
       }
-      
+
       if (isNaN(dateTime.getTime())) return null;
-      
+
       return dateTime.toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -3945,7 +3972,7 @@ Generated on: ${new Date().toLocaleString()}
     }
 
     // Simple global event listeners for modals
-    document.addEventListener('keydown', function(event) {
+    document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape') {
         const openModal = document.querySelector('dialog[open]');
         if (openModal) {
@@ -3955,7 +3982,7 @@ Generated on: ${new Date().toLocaleString()}
     });
 
     // Handle click outside modal to close - More specific to avoid conflicts
-    document.addEventListener('click', function(event) {
+    document.addEventListener('click', function (event) {
       // Only handle clicks on dialog elements that are actually modals
       if (event.target.tagName === 'DIALOG' && event.target.hasAttribute('open')) {
         const modal = event.target;
@@ -3994,7 +4021,7 @@ Generated on: ${new Date().toLocaleString()}
 
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
           previewImage.src = e.target.result;
           previewImage.style.display = 'block';
         };
@@ -4011,7 +4038,7 @@ Generated on: ${new Date().toLocaleString()}
     function removeFilePreview() {
       const fileInput = document.getElementById('id_document');
       const preview = document.getElementById('id_document_preview');
-      
+
       fileInput.value = '';
       preview.style.display = 'none';
     }
@@ -4025,7 +4052,7 @@ Generated on: ${new Date().toLocaleString()}
     }
 
     // Initialize file upload event listener
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       const fileInput = document.getElementById('id_document');
       if (fileInput) {
         fileInput.addEventListener('change', handleFileUpload);
@@ -4034,64 +4061,64 @@ Generated on: ${new Date().toLocaleString()}
   </script>
 
   <!-- Visitor Registration Modal -->
-  <div id="visitorModal" class="modal" onclick="closeVisitorModal()">
+  <div id="visitorModal" class="modal z-50" onclick="closeVisitorModal()">
+    <!-- Full-page backdrop overlay -->
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm -z-10"></div>
     <div class="modal-box" onclick="event.stopPropagation()">
       <!-- Modal Header -->
       <div class="modal-header">
         <h3 class="modal-title">
           <i data-lucide="user-plus" class="modal-icon"></i>
-              Visitor Registered & Pass Issuance
+          Visitor Registered & Pass Issuance
         </h3>
         <button onclick="closeVisitorModal()" class="modal-close-btn" aria-label="Close modal">
-          <i data-lucide="x" class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+          <i data-lucide="x"
+            class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
         </button>
       </div>
 
       <!-- Modal Body -->
       <div class="modal-body">
-        <form action="{{ route('visitor.store') }}" method="POST" enctype="multipart/form-data" id="visitorRegistrationForm" class="visitor-registration-form">
+        <form action="{{ route('visitor.store') }}" method="POST" enctype="multipart/form-data"
+          id="visitorRegistrationForm" class="visitor-registration-form">
           @csrf
-          
+
           <!-- Three Column Grid Layout -->
           <div class="form-grid-three">
-            
+
             <!-- Personal Information Section -->
             <div class="form-section">
               <div class="section-header">
                 <i data-lucide="user" class="section-icon"></i>
                 <span class="section-title">Personal Information</span>
               </div>
-              
+
               <div class="form-control">
                 <label class="form-label">
                   Full Name *
                 </label>
-                <input type="text" name="name" class="form-input" 
-                       placeholder="Enter visitor's full name" required>
+                <input type="text" name="name" class="form-input" placeholder="Enter visitor's full name" required>
               </div>
 
               <div class="form-control">
                 <label class="form-label">
                   Email Address *
                 </label>
-                <input type="email" name="email" class="form-input" 
-                       placeholder="Enter email address" required>
+                <input type="email" name="email" class="form-input" placeholder="Enter email address" required>
               </div>
 
               <div class="form-control">
                 <label class="form-label">
                   Phone Number *
                 </label>
-                <input type="tel" name="contact" class="form-input" 
-                       placeholder="Enter phone number" required>
+                <input type="tel" name="contact" class="form-input" placeholder="Enter phone number" required>
               </div>
 
               <div class="form-control">
                 <label class="form-label">
                   Company/Organization
                 </label>
-                <input type="text" name="company" class="form-input" 
-                       placeholder="Enter company name">
+                <input type="text" name="company" class="form-input" placeholder="Enter company name">
               </div>
             </div>
 
@@ -4101,21 +4128,20 @@ Generated on: ${new Date().toLocaleString()}
                 <i data-lucide="calendar" class="section-icon"></i>
                 <span class="section-title">Visit Information</span>
               </div>
-              
+
               <div class="form-control">
                 <label class="form-label">
                   Purpose of Visit *
                 </label>
-                <textarea name="purpose" class="form-textarea" 
-                          placeholder="Describe the purpose of visit" required></textarea>
+                <textarea name="purpose" class="form-textarea" placeholder="Describe the purpose of visit"
+                  required></textarea>
               </div>
 
               <div class="form-control">
                 <label class="form-label">
                   Person to Visit
                 </label>
-                <input type="text" name="host_employee" class="form-input" 
-                       placeholder="Enter host name">
+                <input type="text" name="host_employee" class="form-input" placeholder="Enter host name">
               </div>
 
               <div class="form-control">
@@ -4135,8 +4161,8 @@ Generated on: ${new Date().toLocaleString()}
                   <i data-lucide="calendar" class="form-icon"></i>
                   Expected Date Out
                 </label>
-                <input type="date" name="expected_date_out" class="form-input" 
-                       placeholder="What date will the visitor leave?">
+                <input type="date" name="expected_date_out" class="form-input"
+                  placeholder="What date will the visitor leave?">
               </div>
 
               <div class="form-control">
@@ -4144,8 +4170,8 @@ Generated on: ${new Date().toLocaleString()}
                   <i data-lucide="clock" class="form-icon"></i>
                   Expected Time Out
                 </label>
-                <input type="time" name="expected_time_out" class="form-input" 
-                       placeholder="What time will the visitor leave?">
+                <input type="time" name="expected_time_out" class="form-input"
+                  placeholder="What time will the visitor leave?">
               </div>
             </div>
 
@@ -4155,7 +4181,7 @@ Generated on: ${new Date().toLocaleString()}
                 <i data-lucide="credit-card" class="section-icon"></i>
                 <span class="section-title">Identification</span>
               </div>
-              
+
               <div class="form-control">
                 <label class="form-label">
                   ID Type
@@ -4174,16 +4200,14 @@ Generated on: ${new Date().toLocaleString()}
                 <label class="form-label">
                   ID Number
                 </label>
-                <input type="text" name="id_number" class="form-input" 
-                       placeholder="Enter ID number">
+                <input type="text" name="id_number" class="form-input" placeholder="Enter ID number">
               </div>
 
               <div class="form-control">
                 <label class="form-label">
                   Vehicle Plate Number (if applicable)
                 </label>
-                <input type="text" name="vehicle_plate" class="form-input" 
-                       placeholder="Enter vehicle plate number">
+                <input type="text" name="vehicle_plate" class="form-input" placeholder="Enter vehicle plate number">
               </div>
 
               <div class="form-control">
@@ -4192,15 +4216,16 @@ Generated on: ${new Date().toLocaleString()}
                   ID Document Upload *
                 </label>
                 <div class="file-upload-container">
-                  <input type="file" name="id_document" id="id_document" 
-                         class="file-upload-input" accept="image/*,.pdf" required>
+                  <input type="file" name="id_document" id="id_document" class="file-upload-input" accept="image/*,.pdf"
+                    required>
                   <label for="id_document" class="file-upload-label">
                     <i data-lucide="upload" class="upload-icon"></i>
                     <span class="upload-text">Upload ID Document</span>
                     <span class="upload-hint">Supported: JPG, PNG, PDF (Max 5MB)</span>
                   </label>
                   <div class="file-preview" id="id_document_preview" style="display: none;">
-                    <img id="preview_image" src="" alt="ID Document Preview" style="max-width: 200px; max-height: 150px;">
+                    <img id="preview_image" src="" alt="ID Document Preview"
+                      style="max-width: 200px; max-height: 150px;">
                     <div class="file-info">
                       <span id="file_name"></span>
                       <span id="file_size"></span>
@@ -4232,7 +4257,9 @@ Generated on: ${new Date().toLocaleString()}
   </div>
 
   <!-- Visitor Details Modal -->
-  <div id="visitorDetailsModal" class="modal" onclick="closeVisitorDetailsModal()">
+  <div id="visitorDetailsModal" class="modal z-50" onclick="closeVisitorDetailsModal()">
+    <!-- Full-page backdrop overlay -->
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm -z-10"></div>
     <div class="modal-box w-11/12 max-w-6xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
       <!-- Modal Header -->
       <div class="flex items-center justify-center mb-6 sticky top-0 bg-white z-10 pb-4 border-b border-gray-200">
@@ -4417,16 +4444,19 @@ Generated on: ${new Date().toLocaleString()}
   </div>
 
   <!-- Visitor Registration Success Modal -->
-  <div id="visitorSuccessModal" class="modal" onclick="closeSuccessModal()">
+  <div id="visitorSuccessModal" class="modal items-center justify-center z-50" onclick="closeSuccessModal()">
+    <!-- Full-page backdrop overlay -->
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm -z-10"></div>
     <div class="modal-box success-modal" onclick="event.stopPropagation()">
       <!-- Modal Header -->
       <div class="modal-header">
         <h3 class="modal-title">
           <i data-lucide="user-plus" class="modal-icon"></i>
-              Visitor Registered & Pass Issued
+          Visitor Registered & Pass Issued
         </h3>
         <button onclick="closeSuccessModal()" class="modal-close-btn" aria-label="Close modal">
-          <i data-lucide="x" class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
+          <i data-lucide="x"
+            class="text-xl md:text-2xl lg:text-3xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
         </button>
       </div>
 
@@ -4441,46 +4471,46 @@ Generated on: ${new Date().toLocaleString()}
       <!-- Modal Body -->
       <div class="modal-body success-body">
         <div class="success-content">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Pass Information Section -->
             <div class="pass-info-section">
               <h3 class="pass-info-title">Pass Information</h3>
               <div class="pass-details">
                 <div class="pass-detail-item">
                   <span class="pass-detail-label">Pass Number:</span>
-                    <span class="pass-detail-value" id="success-pass-number">Loading...</span>
+                  <span class="pass-detail-value" id="success-pass-number">Loading...</span>
                 </div>
                 <div class="pass-detail-item">
                   <span class="pass-detail-label">Visitor:</span>
-                    <span class="pass-detail-value" id="success-visitor-name">Loading...</span>
+                  <span class="pass-detail-value" id="success-visitor-name">Loading...</span>
                 </div>
                 <div class="pass-detail-item">
                   <span class="pass-detail-label">Company:</span>
-                    <span class="pass-detail-value" id="success-company">Loading...</span>
+                  <span class="pass-detail-value" id="success-company">Loading...</span>
                 </div>
                 <div class="pass-detail-item">
                   <span class="pass-detail-label">Check-in Time:</span>
-                    <span class="pass-detail-value" id="success-checkin-time">Loading...</span>
+                  <span class="pass-detail-value" id="success-checkin-time">Loading...</span>
                 </div>
                 <div class="pass-detail-item">
                   <span class="pass-detail-label">Purpose:</span>
-                    <span class="pass-detail-value" id="success-purpose">Loading...</span>
+                  <span class="pass-detail-value" id="success-purpose">Loading...</span>
                 </div>
                 <div class="pass-detail-item" id="success-arrival-date" style="display: none;">
                   <span class="pass-detail-label">Arrival Date:</span>
-                    <span class="pass-detail-value" id="success-arrival-date-value">Loading...</span>
+                  <span class="pass-detail-value" id="success-arrival-date-value">Loading...</span>
                 </div>
                 <div class="pass-detail-item" id="success-arrival-time" style="display: none;">
                   <span class="pass-detail-label">Arrival Time:</span>
-                    <span class="pass-detail-value" id="success-arrival-time-value">Loading...</span>
+                  <span class="pass-detail-value" id="success-arrival-time-value">Loading...</span>
                 </div>
                 <div class="pass-detail-item" id="success-expected-date-out" style="display: none;">
                   <span class="pass-detail-label">Expected Date Out:</span>
-                    <span class="pass-detail-value" id="success-expected-date-out-value">Loading...</span>
+                  <span class="pass-detail-value" id="success-expected-date-out-value">Loading...</span>
                 </div>
                 <div class="pass-detail-item" id="success-expected-time-out" style="display: none;">
                   <span class="pass-detail-label">Expected Time Out:</span>
-                    <span class="pass-detail-value" id="success-expected-time-out-value">Loading...</span>
+                  <span class="pass-detail-value" id="success-expected-time-out-value">Loading...</span>
                 </div>
                 <div class="pass-detail-item">
                   <span class="pass-detail-label">Status:</span>
@@ -4529,4 +4559,5 @@ Generated on: ${new Date().toLocaleString()}
   </div>
 
 </body>
-</html> 
+
+</html>

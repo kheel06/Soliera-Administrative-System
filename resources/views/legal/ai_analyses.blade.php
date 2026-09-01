@@ -10,11 +10,8 @@
             <div class="flex items-center justify-between">
                 <h1 class="text-3xl font-bold text-gray-900">AI Analyses</h1>
                 <div class="flex space-x-4">
-                    <button onclick="refreshAnalyses()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                        <i class="fas fa-sync-alt mr-2"></i>Refresh
-                    </button>
-                    <a href="{{ route('legal.legal_documents') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                        <i class="fas fa-file-alt mr-2"></i>Documents
+                    <a href="{{ route('legal.legal_documents') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 text-sm font-medium" style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;" onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'" onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
+                        <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>Documents
                     </a>
                 </div>
             </div>
@@ -56,8 +53,8 @@
                         </select>
                     </div>
                     <div class="flex items-end">
-                        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
-                            <i class="fas fa-search mr-2"></i>Filter
+                        <button type="submit" class="inline-flex items-center justify-center px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 text-sm font-medium" style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;" onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'" onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
+                            <i data-lucide="search" class="w-4 h-4 mr-2"></i>Filter
                         </button>
                     </div>
                 </form>
@@ -127,11 +124,11 @@
               @empty
               <tr>
                 <td colspan="8" class="py-10 text-center">
-                  <i class="fas fa-robot text-4xl text-gray-400 mb-4"></i>
+                  <i data-lucide="bot" class="w-16 h-16 text-gray-400 mb-4 mx-auto"></i>
                   <h3 class="text-lg font-medium text-gray-900 mb-2">No AI analyses found</h3>
                   <p class="text-gray-500 mb-4">No analyses match your current filters.</p>
-                  <a href="{{ route('legal.legal_documents') }}" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
-                    <i class="fas fa-file-alt mr-2"></i>Upload Documents
+                  <a href="{{ route('legal.legal_documents') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 text-sm font-medium" style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;" onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'" onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
+                    <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>Upload Documents
                   </a>
                 </td>
               </tr>
@@ -142,9 +139,18 @@
     </div>
 </div>
 
+@push('scripts')
 <script>
-function refreshAnalyses() {
-    location.reload();
-}
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
 </script>
+@endpush
 @endsection
+
+
+
+
+

@@ -8,9 +8,10 @@
   <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  @vite(['resources/css/soliera.css'])
+  @vite(['resources/css/app.css', 'resources/css/soliera.css', 'resources/js/app.js'])
 </head>
 <body class="bg-base-100">
+  @include('partials.page-loader')
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     @include('partials.sidebarr')
@@ -236,65 +237,16 @@
       });
     });
     
-    // Toast notification function
+    // Toast notification function - uses global showNotification
     function showToast(message, type = 'info', duration = 3000) {
-      // Use global showNotification if available (has progress bar), otherwise use local implementation
-      if (typeof window.showNotification !== 'undefined' && window.showNotification.toString().indexOf('progressBar') !== -1) {
+      // Use global showNotification if available (Soliera theme), otherwise use local fallback
+      if (typeof window.showNotification === 'function') {
         window.showNotification(message, type, duration);
         return;
       }
       
-      // Fallback to local implementation with progress bar
-      if (!document.getElementById('notification-progress-style')) {
-        const style = document.createElement('style');
-        style.id = 'notification-progress-style';
-        style.textContent = `
-          @keyframes progressBar {
-            from { width: 100%; }
-            to { width: 0%; }
-          }
-          @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-
-      const notification = document.createElement('div');
-      const alertType = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-      notification.className = `alert alert-${alertType} fixed bottom-4 right-4 z-[9999] max-w-sm shadow-lg relative overflow-hidden`;
-      notification.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; max-width: 24rem; animation: slideInRight 0.3s ease-out;';
-      
-      const iconMap = { 'success': 'check-circle', 'error': 'alert-circle', 'warning': 'alert-triangle', 'info': 'info' };
-      const icon = iconMap[type] || 'info';
-      
-      notification.innerHTML = `
-        <div class="flex items-center gap-2 px-4 py-3">
-          <i data-lucide="${icon}" class="w-5 h-5"></i>
-          <span>${message}</span>
-        </div>
-        <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-          <div class="notification-progress h-full bg-white/50" style="width: 100%; animation: progressBar ${duration}ms linear forwards;"></div>
-        </div>
-      `;
-      
-      document.body.appendChild(notification);
-      notification.offsetHeight;
-      
-      if (window.lucide && window.lucide.createIcons) {
-        window.lucide.createIcons();
-      }
-      
-      setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transition = 'opacity 0.3s ease-out';
-        setTimeout(() => {
-          if (notification.parentNode) {
-            notification.remove();
-          }
-        }, 300);
-      }, duration);
+      // Fallback to simple alert if global function not available
+      alert(message);
     }
   </script>
 </body>

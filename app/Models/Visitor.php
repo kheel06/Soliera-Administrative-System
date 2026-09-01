@@ -10,12 +10,61 @@ class Visitor extends Model
 {
     use HasFactory, Notifiable;
 
+    protected $table = 'visitor';
+
     protected $fillable = [
-        'name', 'email', 'contact', 'purpose', 'facility_id', 'time_in', 'time_out', 'company', 'department', 'host_employee', 'facility_reservation_id',
-        'pass_type', 'pass_validity', 'pass_valid_from', 'pass_valid_until', 'access_level', 'escort_required',
-        'special_instructions', 'generate_digital_pass', 'pass_id', 'pass_data', 'id_type', 'id_number', 'id_document_path', 'vehicle_plate', 'status', 'expected_time_out', 'expected_date_out', 'arrival_date', 'arrival_time', 'pending_exit', 'pending_exit_at',
-        'scheduled_date', 'scheduled_time', 'expected_duration', 'phone', 'access_code', 'profile_photo_url', 'rating', 'rating_comment',
-        'id_verified', 'id_verified_at', 'id_verified_by', 'id_verification_notes', 'id_verification_method', 'id_scanned_data'
+        'name',
+        'email',
+        'contact',
+        'purpose',
+        'facility_id',
+        'time_in',
+        'time_out',
+        'company',
+        'department',
+        'room',
+        'host_employee',
+        'host_id',
+        'facility_reservation_id',
+        'bulk_session_id',
+        'pass_type',
+        'pass_validity',
+        'pass_valid_from',
+        'pass_valid_until',
+        'access_level',
+        'escort_required',
+        'special_instructions',
+        'generate_digital_pass',
+        'pass_id',
+        'pass_data',
+        'id_type',
+        'id_number',
+        'id_document_path',
+        'vehicle_plate',
+        'status',
+        'approval_status',
+        'expected_time_out',
+        'expected_date_out',
+        'arrival_date',
+        'arrival_time',
+        'pending_exit',
+        'pending_exit_at',
+        'scheduled_date',
+        'scheduled_time',
+        'expected_duration',
+        'phone',
+        'access_code',
+        'profile_photo_url',
+        'rating',
+        'rating_comment',
+        'id_verified',
+        'id_verified_at',
+        'id_verified_by',
+        'id_verification_notes',
+        'id_verification_method',
+        'id_scanned_data',
+        'supporting_document',
+        'nda_signed'
     ];
 
     public function facility()
@@ -26,6 +75,11 @@ class Visitor extends Model
     public function facilityReservation()
     {
         return $this->belongsTo(FacilityReservation::class);
+    }
+
+    public function host()
+    {
+        return $this->belongsTo(User::class, 'host_id');
     }
 
     public function verifier()
@@ -51,5 +105,6 @@ class Visitor extends Model
         'id_verified' => 'boolean',
         'id_verified_at' => 'datetime',
         'id_scanned_data' => 'array',
+        'nda_signed' => 'boolean',
     ];
 }

@@ -1,0 +1,131 @@
+Field	Type	Null	Key	Default	Extra
+id	bigint(20) unsigned	NO	PRI	NULL	auto_increment
+folder_id	bigint(20) unsigned	YES	MUL	NULL	
+legal_document_id	varchar(255)	YES	UNI	NULL	
+document_id	varchar(255)	YES	UNI	NULL	
+linked_case_id	bigint(20) unsigned	YES	MUL	NULL	
+reference_id	varchar(255)	YES	UNI	NULL	
+title	varchar(255)	NO		NULL	
+description	text	YES		NULL	
+extracted_text	text	YES		NULL	
+metadata	longtext	YES		NULL	
+department	varchar(255)	YES		NULL	
+origin_department	varchar(255)	YES		NULL	
+employee_name	varchar(255)	YES		NULL	
+employee_email	varchar(255)	YES		NULL	
+position_title	varchar(255)	YES		NULL	
+employment_type	varchar(255)	YES		NULL	
+contract_start_date	date	YES		NULL	
+contract_end_date	date	YES		NULL	
+salary_amount	decimal(12,2)	YES		NULL	
+currency	varchar(3)	NO		PHP	
+responsible_officer	varchar(255)	YES		NULL	
+submission_notes	text	YES		NULL	
+version	int(11)	NO		1	
+file_path	varchar(255)	NO		NULL	
+external_reference_id	varchar(255)	YES	MUL	NULL	
+import_source	varchar(100)	YES		NULL	
+original_filename	varchar(255)	YES		NULL	
+file_size	bigint(20)	YES		NULL	
+mime_type	varchar(255)	YES		NULL	
+status	varchar(50)	NO	MUL	draft	
+source	varchar(255)	NO		document_management	
+category	varchar(255)	YES		NULL	
+ai_classification	varchar(255)	YES	MUL	NULL	
+ai_confidence	decimal(3,2)	YES		NULL	
+document_type	varchar(255)	YES	MUL	NULL	
+confidentiality_level	varchar(255)	NO	MUL	internal	
+retention_period	varchar(255)	YES		NULL	
+retention_until	date	YES	MUL	NULL	
+disposal_date	datetime	YES		NULL	
+retention_years	int(11)	YES		NULL	
+can_dispose	tinyint(1)	NO		0	
+disposal_reason	text	YES		NULL	
+editing_history	longtext	YES		NULL	
+collaborators	longtext	YES		NULL	
+last_edited_by	varchar(255)	YES		NULL	
+last_edited_at	timestamp	YES		NULL	
+access_log	longtext	YES		NULL	
+previous_status	varchar(255)	YES		NULL	
+is_in_disposal_review	tinyint(1)	NO	MUL	0	
+final_deletion_date	datetime	YES		NULL	
+is_archived	tinyint(1)	NO	MUL	0	
+archived_at	timestamp	YES	MUL	NULL	
+archive_location	varchar(255)	YES		NULL	
+access_permissions	longtext	YES		NULL	
+download_count	int(11)	NO		0	
+view_count	int(11)	NO		0	
+last_accessed_at	timestamp	YES		NULL	
+last_accessed_by	bigint(20) unsigned	YES	MUL	NULL	
+parent_document_id	varchar(255)	YES	MUL	NULL	
+document_series	varchar(255)	YES	MUL	NULL	
+version_number	int(11)	NO		1	
+is_latest_version	tinyint(1)	NO		1	
+approval_status	varchar(255)	NO	MUL	pending	
+approved_by	bigint(20) unsigned	YES	MUL	NULL	
+approved_at	timestamp	YES		NULL	
+approval_notes	text	YES		NULL	
+declined_by	bigint(20) unsigned	YES		NULL	
+decline_reason	text	YES		NULL	
+file_hash	varchar(255)	YES		NULL	
+tags	longtext	YES		NULL	
+requires_signature	tinyint(1)	NO		0	
+signature_data	longtext	YES		NULL	
+is_legal_document	tinyint(1)	NO		0	
+legal_classification	varchar(255)	YES		NULL	
+sub_category	varchar(255)	YES		NULL	
+confidence_score	int(11)	NO		50	
+reasoning	text	YES		NULL	
+uncertainties	text	YES		NULL	
+executive_summary_purpose	text	YES		NULL	
+executive_summary_obligations	text	YES		NULL	
+executive_summary_applicability	text	YES		NULL	
+content_preview	text	YES		NULL	
+legal_frameworks	longtext	YES		NULL	
+risk_reasoning	text	YES		NULL	
+review_reason	text	YES		NULL	
+effective_date	varchar(255)	YES		NULL	
+expiration_date	varchar(255)	YES		NULL	
+parties_involved	longtext	YES		NULL	
+obligations	longtext	YES		NULL	
+document_type_tags	longtext	YES		NULL	
+context_tags	longtext	YES		NULL	
+action_item_tags	longtext	YES		NULL	
+manual_review_recommended	tinyint(1)	NO		0	
+manual_review_reason	text	YES		NULL	
+priority	varchar(255)	NO		Medium	
+next_steps	longtext	YES		NULL	
+requires_legal_review	tinyint(1)	NO		0	
+requires_visitor_coordination	tinyint(1)	NO		0	
+legal_risk_score	varchar(255)	NO		Low	
+violation_score	varchar(255)	NO	MUL	Low	
+violation_details	longtext	YES		NULL	
+flagged_issues	longtext	YES		NULL	
+compliance_status	varchar(255)	NO	MUL	unknown	
+compliance_details	longtext	YES		NULL	
+regulatory_standards	longtext	YES		NULL	
+ai_tags	longtext	YES		NULL	
+ai_insights	longtext	YES		NULL	
+ai_analysis_completed	tinyint(1)	NO	MUL	0	
+ai_analysis_date	timestamp	YES		NULL	
+requires_immediate_review	tinyint(1)	NO	MUL	0	
+alert_reasons	longtext	YES		NULL	
+workflow_log	longtext	YES		NULL	
+lifecycle_log	longtext	YES		NULL	
+legal_case_data	longtext	YES		NULL	
+linked_reservation_id	bigint(20) unsigned	YES	MUL	NULL	
+workflow_stage	varchar(255)	NO		uploaded	
+signature_status	varchar(255)	YES		NULL	
+signed_at	timestamp	YES		NULL	
+signers	longtext	YES		NULL	
+final_pdf_path	varchar(255)	YES		NULL	
+signature_provider_id	varchar(255)	YES		NULL	
+ai_analysis	longtext	YES		NULL	
+author	varchar(255)	YES		NULL	
+uploaded_by	bigint(20) unsigned	NO		NULL	
+created_at	timestamp	YES	MUL	NULL	
+date_created	date	YES		NULL	
+date_submitted	date	YES		NULL	
+updated_at	timestamp	YES		NULL	
+reviewed_at	timestamp	YES		NULL	
+archived_by	bigint(20) unsigned	YES	MUL	NULL	

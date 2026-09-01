@@ -16,7 +16,7 @@
 
   @isset($pagination)
   <div class="mt-4 px-6 py-3 bg-gray-50 flex justify-end rounded-b-xl">
-    {{ $pagination }}
+    {!! $pagination !!}
   </div>
   @endisset
 </div>

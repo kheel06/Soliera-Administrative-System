@@ -47,7 +47,7 @@ class FacilityReservationController extends Controller
         $this->secureRepository = $secureRepository;
         $this->visitorService = $visitorService;
         $this->workflowService = $workflowService;
-        
+
         // Role restrictions removed - all users can now approve/deny reservations
     }
 
@@ -63,13 +63,17 @@ class FacilityReservationController extends Controller
     public function newRequest(Request $request)
     {
         $facilities = Facility::all();
+        // Keep legacy requests for backward compatibility, but view will use API data
         $requests = \App\Models\FacilityRequest::with(['facility', 'assignedTo'])->latest()->get();
-        
+
         // Get active tab from request parameter
         $validTabs = ['reservation', 'maintenance', 'equipment_request'];
         $tabParam = $request->get('tab');
         $activeTab = in_array($tabParam, $validTabs) ? $tabParam : 'reservation';
-        
+
+        // No longer expose API config to frontend - all API calls go through server-side proxy
+        // Token handled server-side to prevent 401 + avoid exposing secrets
+
         return view('facility_reservations.new_request', compact('facilities', 'requests', 'activeTab'));
     }
 
@@ -77,7 +81,7 @@ class FacilityReservationController extends Controller
     public function monitoringSummary(Request $request)
     {
         $now = now();
-        
+
         // Get ALL facility requests of type 'reservation' - this is what the system actually uses
         $allRequests = \App\Models\FacilityRequest::with(['facility', 'assignedTo'])
             ->where('request_type', 'reservation')
@@ -87,16 +91,16 @@ class FacilityReservationController extends Controller
             ->get();
 
         // Map to card data format
-        $facilities = $allRequests->map(function($request) use ($now) {
+        $facilities = $allRequests->map(function ($request) use ($now) {
             // Determine status based on time and database status
             // Priority: Time-based status > Database status
-            
+
             // Check time conditions
             $hasStarted = $request->requested_datetime && $request->requested_datetime <= $now;
             $hasEnded = $request->requested_end_datetime && $request->requested_end_datetime < $now;
             $isUpcoming = $request->requested_datetime && $request->requested_datetime > $now;
             $isCurrentlyActive = $hasStarted && !$hasEnded;
-            
+
             // Determine status - prioritize time-based status over database status
             // If approved (regardless of database status), check time window
             if ($request->status === 'approved') {
@@ -132,7 +136,7 @@ class FacilityReservationController extends Controller
                 $status = strtolower($request->status);
                 $statusLabel = ucfirst($request->status);
             }
-            
+
             $requestNotes = is_array($request->notes) ? $request->notes : (json_decode($request->notes, true) ?: []);
             $legalCaseStatus = data_get($requestNotes, 'legal.case_status');
             if ($legalCaseStatus) {
@@ -144,7 +148,7 @@ class FacilityReservationController extends Controller
                     $statusLabel = 'Pending Legal';
                 }
             }
-            
+
             return [
                 'id' => $request->id,
                 'facility_id' => $request->facility_id,
@@ -170,9 +174,9 @@ class FacilityReservationController extends Controller
         $totalActive = \App\Models\FacilityRequest::where('request_type', 'reservation')
             ->where('status', 'approved')
             ->where('requested_datetime', '<=', $now)
-            ->where(function($q) use ($now) {
+            ->where(function ($q) use ($now) {
                 $q->whereNull('requested_end_datetime')
-                  ->orWhere('requested_end_datetime', '>=', $now);
+                    ->orWhere('requested_end_datetime', '>=', $now);
             })
             ->count();
         $totalFacilities = \App\Models\Facility::count();
@@ -195,7 +199,7 @@ class FacilityReservationController extends Controller
         $items = \App\Models\FacilityRequest::where('request_type', 'equipment_request')
             ->latest()
             ->get()
-            ->map(function($r){
+            ->map(function ($r) {
                 $notes = is_array($r->notes) ? $r->notes : (json_decode($r->notes, true) ?: []);
                 return [
                     'id' => $r->id,
@@ -247,7 +251,7 @@ class FacilityReservationController extends Controller
         // If equipment request, store equipment details in notes (JSON) and clear facility_id
         if ($validated['request_type'] === 'equipment_request') {
             $equipmentItem = $request->input('equipment_item');
-            $equipmentQty = (int)($request->input('equipment_quantity') ?? 1);
+            $equipmentQty = (int) ($request->input('equipment_quantity') ?? 1);
             $validated['notes'] = json_encode([
                 'equipment_item' => $equipmentItem,
                 'equipment_quantity' => max(1, $equipmentQty)
@@ -264,6 +268,9 @@ class FacilityReservationController extends Controller
             Log::error('Failed to send request submitted email: ' . $e->getMessage());
         }
 
+        // Send system notification
+        \App\Services\SystemNotificationService::notifyFacilityReservationAction('created', $request_data);
+
         return response()->json([
             'success' => true,
             'message' => 'Request submitted successfully!',
@@ -275,16 +282,16 @@ class FacilityReservationController extends Controller
     public function approveRequest($id)
     {
         $request = \App\Models\FacilityRequest::findOrFail($id);
-        
+
         if ($request->status !== 'pending') {
             return response()->json([
                 'success' => false,
                 'message' => 'This request has already been processed.'
             ], 400);
         }
-        
+
         $request->update(['status' => 'approved']);
-        
+
         // Update facility status to occupied if it's a reservation
         if ($request->request_type === 'reservation' && $request->facility_id) {
             $facility = Facility::find($request->facility_id);
@@ -293,14 +300,17 @@ class FacilityReservationController extends Controller
                 Log::info("Facility {$facility->name} (ID: {$facility->id}) status updated to occupied for approved reservation");
             }
         }
-        
+
         // Send email notification
         try {
             Mail::to($request->contact_email)->send(new RequestApprovedMail($request));
         } catch (\Exception $e) {
             Log::error('Failed to send request approved email: ' . $e->getMessage());
         }
-        
+
+        // Send system notification
+        \App\Services\SystemNotificationService::notifyFacilityReservationAction('approved', $request);
+
         return response()->json([
             'success' => true,
             'message' => 'Request approved successfully!'
@@ -310,21 +320,21 @@ class FacilityReservationController extends Controller
     public function completeRequest($id, Request $requestData)
     {
         $request = \App\Models\FacilityRequest::findOrFail($id);
-        
+
         if ($request->status !== 'approved') {
             return response()->json([
                 'success' => false,
                 'message' => 'Only approved requests can be marked as completed.'
             ], 400);
         }
-        
+
         // Get inspection data from request (Laravel's input() handles both JSON and form data)
         $damageFlag = $requestData->input('damage_flag', 0);
         $damageCost = $requestData->input('damage_cost');
         $damageSeverity = $requestData->input('damage_severity');
         $damageDescription = $requestData->input('damage_description');
         $inspectionNotes = $requestData->input('inspection_notes');
-        
+
         // Convert damage_flag to boolean (handle string "1"/"0" or boolean true/false)
         // Handle different input formats: "1", "0", 1, 0, true, false, "true", "false"
         if (is_string($damageFlag)) {
@@ -332,7 +342,7 @@ class FacilityReservationController extends Controller
         } else {
             $damageFlag = (bool) $damageFlag;
         }
-        
+
         Log::info('Complete request - inspection data received', [
             'request_id' => $request->id,
             'damage_flag_raw' => $requestData->input('damage_flag'),
@@ -340,7 +350,7 @@ class FacilityReservationController extends Controller
             'damage_cost' => $damageCost,
             'has_damage' => $damageFlag,
         ]);
-        
+
         // Store inspection data in notes (as JSON)
         $notes = is_array($request->notes) ? $request->notes : (json_decode($request->notes, true) ?: []);
         $notes['inspection'] = [
@@ -352,7 +362,7 @@ class FacilityReservationController extends Controller
             'inspected_by' => auth()->id(),
             'inspected_at' => now()->toDateTimeString(),
         ];
-        
+
         $request->update([
             'status' => 'completed',
             'notes' => $notes,
@@ -361,7 +371,7 @@ class FacilityReservationController extends Controller
         // Free up the facility if it was a reservation
         if ($request->request_type === 'reservation' && $request->facility_id) {
             $facility = Facility::find($request->facility_id);
-            
+
             // If damage found, create legal case BEFORE freeing facility
             $legalCaseId = null;
             if ($damageFlag) {
@@ -381,7 +391,7 @@ class FacilityReservationController extends Controller
                             $request->requested_datetime->copy()->addHours(1)
                         ])
                         ->first();
-                    
+
                     if (!$reservation) {
                         // Get the user who made the request (from FacilityRequest)
                         $reservedByUserId = $request->assigned_to;
@@ -390,7 +400,7 @@ class FacilityReservationController extends Controller
                             $reservedByUser = \App\Models\User::where('email', $request->contact_email)->first();
                             $reservedByUserId = $reservedByUser ? $reservedByUser->id : auth()->id();
                         }
-                        
+
                         // Create a reservation record for legal tracking
                         $reservation = FacilityReservation::create([
                             'facility_id' => $request->facility_id,
@@ -409,10 +419,10 @@ class FacilityReservationController extends Controller
                             'requester_name' => $request->contact_name ?? 'Unknown',
                             'requester_contact' => $request->contact_email ?? 'N/A',
                         ]);
-                        
+
                         // Load relationships after creation
                         $reservation->load(['facility', 'reserver']);
-                        
+
                         // Refresh to ensure damage_flag is loaded
                         $reservation->refresh();
                     } else {
@@ -426,23 +436,23 @@ class FacilityReservationController extends Controller
                             'inspected_at' => now(),
                             'returned_at' => now(),
                         ]);
-                        
+
                         // Ensure relationships are loaded
                         if (!$reservation->relationLoaded('facility')) {
                             $reservation->load(['facility', 'reserver']);
                         }
-                        
+
                         // Refresh to ensure damage_flag is updated
                         $reservation->refresh();
                     }
-                    
+
                     // Verify damage_flag is set correctly
                     Log::info("Reservation damage flag status", [
                         'reservation_id' => $reservation->id,
                         'damage_flag' => $reservation->damage_flag,
                         'damage_flag_type' => gettype($reservation->damage_flag),
                     ]);
-                    
+
                     // Always escalate to legal if damage is found (regardless of cost)
                     // Use the variable directly instead of checking the model property
                     if ($damageFlag || $reservation->damage_flag) {
@@ -451,31 +461,31 @@ class FacilityReservationController extends Controller
                             'damage_flag' => $reservation->damage_flag,
                             'damage_cost' => $reservation->damage_cost,
                         ]);
-                        
+
                         // Create legal case synchronously so it's available immediately for redirect
                         try {
                             $legalCaseService = app(\App\Services\LegalCaseService::class);
                             $case = $legalCaseService->createFromReservationDamage($reservation);
                             $legalCaseId = $case->id;
-                            
+
                             // Verify case was created
                             $verifyCase = \App\Models\LegalCase::find($case->id);
                             if (!$verifyCase) {
                                 throw new \Exception("Legal case was not found after creation");
                             }
-                            
+
                             Log::info("Legal case created and verified", [
                                 'legal_case_id' => $case->id,
                                 'case_number' => $case->case_number,
                                 'case_type' => $case->case_type,
                                 'case_title' => $case->case_title,
                             ]);
-                            
+
                             // Update reservation remarks and legal_case_id
                             $reservation->remarks = trim(($reservation->remarks ? $reservation->remarks . ' ' : '') . 'Escalated to Legal.');
                             $reservation->legal_case_id = $case->id;
                             $reservation->save();
-                            
+
                             // Update facility request notes with legal case info
                             $requestNotes = is_array($request->notes) ? $request->notes : (json_decode($request->notes, true) ?: []);
                             $requestNotes['legal'] = [
@@ -487,7 +497,7 @@ class FacilityReservationController extends Controller
                                 'updated_at' => now()->toDateTimeString(),
                             ];
                             $request->update(['notes' => $requestNotes]);
-                            
+
                             Log::info("Facility damage escalated to Legal for reservation {$reservation->id}, case #{$case->case_number}", [
                                 'legal_case_id' => $case->id,
                                 'case_type' => $case->case_type,
@@ -517,7 +527,7 @@ class FacilityReservationController extends Controller
                     ]);
                 }
             }
-            
+
             // Free up the facility (regardless of damage status)
             if ($facility) {
                 $facility->update(['status' => 'available']);
@@ -533,6 +543,9 @@ class FacilityReservationController extends Controller
             Log::error("Failed to send request completion email: " . $e->getMessage());
         }
 
+        // Send system notification
+        \App\Services\SystemNotificationService::notifyFacilityReservationAction('completed', $request);
+
         return response()->json([
             'success' => true,
             'has_damage' => (bool) $damageFlag,
@@ -546,7 +559,7 @@ class FacilityReservationController extends Controller
     public function showRequest($id)
     {
         $request = \App\Models\FacilityRequest::with('facility')->findOrFail($id);
-        
+
         return response()->json([
             'success' => true,
             'data' => $request
@@ -556,16 +569,16 @@ class FacilityReservationController extends Controller
     public function freeFacility($id)
     {
         $facility = Facility::findOrFail($id);
-        
+
         if ($facility->status !== 'occupied') {
             return response()->json([
                 'success' => false,
                 'message' => 'This facility is not currently occupied.'
             ], 400);
         }
-        
+
         $facility->update(['status' => 'available']);
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Facility has been freed and is now available.'
@@ -601,7 +614,7 @@ class FacilityReservationController extends Controller
             'requester_contact' => Auth::user()->email,
             'workflow_stage' => 'submitted'
         ]);
-        
+
         // Initialize workflow log
         $reservation->logWorkflowStep('submitted', 'Facility reservation request submitted', [
             'facility' => $reservation->facility->name,
@@ -616,7 +629,7 @@ class FacilityReservationController extends Controller
             $reservation->update(['document_path' => $documentPath]);
 
             $reservation->logWorkflowStep('document_upload_started', 'Starting document upload process');
-            
+
             // Create a Document model entry for this uploaded file
             $document = \App\Models\Document::create([
                 'title' => 'Reservation Document for ' . ($reservation->facility->name ?? 'Facility #' . $reservation->facility_id),
@@ -627,20 +640,23 @@ class FacilityReservationController extends Controller
                 'status' => 'archived',
                 'source' => 'facility_reservations', // Mark as uploaded via facility reservations
             ]);
-            
+
             // Link the created Document to the FacilityReservation
             $reservation->update(['document_id' => $document->id]);
-            
+
             // Store document in secure repository (now using the created Document model)
             $storeResult = $this->secureRepository->storeDocument(
-                $request->file('document'), 
+                $request->file('document'),
                 $reservation->id, // still pass reservation ID for secure storage naming
                 $document->id // Pass document ID for logging/linking if needed by repository
             );
-            
+
             if ($storeResult['success']) {
-                $reservation->logWorkflowStep('document_stored_secure_repository', 
-                    'Document stored and indexed in secure repository', $storeResult['index']);
+                $reservation->logWorkflowStep(
+                    'document_stored_secure_repository',
+                    'Document stored and indexed in secure repository',
+                    $storeResult['index']
+                );
             }
             // Kick off AI processing workflow and task creation
             // ProcessReservationDocument job will create the document_classification task
@@ -680,25 +696,28 @@ class FacilityReservationController extends Controller
     public function approve($id)
     {
         $reservation = FacilityReservation::findOrFail($id);
-        
+
         if ($reservation->current_workflow_status !== 'ready_for_approval') {
             return redirect()->back()->with('error', 'This reservation is not yet ready for manual approval. All required tasks must be completed first.');
         }
-        
+
         if ($reservation->status !== 'pending') {
             return redirect()->back()->with('error', 'This reservation has already been processed.');
         }
-        
+
         $reservation->update([
             'status' => 'approved',
             'approved_by' => Auth::id(),
             'remarks' => request('remarks'),
             'current_workflow_status' => 'approved'
         ]);
-        
+
         // Notify reserver
         $reservation->reserver->notify(new FacilityReservationStatusNotification($reservation));
-        
+
+        // Mark related notifications as handled/read for admins
+        $this->markRequestNotificationsAsHandled($reservation);
+
         // Log action
         AccessLog::create([
             'user_id' => Auth::id(),
@@ -706,28 +725,28 @@ class FacilityReservationController extends Controller
             'description' => 'Approved facility reservation ID ' . $reservation->id,
             'ip_address' => request()->ip()
         ]);
-        
+
         return redirect()->route('facility_reservations.index')->with('success', 'Reservation approved!');
     }
 
     public function deny($id)
     {
         $reservation = FacilityReservation::findOrFail($id);
-        
+
         if ($reservation->status !== 'pending' && $reservation->status !== 'denied') {
             return redirect()->back()->with('error', 'This reservation has already been processed or cannot be denied at this stage.');
         }
-        
+
         $reservation->update([
             'status' => 'denied',
             'approved_by' => Auth::id(),
             'remarks' => request('remarks'),
             'current_workflow_status' => 'denied'
         ]);
-        
+
         // Notify reserver
         $reservation->reserver->notify(new FacilityReservationStatusNotification($reservation));
-        
+
         // Log action
         AccessLog::create([
             'user_id' => Auth::id(),
@@ -735,20 +754,20 @@ class FacilityReservationController extends Controller
             'description' => 'Denied facility reservation ID ' . $reservation->id,
             'ip_address' => request()->ip()
         ]);
-        
+
         return redirect()->route('facility_reservations.index')->with('success', 'Reservation denied.');
     }
 
     public function userHistory(Request $request)
     {
         $userId = auth()->id();
-        
+
         // Get user's reservations with pagination
         $reservations = FacilityReservation::where('reserved_by', $userId)
             ->with(['facility', 'approver'])
             ->orderBy('created_at', 'desc')
             ->paginate(10);
-        
+
         // Get analytics data with safe fallbacks to avoid blank page on error
         try {
             $analytics = [
@@ -780,7 +799,7 @@ class FacilityReservationController extends Controller
                 'peak_booking_times' => collect(),
             ];
         }
-        
+
         return view('facility_reservations.user_history', compact('reservations', 'analytics'));
     }
 
@@ -819,17 +838,17 @@ class FacilityReservationController extends Controller
     public function legalReview($id)
     {
         $reservation = FacilityReservation::with(['facility', 'reserver', 'approver', 'tasks'])->findOrFail($id);
-        
+
         $legalTask = $reservation->tasks()->where('task_type', 'legal_review')->first();
         if (!$legalTask) {
             return redirect()->back()->with('error', 'Legal review is not required or task does not exist for this reservation.');
         }
-        
+
         // Ensure the task is still pending
         if ($legalTask->status !== 'pending') {
             return redirect()->back()->with('error', 'This legal review task has already been processed.');
         }
-        
+
         return view('facility_reservations.legal_review', compact('reservation', 'legalTask'));
     }
 
@@ -837,15 +856,15 @@ class FacilityReservationController extends Controller
     {
         $reservation = FacilityReservation::findOrFail($id);
         $legalTask = $reservation->tasks()->where('task_type', 'legal_review')->first();
-        
+
         if (!$legalTask || $legalTask->status !== 'pending') {
             return redirect()->back()->with('error', 'Legal review task not found or already completed.');
         }
-        
+
         $this->workflowService->updateTaskStatus($legalTask, 'completed', request('legal_comment'));
-        
+
         // No direct status update on reservation here; workflow service handles it
-        
+
         // Log action
         AccessLog::create([
             'user_id' => Auth::id(),
@@ -853,7 +872,7 @@ class FacilityReservationController extends Controller
             'description' => 'Legal approved facility reservation ID ' . $reservation->id . ' (Task ID: ' . $legalTask->id . ')',
             'ip_address' => request()->ip()
         ]);
-        
+
         return redirect()->route('facility_reservations.show', $id)->with('success', 'Legal review completed successfully!');
     }
 
@@ -861,13 +880,13 @@ class FacilityReservationController extends Controller
     {
         $reservation = FacilityReservation::findOrFail($id);
         $legalTask = $reservation->tasks()->where('task_type', 'legal_review')->first();
-        
+
         if (!$legalTask || $legalTask->status !== 'pending') {
             return redirect()->back()->with('error', 'Legal review task not found or already completed.');
         }
-        
+
         $this->workflowService->updateTaskStatus($legalTask, 'flagged', request('legal_comment'));
-        
+
         // Also deny the main reservation if flagged by legal
         $reservation->update([
             'status' => 'denied',
@@ -875,10 +894,10 @@ class FacilityReservationController extends Controller
             'remarks' => 'Flagged by legal review: ' . request('legal_comment'),
             'current_workflow_status' => 'denied_by_legal'
         ]);
-        
+
         // Notify reserver
         $reservation->reserver->notify(new FacilityReservationStatusNotification($reservation));
-        
+
         // Log action
         AccessLog::create([
             'user_id' => Auth::id(),
@@ -886,26 +905,26 @@ class FacilityReservationController extends Controller
             'description' => 'Legal flagged facility reservation ID ' . $reservation->id . ' (Task ID: ' . $legalTask->id . ')',
             'ip_address' => request()->ip()
         ]);
-        
+
         return redirect()->route('facility_reservations.show', $id)->with('success', 'Reservation flagged by legal review.');
     }
 
     public function extractVisitorData($id)
     {
         $reservation = FacilityReservation::findOrFail($id);
-        
+
         $documentTask = $reservation->tasks()->where('task_type', 'document_classification')->first();
         if (!$documentTask || $documentTask->status !== 'completed') {
             return redirect()->back()->with('error', 'Document classification must be complete before extracting visitor data.');
         }
-        
+
         $aiResult = $documentTask->details['ai_classification'] ?? [];
         if (empty($aiResult)) {
             return redirect()->back()->with('error', 'AI classification data not found for visitor extraction.');
         }
 
         $visitorTask = $reservation->tasks()->where('task_type', 'visitor_coordination')->first();
-        
+
         if (!$visitorTask) {
             // If task doesn't exist, create it via workflow service, which will then trigger extraction
             $visitorTask = $this->workflowService->createVisitorCoordinationTask($reservation);
@@ -917,14 +936,14 @@ class FacilityReservationController extends Controller
         } else {
             return redirect()->back()->with('error', 'Visitor coordination task is not in a state to extract data.');
         }
-        
+
         return redirect()->route('facility_reservations.show', $id)->with('success', 'Visitor data extraction initiated. Please allow a moment for processing.');
     }
 
     public function approveVisitors($id)
     {
         $reservation = FacilityReservation::findOrFail($id);
-        
+
         $visitorTask = $reservation->tasks()->where('task_type', 'visitor_coordination')->first();
         if (!$visitorTask || $visitorTask->status !== 'pending' && $visitorTask->status !== 'in_progress') {
             return redirect()->back()->with('error', 'Visitor coordination task not found or not in an approvable state.');
@@ -934,10 +953,10 @@ class FacilityReservationController extends Controller
         if ($reservation->visitors->isEmpty()) {
             return redirect()->back()->with('error', 'No visitors records found for this reservation to approve.');
         }
-        
+
         // Update the visitor task status to completed
         $this->workflowService->updateTaskStatus($visitorTask, 'completed', 'Visitors approved by user.');
-        
+
         // The workflow service (or a job it dispatches) will now handle the actual approval and pass generation.
 
         return redirect()->route('facility_reservations.show', $id)->with('success', 'Visitors approved! Digital passes are being generated and security team will be notified.');
@@ -947,15 +966,15 @@ class FacilityReservationController extends Controller
     {
         $facilities = Facility::where('status', 'available')->get();
         $selectedFacility = $facilityId ? Facility::findOrFail($facilityId) : ($facilities->first() ?: null);
-        
+
         $startDate = $request->get('start_date', now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('end_date', now()->endOfMonth()->format('Y-m-d'));
-        
+
         $calendar = [];
         if ($selectedFacility) {
             $calendar = $this->calendarService->getFacilityCalendar($selectedFacility->id, $startDate, $endDate);
         }
-        
+
         return view('facility_reservations.calendar', compact('facilities', 'selectedFacility', 'calendar', 'startDate', 'endDate'));
     }
 
@@ -1021,12 +1040,12 @@ class FacilityReservationController extends Controller
     public function destroy($id)
     {
         $reservation = FacilityReservation::findOrFail($id);
-        
+
         // The boot method in FacilityReservation model now handles deleting associated documents and tasks.
         // if ($reservation->document_path) {
         //     Storage::disk('public')->delete($reservation->document_path);
         // }
-        
+
         $reservation->delete();
         return redirect()->route('facility_reservations.index')->with('success', 'Reservation deleted.');
     }
@@ -1034,7 +1053,7 @@ class FacilityReservationController extends Controller
     public function adminAnalytics(Request $request)
     {
         Log::info('Admin analytics method called - using ultra-simple approach');
-        
+
         // Ultra-simple analytics that will definitely load fast
         $analytics = [
             'overview' => [
@@ -1103,7 +1122,7 @@ class FacilityReservationController extends Controller
             'recent_reservations_count' => $recentReservations->count(),
             'pending_reservations_count' => $pendingReservations->count()
         ]);
-        
+
         return view('facility_reservations.admin_analytics', compact('analytics', 'recentReservations', 'pendingReservations'));
     }
 
@@ -1124,12 +1143,14 @@ class FacilityReservationController extends Controller
 
     private function getFacilityUsageStats()
     {
-        return \App\Models\Facility::withCount(['reservations' => function($query) {
-            $query->where('status', 'approved');
-        }])
-        ->orderBy('reservations_count', 'desc')
-        ->limit(5)
-        ->get();
+        return \App\Models\Facility::withCount([
+            'reservations' => function ($query) {
+                $query->where('status', 'approved');
+            }
+        ])
+            ->orderBy('reservations_count', 'desc')
+            ->limit(5)
+            ->get();
     }
 
     private function getReservationTrends()
@@ -1198,7 +1219,7 @@ class FacilityReservationController extends Controller
         $currentMonth = FacilityReservation::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-        
+
         $lastMonth = FacilityReservation::whereMonth('created_at', now()->subMonth()->month)
             ->whereYear('created_at', now()->subMonth()->year)
             ->count();
@@ -1214,7 +1235,7 @@ class FacilityReservationController extends Controller
     {
         $total = FacilityReservation::whereIn('status', ['approved', 'denied'])->count();
         $approved = FacilityReservation::where('status', 'approved')->count();
-        
+
         return $total > 0 ? ($approved / $total) * 100 : 0;
     }
 
@@ -1234,7 +1255,7 @@ class FacilityReservationController extends Controller
     {
         $totalRevenue = $this->getRevenueAnalytics()['total_revenue'];
         $totalBookings = FacilityReservation::where('status', 'approved')->count();
-        
+
         return $totalBookings > 0 ? $totalRevenue / $totalBookings : 0;
     }
 
@@ -1278,7 +1299,7 @@ class FacilityReservationController extends Controller
     {
         $monthName = \Carbon\Carbon::createFromDate($year, $month)->format('F');
         $filename = "facility_usage_report_{$monthName}_{$year}" . ($facilityId ? "_facility_{$facilityId}" : '') . ".xlsx";
-        
+
         return Excel::download(new MonthlyFacilityReportExport($month, $year, $facilityId), $filename);
     }
 
@@ -1294,7 +1315,7 @@ class FacilityReservationController extends Controller
             'year' => $year,
             'monthName' => $monthName
         ]);
-        
+
         $filename = "facility_usage_report_{$monthName}_{$year}.pdf";
         return $pdf->download($filename);
     }
@@ -1319,9 +1340,9 @@ class FacilityReservationController extends Controller
         $approvedReservations = $reservations->where('status', 'approved')->count();
         $pendingReservations = $reservations->where('status', 'pending')->count();
         $deniedReservations = $reservations->where('status', 'denied')->count();
-        
+
         $totalHours = $reservations->where('status', 'approved')->sum(function ($reservation) {
-            return $reservation->start_time && $reservation->end_time ? 
+            return $reservation->start_time && $reservation->end_time ?
                 $reservation->start_time->diffInHours($reservation->end_time) : 0;
         });
 
@@ -1337,7 +1358,7 @@ class FacilityReservationController extends Controller
                     'facility_name' => $facility->name ?? 'Unknown',
                     'reservation_count' => $facilityReservations->count(),
                     'total_hours' => $facilityReservations->sum(function ($reservation) {
-                        return $reservation->start_time && $reservation->end_time ? 
+                        return $reservation->start_time && $reservation->end_time ?
                             $reservation->start_time->diffInHours($reservation->end_time) : 0;
                     }),
                     'revenue' => $facilityReservations->sum('payment_amount') ?? 0
@@ -1354,7 +1375,7 @@ class FacilityReservationController extends Controller
                     'date' => $date,
                     'reservation_count' => $dayReservations->count(),
                     'total_hours' => $dayReservations->sum(function ($reservation) {
-                        return $reservation->start_time && $reservation->end_time ? 
+                        return $reservation->start_time && $reservation->end_time ?
                             $reservation->start_time->diffInHours($reservation->end_time) : 0;
                     })
                 ];
@@ -1380,7 +1401,7 @@ class FacilityReservationController extends Controller
                     'reserved_by' => $reservation->reserver->name ?? 'N/A',
                     'start_time' => $reservation->start_time ? $reservation->start_time->format('Y-m-d H:i') : 'N/A',
                     'end_time' => $reservation->end_time ? $reservation->end_time->format('Y-m-d H:i') : 'N/A',
-                    'duration_hours' => $reservation->start_time && $reservation->end_time ? 
+                    'duration_hours' => $reservation->start_time && $reservation->end_time ?
                         round($reservation->start_time->diffInHours($reservation->end_time), 2) : 0,
                     'purpose' => $reservation->purpose ?? 'Not specified',
                     'status' => $reservation->status,
@@ -1396,7 +1417,7 @@ class FacilityReservationController extends Controller
     public function monthlyReports()
     {
         $facilities = Facility::where('status', 'available')->get();
-        
+
         // Get available months/years with data
         $availablePeriods = FacilityReservation::selectRaw('YEAR(start_time) as year, MONTH(start_time) as month')
             ->distinct()
@@ -1426,7 +1447,7 @@ class FacilityReservationController extends Controller
         ]);
 
         $reportData = $this->getMonthlyReportData($request->month, $request->year, $request->facility_id);
-        
+
         return response()->json([
             'success' => true,
             'data' => $reportData
@@ -1452,18 +1473,21 @@ class FacilityReservationController extends Controller
         $weekly = (clone $query)
             ->whereBetween('created_at', [$oneWeekAgo, $now])
             ->get()
-            ->groupBy(function ($r) { return $r->created_at->format('D'); })
+            ->groupBy(function ($r) {
+                return $r->created_at->format('D'); })
             ->map->count();
 
-        $days = collect(range(0,6))->map(function($i) use ($oneWeekAgo){ return $oneWeekAgo->copy()->addDays($i)->format('D'); });
-        $weeklySeries = $days->map(function($d) use ($weekly){ return [ 'day' => $d, 'count' => (int)($weekly[$d] ?? 0) ]; });
+        $days = collect(range(0, 6))->map(function ($i) use ($oneWeekAgo) {
+            return $oneWeekAgo->copy()->addDays($i)->format('D'); });
+        $weeklySeries = $days->map(function ($d) use ($weekly) {
+            return ['day' => $d, 'count' => (int) ($weekly[$d] ?? 0)]; });
 
         $recent = (clone $query)
             ->with('facility:id,name')
             ->latest()
             ->limit(20)
             ->get()
-            ->map(function($r){
+            ->map(function ($r) {
                 return [
                     'id' => $r->id,
                     'code' => 'REQ-' . str_pad($r->id, 3, '0', STR_PAD_LEFT),
@@ -1504,7 +1528,7 @@ class FacilityReservationController extends Controller
         ];
 
         $filename = 'facilities_monitoring_report_' . now()->format('Y-m-d_H-i-s');
-        
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('facilities.reports.monitoring_pdf', $reportData);
         return $pdf->download($filename . '.pdf');
     }
@@ -1512,7 +1536,7 @@ class FacilityReservationController extends Controller
     // 1) Show inspection form
     public function returnReview($id)
     {
-        $reservation = FacilityReservation::with(['facility','reserver'])->findOrFail($id);
+        $reservation = FacilityReservation::with(['facility', 'reserver'])->findOrFail($id);
         // (Optional) authorize here if you added policies
         // $this->authorize('update', $reservation);
         return view('facility_reservations.return_review', compact('reservation'));
@@ -1525,11 +1549,11 @@ class FacilityReservationController extends Controller
         // $this->authorize('update', $reservation); // optional policy
         $data = $request->validate([
             'inspection_notes' => 'nullable|string',
-            'damage_flag'      => 'nullable|boolean',
-            'damage_cost'      => 'nullable|numeric|min:0',
-            'damage_photos.*'  => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:10240',
+            'damage_flag' => 'nullable|boolean',
+            'damage_cost' => 'nullable|numeric|min:0',
+            'damage_photos.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:10240',
         ]);
-        
+
         // Ensure damage_flag is boolean (checkbox returns "1" or "0" as string)
         $data['damage_flag'] = isset($data['damage_flag']) && $data['damage_flag'] !== '0' && $data['damage_flag'] !== false;
 
@@ -1548,13 +1572,13 @@ class FacilityReservationController extends Controller
 
         $reservation->update([
             'inspection_notes' => $data['inspection_notes'] ?? null,
-            'damage_flag'      => (bool) ($data['damage_flag'] ?? false),
-            'damage_cost'      => $data['damage_cost'] ?? null,
-            'damage_photos'    => !empty($photoPaths) ? $photoPaths : $reservation->damage_photos,
-            'inspected_by'     => auth()->id(),
-            'inspected_at'     => now(),
-            'checked_out_at'   => $reservation->checked_out_at ?? now(),
-            'returned_at'      => now(),
+            'damage_flag' => (bool) ($data['damage_flag'] ?? false),
+            'damage_cost' => $data['damage_cost'] ?? null,
+            'damage_photos' => !empty($photoPaths) ? $photoPaths : $reservation->damage_photos,
+            'inspected_by' => auth()->id(),
+            'inspected_at' => now(),
+            'checked_out_at' => $reservation->checked_out_at ?? now(),
+            'returned_at' => now(),
         ]);
 
         $reservation->logWorkflowStep('return_inspected', 'Return inspection recorded', [
@@ -1573,5 +1597,61 @@ class FacilityReservationController extends Controller
             ->with('success', $reservation->needsLegalEscalation()
                 ? 'Inspection submitted and escalated to Legal.'
                 : 'Inspection submitted.');
+    }
+
+    /**
+     * Mark facility request notifications as handled when request is approved
+     */
+    private function markRequestNotificationsAsHandled($reservation)
+    {
+        try {
+            // Find FacilityRequest if it exists
+            $facilityRequest = null;
+            if ($reservation->facility_request_id) {
+                $facilityRequest = \App\Models\FacilityRequest::find($reservation->facility_request_id);
+            }
+
+            if (!$facilityRequest) {
+                // Try to find by facility and time range
+                $facilityRequest = \App\Models\FacilityRequest::where('facility_id', $reservation->facility_id)
+                    ->where('request_type', 'reservation')
+                    ->where('status', 'pending')
+                    ->whereBetween('requested_datetime', [
+                        $reservation->start_time->copy()->subHours(1),
+                        $reservation->start_time->copy()->addHours(1)
+                    ])
+                    ->first();
+            }
+
+            if ($facilityRequest) {
+                // Mark all notifications related to this request as read for all admin department accounts
+                $adminAccounts = \App\Models\DeptAccount::where(function ($query) {
+                    $adminRoles = ['Administrator', 'Super Admin', 'Admin', 'SuperAdmin'];
+                    $query->whereIn('role', $adminRoles)
+                        ->orWhere('role', 'like', '%Administrator%')
+                        ->orWhere('role', 'like', '%Super Admin%')
+                        ->orWhere('role', 'like', '%Admin%');
+                })
+                    ->where('status', 'active')
+                    ->get();
+
+                foreach ($adminAccounts as $adminAccount) {
+                    $adminAccount->notifications()
+                        ->where('type', \App\Notifications\NewFacilityRequestNotification::class)
+                        ->where('data->request_id', $facilityRequest->id)
+                        ->whereNull('read_at')
+                        ->get()
+                        ->each(function ($notification) use ($adminAccount) {
+                            $notification->markAsRead();
+                            event(new \App\Events\NotificationUpdated($notification->id, 'handled', $adminAccount));
+                        });
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Error marking request notifications as handled', [
+                'reservation_id' => $reservation->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

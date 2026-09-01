@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Legal Documents Management - Soliera</title>
+  <title>Legal Docs | Soliera</title>
+  @include('partials.favicon')
   <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  @vite(['resources/css/soliera.css'])
+  @vite(['resources/css/app.css', 'resources/css/soliera.css', 'resources/js/app.js'])
   
   <style>
     .swal2-popup {
@@ -50,6 +51,7 @@
   </style>
 </head>
 <body class="bg-base-100">
+  @include('partials.page-loader')
   <div class="flex h-screen overflow-hidden">
     <!-- Mobile Overlay -->
     <div id="mobile-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden lg:hidden" onclick="toggleSidebar()"></div>
@@ -110,94 +112,115 @@
         </div>
 
         <!-- Page Header -->
-        <div class="mb-8">
-          <div class="pb-5 border-b border-base-300 mb-6">
-            <div class="flex justify-between items-center mb-4">
+        <div class="mb-4 sm:mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex items-center gap-2 sm:gap-3">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="scale" class="w-5 h-5 sm:w-6 sm:h-6 text-[#F7B32B]"></i>
+              </div>
               <div>
-                <h1 class="text-2xl font-semibold bg-white bg-clip-text text-[#191970]" style="color: var(--color-charcoal-ink);">Legal Documents</h1>
+                <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Legal Documents</h1>
+                <p class="text-gray-500 text-xs sm:text-sm">Manage and track all legal documentation</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6">
+          <!-- Total Legal Documents -->
+          <div class="bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="order-2 sm:order-1">
+                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider truncate">Documents</p>
+                <p id="total-docs-count" class="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 sm:mt-1">{{ $stats['total'] ?? 0 }}</p>
+              </div>
+              <div class="order-1 sm:order-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="folder" class="w-4 h-4 sm:w-5 sm:h-5 text-[#F7B32B]"></i>
               </div>
             </div>
           </div>
 
-          <!-- Status Summary Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
-              <!-- Total Legal Documents -->
-              <x-stat-card 
-                title="Legal Documents" 
-                :value="$stats['total'] ?? 0" 
-                icon="fa-folder" 
-                iconColor="text-yellow-400" 
-                bgColor="bg-blue-900" />
-
-              <!-- Approved Documents -->
-              <x-stat-card 
-                title="Approved" 
-                :value="$stats['active'] ?? 0" 
-                icon="fa-check-circle" 
-                iconColor="text-yellow-400" 
-                bgColor="bg-blue-900" />
-
-              <!-- Violation Alerts -->
-              <x-stat-card 
-                title="Violations" 
-                :value="$stats['violations'] ?? 0" 
-                icon="fa-shield-alt" 
-                iconColor="text-yellow-400" 
-                bgColor="bg-blue-900" />
+          <!-- Approved Documents -->
+          <div class="bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="order-2 sm:order-1">
+                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider truncate">Approved</p>
+                <p id="approved-docs-count" class="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 sm:mt-1">{{ $stats['active'] ?? 0 }}</p>
+              </div>
+              <div class="order-1 sm:order-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="check-circle" class="w-4 h-4 sm:w-5 sm:h-5 text-[#F7B32B]"></i>
+              </div>
             </div>
+          </div>
 
-          <!-- Bottom Border Separator -->
-          <div class="border-b border-base-300 mb-6"></div>
+          <!-- Pending Review -->
+          <div class="bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="order-2 sm:order-1">
+                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider truncate">Pending</p>
+                <p id="pending-docs-count" class="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 sm:mt-1">{{ $stats['pending_review'] ?? 0 }}</p>
+              </div>
+              <div class="order-1 sm:order-2 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                <i data-lucide="clock" class="w-4 h-4 sm:w-5 sm:h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Tabs -->
         @php 
-          $validTabs = ['documents','create','monitor'];
+                                                                                                                        $validTabs = ['documents', 'create', 'monitor'];
           $tabParam = request('tab');
           $activeTab = in_array($tabParam, $validTabs) ? $tabParam : 'documents';
         @endphp
-          <div class="bg-white rounded-xl shadow-lg p-6">
-            <!-- Clickable Breadcrumb Navigation -->
-            <div class="mb-4 sm:mb-6">
-              <nav class="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-                <button id="nav-documents" class="text-blue-600 hover:text-blue-800 font-medium flex items-center transition-colors duration-200 px-2 py-1 rounded {{ $activeTab==='documents' ? 'text-blue-800 font-semibold bg-blue-50' : '' }}" onclick="showLegalTab('documents')">
-                  <i data-lucide="folder" class="text-sm md:text-base lg:text-lg transition-all duration-300 ease-in-out hover:text-accent cursor-pointer mr-1"></i>
-                  <span class="hidden sm:inline">Documents</span>
-                  <span class="sm:hidden">Docs</span>
-                </button>
-                <i data-lucide="chevron-right" class="text-sm md:text-base lg:text-lg transition-all duration-300 ease-in-out hover:text-accent cursor-pointer text-gray-400"></i>
-                <button id="nav-create" class="text-gray-600 hover:text-blue-600 font-medium flex items-center transition-colors duration-200 px-2 py-1 rounded {{ $activeTab==='create' ? 'text-blue-600 font-semibold bg-blue-50' : '' }}" onclick="showLegalTab('create')">
-                  <i data-lucide="plus" class="text-sm md:text-base lg:text-lg transition-all duration-300 ease-in-out hover:text-accent cursor-pointer mr-1"></i>
-                  <span class="hidden sm:inline">Create</span>
-                  <span class="sm:hidden">New</span>
-                </button>
-                <i data-lucide="chevron-right" class="text-sm md:text-base lg:text-lg transition-all duration-300 ease-in-out hover:text-accent cursor-pointer text-gray-400"></i>
-                <button id="nav-monitor" class="text-gray-600 hover:text-blue-600 font-medium flex items-center transition-colors duration-200 px-2 py-1 rounded {{ $activeTab==='monitor' ? 'text-blue-600 font-semibold bg-blue-50' : '' }}" onclick="showLegalTab('monitor')">
-                  <i data-lucide="bar-chart" class="text-sm md:text-base lg:text-lg transition-all duration-300 ease-in-out hover:text-accent cursor-pointer mr-1"></i>
-                  <span class="hidden sm:inline">Monitoring</span>
-                  <span class="sm:hidden">Monitor</span>
-                </button>
-              </nav>
-            </div>
+
+        <!-- Tab Navigation -->
+        <div class="mb-4 sm:mb-6">
+          <div class="flex flex-wrap gap-1.5 sm:gap-2">
+            <button id="nav-documents" onclick="showLegalTab('documents')"
+                    class="tab-btn flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 {{ $activeTab === 'documents' ? 'bg-[#001F54] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200' }}">
+              <div class="w-5 h-5 sm:w-7 sm:h-7 rounded {{ $activeTab === 'documents' ? 'bg-white/20' : 'bg-[#001F54]' }} flex items-center justify-center">
+                <i data-lucide="folder" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#F7B32B]"></i>
+              </div>
+              <span class="hidden xs:inline">Documents</span>
+              <span class="xs:hidden">Docs</span>
+            </button>
+            <button id="nav-create" onclick="showLegalTab('create')"
+                    class="tab-btn flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 {{ $activeTab === 'create' ? 'bg-[#001F54] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200' }}">
+              <div class="w-5 h-5 sm:w-7 sm:h-7 rounded {{ $activeTab === 'create' ? 'bg-white/20' : 'bg-[#001F54]' }} flex items-center justify-center">
+                <i data-lucide="plus" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#F7B32B]"></i>
+              </div>
+              Create
+            </button>
+            <button id="nav-monitor" onclick="showLegalTab('monitor')"
+                    class="tab-btn flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 {{ $activeTab === 'monitor' ? 'bg-[#001F54] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200' }}">
+              <div class="w-5 h-5 sm:w-7 sm:h-7 rounded {{ $activeTab === 'monitor' ? 'bg-white/20' : 'bg-[#001F54]' }} flex items-center justify-center">
+                <i data-lucide="bar-chart-2" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#F7B32B]"></i>
+              </div>
+              <span class="hidden xs:inline">Monitoring</span>
+              <span class="xs:hidden">Monitor</span>
+            </button>
+          </div>
+        </div>
+            
+        <!-- Tab Content Container -->
+        <div>
 
           <!-- CREATE TAB CONTENT -->
-          <div id="legal-create-tab" class="{{ $activeTab==='create' ? '' : 'hidden' }}">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div id="legal-create-tab" class="{{ $activeTab === 'create' ? '' : 'hidden' }}">
+            <div class="grid grid-cols-1 gap-6">
               <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
-                <div class="flex items-center gap-2 mb-2">
-                  <i data-lucide="plus-square" class="w-5 h-5 text-blue-600"></i>
-                  <h3 class="text-lg font-semibold">Custom Document</h3>
+                <div class="flex items-center gap-3 mb-4">
+                  <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="plus-square" class="w-5 h-5 text-[#F7B32B]"></i>
+                  </div>
+                  <h3 class="text-lg font-semibold text-gray-800">Custom Document</h3>
                 </div>
                 <p class="text-sm text-gray-600 mb-3">Create a free‑form document with custom terms and conditions</p>
                 <a href="{{ route('legal.documents.draft') }}" class="btn btn-primary btn-sm">Start</a>
               </div>
-              <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
-                <div class="flex items-center gap-2 mb-2">
-                  <i data-lucide="clock" class="w-5 h-5 text-blue-600"></i>
-                  <h3 class="text-lg font-semibold">Recent Documents</h3>
-                </div>
-                <p class="text-sm text-gray-600">No recent documents</p>
-              </div>
+
             </div>
 
             <h3 class="text-md font-semibold mt-4 sm:mt-6 mb-3">Document Templates</h3>
@@ -206,48 +229,43 @@
                 <div class="text-xs sm:text-sm text-gray-600 mb-2">Legal</div>
                 <div class="font-semibold text-sm sm:text-base">Service Contract</div>
                 <p class="text-xs text-gray-500 mt-1 mb-3 line-clamp-2">Standard service agreements and contracts</p>
-                <a href="{{ route('legal.documents.draft', ['template'=>'service_contract']) }}" class="btn btn-outline btn-xs w-full sm:w-auto">Use Template</a>
+                <a href="{{ route('legal.documents.draft', ['template' => 'service_contract']) }}" class="btn btn-primary btn-xs w-full sm:w-auto">Use Template</a>
               </div>
               <div class="border rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow duration-200">
                 <div class="text-xs sm:text-sm text-gray-600 mb-2">HR</div>
                 <div class="font-semibold text-sm sm:text-base">Employment Contract</div>
                 <p class="text-xs text-gray-500 mt-1 mb-3 line-clamp-2">Legally sound employment agreement with placeholders</p>
-                <a href="{{ route('legal.documents.draft', ['template'=>'employment_contract']) }}" class="btn btn-outline btn-xs w-full sm:w-auto">Use Template</a>
+                <a href="{{ route('legal.documents.draft', ['template' => 'employment_contract']) }}" class="btn btn-primary btn-xs w-full sm:w-auto">Use Template</a>
               </div>
               <div class="border rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow duration-200">
                 <div class="text-xs sm:text-sm text-gray-600 mb-2">Operations</div>
                 <div class="font-semibold text-sm sm:text-base">Guest Agreement</div>
                 <p class="text-xs text-gray-500 mt-1 mb-3 line-clamp-2">Visitor and guest access agreements</p>
-                <a href="{{ route('legal.documents.draft', ['template'=>'guest_agreement']) }}" class="btn btn-outline btn-xs w-full sm:w-auto">Use Template</a>
+                <a href="{{ route('legal.documents.draft', ['template' => 'guest_agreement']) }}" class="btn btn-primary btn-xs w-full sm:w-auto">Use Template</a>
               </div>
               <div class="border rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow duration-200">
                 <div class="text-xs sm:text-sm text-gray-600 mb-2">Procurement</div>
                 <div class="font-semibold text-sm sm:text-base">Vendor Agreement</div>
                 <p class="text-xs text-gray-500 mt-1 mb-3 line-clamp-2">Supplier and vendor contracts</p>
-                <a href="{{ route('legal.documents.draft', ['template'=>'vendor_agreement']) }}" class="btn btn-outline btn-xs w-full sm:w-auto">Use Template</a>
+                <a href="{{ route('legal.documents.draft', ['template' => 'vendor_agreement']) }}" class="btn btn-primary btn-xs w-full sm:w-auto">Use Template</a>
               </div>
               <div class="border rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow duration-200">
                 <div class="text-xs sm:text-sm text-gray-600 mb-2">HR</div>
                 <div class="font-semibold text-sm sm:text-base">HR Policy Document</div>
                 <p class="text-xs text-gray-500 mt-1 mb-3 line-clamp-2">Human resources policies and procedures</p>
-                <a href="{{ route('legal.documents.draft', ['template'=>'hr_policy']) }}" class="btn btn-outline btn-xs w-full sm:w-auto">Use Template</a>
+                <a href="{{ route('legal.documents.draft', ['template' => 'hr_policy']) }}" class="btn btn-primary btn-xs w-full sm:w-auto">Use Template</a>
               </div>
             </div>
 
             <!-- My Created Documents Table -->
             <div class="mt-8">
-              <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <i data-lucide="folder-plus" class="w-5 h-5 text-blue-600"></i>
-                  My Created Documents
-                </h3>
-                <div class="text-sm text-gray-500">
-                  {{ $createdDocuments->count() }} document{{ $createdDocuments->count() !== 1 ? 's' : '' }}
-                </div>
-              </div>
-              
               <!-- Professional Table -->
               <x-table-card :title="'My Created Documents'">
+                <x-slot name="headerAction">
+                  <span class="text-sm font-medium text-white/80">
+                    {{ $createdDocuments->count() }} document{{ $createdDocuments->count() !== 1 ? 's' : '' }}
+                  </span>
+                </x-slot>
                 <!-- Table Header -->
                 <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
                   <div class="grid grid-cols-12 gap-4 text-sm font-semibold text-gray-700">
@@ -267,32 +285,10 @@
                       <!-- Document Information -->
                       <div class="col-span-5">
                         <div class="flex items-center gap-3">
-                          <div class="w-10 h-10 rounded-lg bg-blue-900 flex items-center justify-center flex-shrink-0">
-                            @php
-                              $fileExtension = pathinfo($doc->file_path ?? '', PATHINFO_EXTENSION);
-                              $iconColor = 'text-white';
-                              
-                              switch(strtolower($fileExtension)) {
-                                case 'pdf':
-                                  $iconColor = 'text-white';
-                                  break;
-                                case 'doc':
-                                case 'docx':
-                                  $iconColor = 'text-white';
-                                  break;
-                                case 'xls':
-                                case 'xlsx':
-                                  $iconColor = 'text-white';
-                                  break;
-                                case 'ppt':
-                                case 'pptx':
-                                  $iconColor = 'text-white';
-                                  break;
-                                default:
-                                  $iconColor = 'text-white';
-                              }
-                            @endphp
-                            <i data-lucide="file-text" class="w-5 h-5 {{ $iconColor }}"></i>
+
+
+                          <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="file-text" class="w-5 h-5 text-[#F7B32B]"></i>
                           </div>
                           <div class="min-w-0 flex-1">
                             <div class="font-semibold text-gray-900 truncate">{{ $doc->title }}</div>
@@ -305,7 +301,9 @@
 
                       <!-- Type -->
                       <div class="col-span-2 text-center">
-                        <span class="badge badge-outline badge-sm">{{ ucfirst(str_replace('_', ' ', $doc->category ?? 'general')) }}</span>
+                        <span class="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {{ ucfirst(str_replace('_', ' ', $doc->category ?? 'general')) }}
+                        </span>
                       </div>
 
                       <!-- Department -->
@@ -317,20 +315,20 @@
                       <div class="col-span-2 text-center">
                         @php
                           $statusConfig = [
-                            'active' => ['class' => 'badge-success', 'icon' => 'check-circle', 'text' => 'Active'],
-                            'pending_review' => ['class' => 'badge-warning', 'icon' => 'clock', 'text' => 'Pending Review'],
-                            'draft' => ['class' => 'badge bg-green-500 text-white', 'icon' => 'edit-3', 'text' => 'Draft'],
-                            'approved' => ['class' => 'badge-success', 'icon' => 'check-circle-2', 'text' => 'Approved'],
-                            'rejected' => ['class' => 'badge-error', 'icon' => 'x-circle', 'text' => 'Rejected'],
-                            'archived' => ['class' => 'badge-neutral', 'icon' => 'archive', 'text' => 'Archived']
+                            'active' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'icon' => 'check-circle', 'label' => 'Active'],
+                            'pending_review' => ['bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'icon' => 'clock', 'label' => 'Pending'],
+                            'archived' => ['bg' => 'bg-gray-50', 'text' => 'text-gray-600', 'border' => 'border-gray-200', 'icon' => 'archive', 'label' => 'Archived'],
+                            'draft' => ['bg' => 'bg-blue-50', 'text' => 'text-blue-700', 'border' => 'border-blue-200', 'icon' => 'edit-3', 'label' => 'Draft'],
+                            'approved' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'icon' => 'check-circle-2', 'label' => 'Approved'],
+                            'declined' => ['bg' => 'bg-red-50', 'text' => 'text-red-700', 'border' => 'border-red-200', 'icon' => 'x-circle', 'label' => 'Declined']
                           ];
                           $status = $doc->status ?? 'draft';
                           $config = $statusConfig[$status] ?? $statusConfig['draft'];
                         @endphp
-                        <div class="flex items-center justify-center gap-2">
-                          <i data-lucide="{{ $config['icon'] }}" class="w-4 h-4 text-gray-500"></i>
-                          <span class="badge {{ $config['class'] }} badge-sm">{{ $config['text'] }}</span>
-                        </div>
+                        <span class="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium {{ $config['bg'] }} {{ $config['text'] }} border {{ $config['border'] }}">
+                          <i data-lucide="{{ $config['icon'] }}" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5"></i>
+                          <span class="hidden sm:inline">{{ $config['label'] }}</span>
+                        </span>
                       </div>
 
                       <!-- Actions -->
@@ -343,219 +341,234 @@
                                   title="AI Analysis">
                             <i data-lucide="brain" class="w-4 h-4" style="fill: none;"></i>
                           </button>
-                          
+
                           <!-- Edit Button (only for draft documents) -->
                           @if(($doc->status ?? 'draft') === 'draft')
-                          <a href="{{ route('legal.documents.draft') }}?edit={{ $doc->id }}" 
-                             class="btn-sm p-2 rounded-lg transition-all duration-200 hover:scale-110"
-                             style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                             title="Edit Document">
-                            <i data-lucide="edit-3" class="w-4 h-4" style="fill: none;"></i>
-                          </a>
+                            <a href="{{ route('legal.documents.draft') }}?edit={{ $doc->id }}" 
+                               class="btn-sm p-2 rounded-lg transition-all duration-200 hover:scale-110"
+                               style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                               title="Edit Document">
+                              <i data-lucide="edit-3" class="w-4 h-4" style="fill: none;"></i>
+                            </a>
                           @endif
-                          
+
                           <!-- Archive Button (No Deletion, Archive Only) -->
                           @if($doc->status !== 'archived')
-                          <button onclick="archiveDocument({{ $doc->id }})" 
-                                  class="btn-sm p-2 rounded-lg transition-all duration-200 hover:scale-110"
-                                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                                  title="Archive Document">
-                            <i data-lucide="archive" class="w-4 h-4" style="fill: none;"></i>
-                          </button>
+                            <button onclick="archiveDocument({{ $doc->id }})" 
+                                    class="btn-sm p-2 rounded-lg transition-all duration-200 hover:scale-110"
+                                    style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                                    title="Archive Document">
+                              <i data-lucide="archive" class="w-4 h-4" style="fill: none;"></i>
+                            </button>
                           @else
-                          <span class="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">Archived</span>
+                            <span class="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">Archived</span>
                           @endif
                         </div>
                       </div>
                     </div>
                   </div>
                 @empty
-                  <div class="px-6 py-12 text-center">
-                  <div class="flex flex-col items-center">
-                      <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                        <i data-lucide="file-x" class="w-8 h-8 text-gray-400"></i>
-                      </div>
-                    <h3 class="text-lg font-semibold text-gray-600 mb-2">No Documents Found</h3>
-                    <p class="text-gray-500 mb-4">Start by creating your first legal document.</p>
-                      <a href="{{ route('legal.documents.draft') }}" class="btn btn-primary">
-                      <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Document
-                    </a>
+                    <div class="px-6 py-12 text-center">
+                    <div class="flex flex-col items-center">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                          <i data-lucide="file-x" class="w-8 h-8 text-gray-400"></i>
+                        </div>
+                      <h3 class="text-lg font-semibold text-gray-600 mb-2">No Documents Found</h3>
+                      <p class="text-gray-500 mb-4">Start by creating your first legal document.</p>
+                        <a href="{{ route('legal.documents.draft') }}" class="btn btn-primary">
+                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Document
+                      </a>
+                    </div>
                   </div>
-                </div>
                 @endforelse
                 </div>
+                
+                <!-- Pagination for Created Documents -->
+                  <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <div class="flex justify-end">
+                      <div class="join">
+                        <!-- Previous Button -->
+                        @if($createdDocuments->onFirstPage())
+                          <button class="join-item btn btn-disabled">«</button>
+                        @else
+                          <a href="{{ $createdDocuments->appends(request()->query())->previousPageUrl() }}" class="join-item btn">«</a>
+                        @endif
+                        
+                        <!-- Current Page Display -->
+                        <button class="join-item btn no-animation cursor-default hover:bg-base-200">Page {{ $createdDocuments->currentPage() }}</button>
+                        
+                        <!-- Next Button -->
+                        @if($createdDocuments->hasMorePages())
+                          <a href="{{ $createdDocuments->appends(request()->query())->nextPageUrl() }}" class="join-item btn">»</a>
+                        @else
+                          <button class="join-item btn btn-disabled">»</button>
+                        @endif
+                      </div>
+                    </div>
+                  </div>
               </x-table-card>
             </div>
           </div>
 
           <!-- MONITOR TAB CONTENT -->
-          <div id="legal-monitor-tab" class="{{ $activeTab==='monitor' ? '' : 'hidden' }}">
-            <!-- Professional Administrator Monitoring Dashboard -->
+          <div id="legal-monitor-tab" class="{{ $activeTab === 'monitor' ? '' : 'hidden' }}">
+            <!-- Monitoring Table Only -->
             <div class="space-y-6">
               
-              <!-- Dashboard Header -->
-              <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <h2 class="text-2xl font-bold text-gray-800 mb-2 flex items-center gap-3">
-                      <i data-lucide="shield-check" class="w-7 h-7 text-blue-600"></i>
-                      Legal Documents Monitoring Dashboard
-                    </h2>
-                    <p class="text-gray-600">Comprehensive oversight and analytics for legal document management</p>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <div class="text-right">
-                      <div class="text-sm text-gray-500">Last Updated</div>
-                      <div class="font-semibold text-gray-800" id="lastUpdated">Just now</div>
-                    </div>
-                    <button onclick="refreshMonitoringData()" class="btn btn-outline btn-sm">
-                      <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Key Performance Indicators -->
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- Total Documents -->
-                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <p class="text-sm font-medium text-gray-600">Total Documents</p>
-                      <p class="text-2xl font-bold text-gray-900" id="mon-total">0</p>
-                        </div>
-                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <i data-lucide="file-text" class="w-6 h-6 text-blue-600"></i>
-                      </div>
-                    </div>
-                  <div class="mt-2 flex items-center text-sm">
-                    <span class="text-green-600 font-medium" id="mon-total-change">+0%</span>
-                    <span class="text-gray-500 ml-1">vs last month</span>
-                  </div>
-                </div>
-
-                <!-- Pending Review -->
-                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <p class="text-sm font-medium text-gray-600">Pending Review</p>
-                      <p class="text-2xl font-bold text-amber-600" id="mon-pending">0</p>
-                        </div>
-                    <div class="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
-                      <i data-lucide="clock" class="w-6 h-6 text-amber-600"></i>
-                      </div>
-                    </div>
-                  <div class="mt-2 flex items-center text-sm">
-                    <span class="text-amber-600 font-medium" id="mon-pending-change">0</span>
-                    <span class="text-gray-500 ml-1">awaiting action</span>
-                  </div>
-                </div>
-
-                <!-- Approved -->
-                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <p class="text-sm font-medium text-gray-600">Approved</p>
-                      <p class="text-2xl font-bold text-green-600" id="mon-approved">0</p>
-                        </div>
-                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
-                      </div>
-                    </div>
-                  <div class="mt-2 flex items-center text-sm">
-                    <span class="text-green-600 font-medium" id="mon-approved-change">+0%</span>
-                    <span class="text-gray-500 ml-1">approval rate</span>
-                  </div>
-                </div>
-
-                <!-- Expiring Soon -->
-                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <p class="text-sm font-medium text-gray-600">Expiring Soon</p>
-                      <p class="text-2xl font-bold text-red-600" id="mon-expiring">0</p>
-                        </div>
-                    <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                      <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
-                      </div>
-                    </div>
-                  <div class="mt-2 flex items-center text-sm">
-                    <span class="text-red-600 font-medium" id="mon-expiring-change">0</span>
-                    <span class="text-gray-500 ml-1">within 90 days</span>
-                  </div>
-                </div>
-              </div>
-
-
-              <!-- Professional Data Table -->
+              <!-- Monitoring Data Table -->
               <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
-                <!-- Table Header -->
-                <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 rounded-t-lg">
-                  <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                      <i data-lucide="table" class="w-5 h-5 text-gray-600"></i>
-                      Document Monitoring Table
-                    </h3>
-                    <div class="flex items-center gap-2">
-                      <button onclick="exportMonitoringData()" class="btn btn-outline btn-sm">
-                        <i data-lucide="download" class="w-4 h-4 mr-2"></i>
-                        Export
-                      </button>
-                      <div class="text-sm text-gray-500">
-                        <span id="mon-results-count">0</span> documents found
-                        </div>
-                      </div>
-                  </div>
-                </div>
 
-                <!-- Table Content -->
+
+                <!-- Table Content (server-rendered, no loading spinner) -->
                 <x-table-card :title="'Documents'">
+                  <x-slot name="headerAction">
+                    <button onclick="exportMonitoringData()" class="btn btn-sm bg-gradient-to-r from-[#F7B32B] to-[#f59e0b] text-gray-800 border-none hover:shadow-md transition-all gap-2">
+                      <i data-lucide="download" class="w-4 h-4"></i>
+                      Export
+                    </button>
+                  </x-slot>
                   <table class="table table-zebra w-full">
                     <thead class="bg-gray-50">
                       <tr>
-                        <th class="text-left py-3 px-4 font-semibold text-gray-700 border-b border-gray-200">
-                          <div class="flex items-center gap-2">
-                            <input type="checkbox" id="select-all" class="checkbox checkbox-sm" />
-                            <span>Document</span>
-                        </div>
-                        </th>
-                        <th class="text-left py-3 px-4 font-semibold text-gray-700 border-b border-gray-200">Type</th>
-                        <th class="text-left py-3 px-4 font-semibold text-gray-700 border-b border-gray-200">Department</th>
-                        <th class="text-left py-3 px-4 font-semibold text-gray-700 border-b border-gray-200">Status</th>
-                        <th class="text-left py-3 px-4 font-semibold text-gray-700 border-b border-gray-200">Uploaded By</th>
-                        <th class="text-left py-3 px-4 font-semibold text-gray-700 border-b border-gray-200">Date</th>
-                        <th class="text-left py-3 px-4 font-semibold text-gray-700 border-b border-gray-200">Expiry</th>
-                        <th class="text-center py-3 px-4 font-semibold text-gray-700 border-b border-gray-200">Actions</th>
+                        <th class="text-left py-2 sm:py-3 px-3 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider">Document</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32">Type</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32 hidden lg:table-cell">Dept</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32">Status</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-24 sm:w-40 hidden md:table-cell">Uploaded By</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32 hidden sm:table-cell">Date</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32">Expiry</th>
+
                       </tr>
                     </thead>
-                    <tbody id="monitoring-table-body">
-                      <tr>
-                        <td colspan="8" class="text-center py-12">
-                          <div class="flex flex-col items-center">
-                            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                              <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-gray-400"></i>
-                      </div>
-                            <h3 class="text-lg font-medium text-gray-600 mb-2">Loading monitoring data...</h3>
-                            <p class="text-gray-500">Please wait while we fetch the latest information</p>
-                    </div>
-                        </td>
-                      </tr>
+                    <tbody>
+                      @forelse($documents as $document)
+                        @php
+                          $uniqueId = $document->reference_id
+                            ?? $document->legal_document_id
+                            ?? ('LGL-' . str_pad($document->id, 6, '0', STR_PAD_LEFT));
+                        @endphp
+                        <tr class="hover:bg-gray-50/50 transition-colors duration-200" data-document-id="{{ $document->id }}">
+                          <!-- Document + Unique ID -->
+                          <td class="py-2 sm:py-3 px-2 sm:px-4">
+                            <div class="flex items-center gap-2 sm:gap-3">
+                              <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                                @php
+                                  $iconColor = 'text-[#F7B32B]';
+                                @endphp
+                                <i data-lucide="file-text" class="w-4 h-4 sm:w-5 sm:h-5 {{ $iconColor }}"></i>
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <h4 class="font-medium text-gray-800 text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]">{{ $document->title ?? 'Untitled Document' }}</h4>
+                                <p class="text-[10px] sm:text-xs text-gray-400 mt-0.5">{{ $uniqueId }}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <!-- Type -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 text-center">
+                            <span class="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                              {{ ucfirst(str_replace('_', ' ', $document->category ?? 'General')) }}
+                            </span>
+                          </td>
+
+                          <!-- Department -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 text-center hidden lg:table-cell">
+                            <span class="text-xs sm:text-sm text-gray-600">{{ $document->department ?? 'N/A' }}</span>
+                          </td>
+
+                          <!-- Status -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 text-center">
+                            @php
+                              $statusConfig = [
+                                'active' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'icon' => 'check-circle', 'label' => 'Active'],
+                                'pending_review' => ['bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'icon' => 'clock', 'label' => 'Pending'],
+                                'archived' => ['bg' => 'bg-gray-50', 'text' => 'text-gray-600', 'border' => 'border-gray-200', 'icon' => 'archive', 'label' => 'Archived'],
+                                'draft' => ['bg' => 'bg-blue-50', 'text' => 'text-blue-700', 'border' => 'border-blue-200', 'icon' => 'edit-3', 'label' => 'Draft'],
+                                'approved' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'icon' => 'check-circle-2', 'label' => 'Approved'],
+                                'declined' => ['bg' => 'bg-red-50', 'text' => 'text-red-700', 'border' => 'border-red-200', 'icon' => 'x-circle', 'label' => 'Declined']
+                              ];
+                              $status = $document->status ?? 'draft';
+                              $config = $statusConfig[$status] ?? $statusConfig['draft'];
+                            @endphp
+                            <span class="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium {{ $config['bg'] }} {{ $config['text'] }} border {{ $config['border'] }}">
+                              <i data-lucide="{{ $config['icon'] }}" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5"></i>
+                              <span class="hidden sm:inline">{{ $config['label'] }}</span>
+                            </span>
+                          </td>
+
+                          <!-- Uploaded By -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 hidden md:table-cell">
+                            <div class="flex items-center justify-center gap-2">
+                              @if($document->uploader && $document->uploader->profile_picture)
+                                <div class="w-7 h-7 rounded-full overflow-hidden ring-2 ring-blue-100 flex-shrink-0">
+                                  <img src="{{ asset('storage/' . $document->uploader->profile_picture) }}" alt="" class="w-full h-full object-cover">
+                                </div>
+                              @else
+                                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-[#F7B32B] to-[#e09800] flex items-center justify-center flex-shrink-0">
+                                  <span class="text-[10px] font-bold text-white">{{ strtoupper(substr(optional($document->uploader)->employee_name ?? 'U', 0, 1)) }}</span>
+                                </div>
+                              @endif
+                              <span class="text-xs sm:text-sm text-gray-700 truncate max-w-[80px] sm:max-w-[100px]">{{ optional($document->uploader)->employee_name ?? 'Unknown' }}</span>
+                            </div>
+                          </td>
+
+                          <!-- Date -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 text-center hidden sm:table-cell">
+                            <span class="text-xs sm:text-sm text-gray-600">{{ optional($document->created_at)->format('M d, Y') }}</span>
+                          </td>
+
+                          <!-- Expiry -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 text-center">
+                            @if($document->retention_until)
+                              <span class="text-xs sm:text-sm text-gray-600">{{ optional($document->retention_until)->format('M d, Y') }}</span>
+                            @else
+                              <span class="text-gray-400">—</span>
+                            @endif
+                          </td>
+
+                          <!-- Actions -->
+
+                        </tr>
+                      @empty
+                          <tr>
+                            <td colspan="8" class="text-center py-12">
+                              <div class="flex flex-col items-center">
+                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                    <i data-lucide="file-x" class="w-8 h-8 text-gray-400"></i>
+                          </div>
+                                  <h3 class="text-lg font-medium text-gray-600 mb-2">No documents found</h3>
+                                  <p class="text-gray-500">Documents in Legal Management will appear here automatically.</p>
+                        </div>
+                            </td>
+                          </tr>
+                      @endforelse
                     </tbody>
                   </table>
                 </x-table-card>
 
                 <!-- Table Footer with Pagination -->
-                <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 rounded-b-lg">
-                  <div class="flex items-center justify-between">
-                    <div class="text-sm text-gray-500">
-                      Showing <span id="mon-showing-start">0</span> to <span id="mon-showing-end">0</span> of <span id="mon-total-results">0</span> results
-                        </div>
-                    <div class="flex items-center gap-2" id="mon-pagination">
-                      <!-- Pagination will be inserted here -->
+                  <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <div class="flex justify-end">
+                      <div class="join">
+                        <!-- Previous Button -->
+                        @if($documents->onFirstPage())
+                          <button class="join-item btn btn-disabled">«</button>
+                        @else
+                          <a href="{{ $documents->appends(request()->query())->previousPageUrl() }}" class="join-item btn">«</a>
+                        @endif
+                        
+                        <!-- Current Page Display -->
+                        <button class="join-item btn no-animation cursor-default hover:bg-base-200">Page {{ $documents->currentPage() }}</button>
+                        
+                        <!-- Next Button -->
+                        @if($documents->hasMorePages())
+                          <a href="{{ $documents->appends(request()->query())->nextPageUrl() }}" class="join-item btn">»</a>
+                        @else
+                          <button class="join-item btn btn-disabled">»</button>
+                        @endif
                       </div>
+                    </div>
                   </div>
-                </div>
               </div>
 
               <!-- Bulk Actions Panel -->
@@ -589,28 +602,41 @@
           </div>
 
           <!-- DOCUMENTS TAB CONTENT -->
-          <div id="legal-documents-tab" class="{{ $activeTab==='documents' ? '' : 'hidden' }}">
-          <!-- Desktop Table View -->
-          <x-table-card :title="'Documents'">
-            <!-- Search and Filters inside the table card, below the blue banner -->
-            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
-              <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                <!-- Search Bar -->
-                <div class="md:col-span-4">
-                  <div class="relative">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                    <input type="text" 
-                           id="searchInput"
-                           placeholder="Search documents..." 
-                           class="input input-bordered input-sm w-full pl-10 pr-4 bg-white border-gray-200 focus:border-blue-300">
+          <div id="legal-documents-tab" class="{{ $activeTab === 'documents' ? '' : 'hidden' }}">
+            <!-- Table Container -->
+            <div class="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <!-- Table Header -->
+              <div class="bg-[#001F54] px-3 sm:px-6 py-3 sm:py-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <h3 class="text-sm sm:text-lg font-semibold text-white flex items-center gap-2 sm:gap-3">
+                    <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <i data-lucide="folder" class="w-3 h-3 sm:w-4 sm:h-4 text-[#F7B32B]"></i>
+                    </div>
+                    <div>
+                      <span>Documents</span>
+                    </div>
+                  </h3>
+                  <div class="flex items-center gap-2 sm:gap-3">
+                    <!-- Search Field -->
+                    <div class="relative w-full sm:w-64">
+                      <span class="absolute inset-y-0 left-2.5 sm:left-3 flex items-center pointer-events-none">
+                        <i data-lucide="search" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400"></i>
+                      </span>
+                      <input type="text" 
+                             id="searchInput"
+                             placeholder="Search..." 
+                             class="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white text-gray-800 rounded-lg border-0 text-xs sm:text-sm focus:ring-2 focus:ring-blue-300 placeholder-gray-400">
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <!-- Category Filter -->
-                <div class="md:col-span-3">
-                  <label class="block text-xs font-medium text-gray-700 mb-1">Category:</label>
-                  <select id="categoryFilter" class="select select-bordered select-sm w-full">
-                    <option value="">All Categories</option>
+              <!-- Filters Row -->
+              <div class="px-3 sm:px-6 py-2.5 sm:py-4 bg-gray-50 border-b border-gray-100">
+                <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <!-- Category Filter -->
+                  <select id="categoryFilter" class="select select-bordered select-xs sm:select-sm bg-white border-gray-200 text-xs sm:text-sm">
+                    <option value="">Categories</option>
                     <option value="contract">Contract</option>
                     <option value="legal_notice">Legal Notice</option>
                     <option value="policy">Policy</option>
@@ -623,199 +649,369 @@
                     <option value="cease_desist">Cease & Desist</option>
                     <option value="legal_brief">Legal Brief</option>
                   </select>
-                </div>
 
-                <!-- Status Filter -->
-                <div class="md:col-span-3">
-                  <label class="block text-xs font-medium text-gray-700 mb-1">Status:</label>
-                  <select id="statusFilter" class="select select-bordered select-sm w-full">
-                    <option value="">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="pending_review">Pending Review</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="archived">Archived</option>
-                    <option value="draft">Draft</option>
+                  <!-- Status Filter -->
+                  <select id="statusFilter" class="select select-bordered select-xs sm:select-sm bg-white border-gray-200 text-xs sm:text-sm">
+                    <option value="">Status</option>
+                    <option value="active" {{ ($status ?? '') === 'active' ? 'selected' : '' }}>Active</option>
+                    <option value="pending_review" {{ ($status ?? '') === 'pending_review' ? 'selected' : '' }}>Pending</option>
+                    <option value="declined" {{ ($status ?? '') === 'declined' ? 'selected' : '' }}>Declined</option>
+                    <option value="rejected" {{ ($status ?? '') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                    <option value="draft" {{ ($status ?? '') === 'draft' ? 'selected' : '' }}>Draft</option>
                   </select>
-                </div>
 
-                <!-- Action Buttons -->
-                <div class="md:col-span-2 flex gap-2">
-                  <button onclick="startBulkAnalysis()" 
-                          class="btn btn-primary btn-sm inline-flex items-center justify-center whitespace-nowrap min-w-[90px] sm:min-w-[100px] text-xs sm:text-sm">
-                    <i data-lucide="brain" class="w-4 h-4 mr-1 flex-shrink-0"></i>
-                    <span class="hidden sm:inline">Bulk AI</span>
-                    <span class="sm:hidden">AI</span>
-                  </button>
-                  <button onclick="exportViolationReport()" 
-                          class="btn btn-sm inline-flex items-center justify-center whitespace-nowrap min-w-[90px] sm:min-w-[100px] text-xs sm:text-sm transition-all duration-200 cursor-pointer hover:scale-105"
-                          style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937; box-shadow: 0 2px 8px rgba(247, 169, 35, 0.25); border: none;"
-                          onmouseover="this.style.background='linear-gradient(135deg, #E6940F 0%, #D2840E 100%)'; this.style.boxShadow='0 4px 12px rgba(247, 169, 35, 0.35)'"
-                          onmouseout="this.style.background='linear-gradient(135deg, #F7A923 0%, #E6940F 100%)'; this.style.boxShadow='0 2px 8px rgba(247, 169, 35, 0.25)'">
-                    <i data-lucide="download" class="w-4 h-4 mr-1 flex-shrink-0" style="fill: none;"></i>
-                    <span>Export</span>
-                  </button>
+                  <div class="flex-1"></div>
+
+                  <div class="dropdown dropdown-end">
+                    <label tabindex="0" id="requestedDocsBtn"
+                           class="btn btn-xs sm:btn-sm bg-gradient-to-r from-[#F7B32B] to-[#f59e0b] text-gray-800 border-none hover:shadow-md transition-all flex items-center justify-center w-8 sm:w-10"
+                           title="Filter Requested Documents">
+                      <i data-lucide="filter" id="filterIcon" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
+                    </label>
+                    <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56">
+                      <li>
+                        <a href="#" onclick="toggleRequestedDocs(); return false;" class="{{ ($origin ?? '') === 'legal_submission' ? 'active' : '' }}">Requested Documents</a>
+                      </li>
+                    </ul>
+                  </div>
+                  <input type="hidden" id="originFilter" value="{{ $origin ?? '' }}">
+
+                  <!-- Export & MS Import Button Group -->
+                  <div class="flex items-center gap-2">
+                    @if(($origin ?? '') === 'legal_submission')
+                      <button onclick="openSimulateModal()"
+                              class="btn btn-xs sm:btn-sm bg-[#001F54] hover:bg-[#001F54]/90 text-white border-0 gap-2 shadow-lg hover:shadow-xl transition-all h-auto py-1 sm:py-1.5 flex items-center">
+                        <i data-lucide="server" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F7B32B]"></i>
+                        <span class="flex flex-col items-start text-[9px] sm:text-[10px] leading-tight text-left">
+                          <span class="font-bold uppercase">MS Import</span>
+                          <span class="font-normal opacity-70 uppercase tracking-tighter hidden sm:block">External Sync</span>
+                        </span>
+                      </button>
+                    @endif
+                    
+                    <button onclick="exportViolationReport()" 
+                            class="btn btn-xs sm:btn-sm bg-gradient-to-r from-[#F7B32B] to-[#f59e0b] text-gray-800 border-none hover:shadow-md transition-all gap-1 sm:gap-2">
+                      <i data-lucide="download" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                      <span class="hidden sm:inline">Export</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Table -->
+              <div class="overflow-x-auto">
+                <table class="table w-full">
+                  <thead>
+                    <tr class="bg-gray-50 border-b border-gray-100">
+                      @if(($origin ?? '') === 'legal_submission')
+                        <th class="text-left py-2 sm:py-3 px-3 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider">Submission Details</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32">Status</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-24 sm:w-40">Uploaded By</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32">Date Received</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-16 sm:w-32">Actions</th>
+                      @else
+                        <th class="text-left py-2 sm:py-3 px-3 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider">Document</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32">Type</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-24 sm:w-40 hidden md:table-cell">Uploaded By</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32 hidden lg:table-cell">Dept</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32">Status</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 sm:w-32 hidden sm:table-cell">Date</th>
+                        <th class="text-center py-2 sm:py-3 px-2 sm:px-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider w-16 sm:w-32">Actions</th>
+                      @endif
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100">
+                    @forelse($documents as $index => $document)
+                        @if(($origin ?? '') === 'legal_submission')
+                          <tr class="hover:bg-gray-50/50 transition-colors duration-200 text-xs sm:text-sm">
+                            <td class="py-2 sm:py-3 px-3 sm:px-4">
+                              <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                                  <i data-lucide="inbox" class="w-4 h-4 text-[#F7B32B]"></i>
+                                </div>
+                                <div>
+                                  <p class="font-bold text-gray-900 line-clamp-1">{{ $document->title }}</p>
+                                  <p class="text-[10px] text-gray-500 uppercase">{{ $document->category }} • {{ $document->department }}</p>
+                                </div>
+                              </div>
+                            </td>
+                        @else
+                          <tr class="hover:bg-gray-50/50 transition-colors duration-200" 
+                              data-document-id="{{ $document->id }}"
+                              data-origin="{{ $document->source ?: 'general' }}"
+                              data-category="{{ $document->category ?? 'general' }}"
+                              data-status="{{ $document->status ?? 'active' }}">
+                            <!-- Document Information Column -->
+                            <td class="py-2 sm:py-3 px-2 sm:px-4">
+                              <div class="flex items-center gap-2 sm:gap-3">
+                                <!-- Document Icon -->
+                                <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                                  @php
+                                    $fileExtension = strtolower(pathinfo($document->file_path ?? '', PATHINFO_EXTENSION));
+                                    $iconName = 'file-text';
+                                    if (in_array($fileExtension, ['pdf']))
+                                      $iconName = 'file-text';
+                                    elseif (in_array($fileExtension, ['doc', 'docx']))
+                                      $iconName = 'file-text';
+                                    elseif (in_array($fileExtension, ['xls', 'xlsx']))
+                                      $iconName = 'file-spreadsheet';
+                                  @endphp
+                                  <i data-lucide="{{ $iconName }}" class="w-4 h-4 sm:w-5 sm:h-5 text-[#F7B32B]"></i>
+                                </div>
+
+                                <!-- Document Info -->
+                                <div class="min-w-0 flex-1">
+                                  <h4 class="font-medium text-gray-800 text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]">{{ $document->title }}</h4>
+                                  <p class="text-[10px] sm:text-xs text-gray-500 truncate max-w-[120px] sm:max-w-[200px] hidden sm:block">{{ Str::limit($document->description, 35) ?: 'No description' }}</p>
+                                  <p class="text-[10px] sm:text-xs text-gray-400 mt-0.5">{{ $document->legal_document_id ?? 'LD-' . now()->format('Y') . '-' . str_pad($document->id, 6, '0', STR_PAD_LEFT) }}</p>
+                                </div>
+                              </div>
+                            </td>
+                        @endif
+
+                        @if(($origin ?? '') === 'legal_submission')
+                          <td class="text-center py-2 px-2">
+                             <span class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold {{ $document->status === 'pending_review' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200' }} border">
+                               {{ strtoupper(str_replace('_', ' ', $document->status)) }}
+                             </span>
+                          </td>
+                        @else
+                          <!-- Type Column -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 text-center">
+                            <span class="inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                              {{ ucfirst(str_replace('_', ' ', $document->category ?? 'General')) }}
+                            </span>
+                          </td>
+                        @endif
+
+                       <!-- Uploaded By Column -->
+                        <td class="py-2 sm:py-4 px-2 sm:px-4 {{ ($origin ?? '') === 'legal_submission' ? '' : 'hidden md:table-cell' }}">
+                          <div class="flex items-center justify-center gap-2 text-center flex-col">
+                            <span class="text-xs sm:text-sm font-bold text-gray-700 truncate max-w-[100px]">{{ $document->uploader->employee_name ?? 'Unknown' }}</span>
+                            @if(($origin ?? '') === 'legal_submission')
+                               <span class="text-[10px] text-gray-400 capitalize">{{ $document->uploader->dept_name ?? 'N/A' }}</span>
+                            @endif
+                          </div>
+                        </td>
+
+                        <!-- Department Column (Dynamic) -->
+                        <td class="py-2 sm:py-4 px-2 sm:px-4 text-center {{ ($origin ?? '') === 'legal_submission' ? '' : 'hidden lg:table-cell' }}">
+                          @if(($origin ?? '') === 'legal_submission')
+                             <div class="flex flex-col items-center">
+                               <span class="text-xs font-medium text-gray-600">{{ $document->created_at->format('M d, Y') }}</span>
+                               <p class="text-[10px] text-gray-400">{{ $document->created_at->diffForHumans() }}</p>
+                             </div>
+                          @else
+                             <span class="text-xs sm:text-sm text-gray-600">{{ $document->uploader->dept_name ?? 'N/A' }}</span>
+                          @endif
+                        </td>
+
+                        @if(($origin ?? '') !== 'legal_submission')
+                          <!-- Status Column -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 text-center">
+                            @php
+                              $statusConfig = [
+                                'active' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'icon' => 'check-circle', 'label' => 'Active'],
+                                'pending_review' => ['bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'icon' => 'clock', 'label' => 'Pending'],
+                                'archived' => ['bg' => 'bg-gray-50', 'text' => 'text-gray-600', 'border' => 'border-gray-200', 'icon' => 'archive', 'label' => 'Archived'],
+                                'draft' => ['bg' => 'bg-blue-50', 'text' => 'text-blue-700', 'border' => 'border-blue-200', 'icon' => 'edit-3', 'label' => 'Draft'],
+                                'approved' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'icon' => 'check-circle-2', 'label' => 'Approved'],
+                                'declined' => ['bg' => 'bg-red-50', 'text' => 'text-red-700', 'border' => 'border-red-200', 'icon' => 'x-circle', 'label' => 'Declined']
+                              ];
+                              $status = $document->status ?? 'active';
+                              $config = $statusConfig[$status] ?? $statusConfig['active'];
+                            @endphp
+                            <span class="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium {{ $config['bg'] }} {{ $config['text'] }} border {{ $config['border'] }}">
+                              <i data-lucide="{{ $config['icon'] }}" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5"></i>
+                              <span class="hidden sm:inline">{{ $config['label'] }}</span>
+                            </span>
+                          </td>
+
+                          <!-- Date Column -->
+                          <td class="py-2 sm:py-4 px-2 sm:px-4 text-center hidden sm:table-cell">
+                            <span class="text-xs sm:text-sm text-gray-600">{{ $document->created_at->format('M d, Y') }}</span>
+                          </td>
+                        @endif
+
+
+
+                        <!-- Actions Column -->
+                        <td class="py-2 sm:py-4 px-1 sm:px-4">
+                          <div class="flex items-center justify-center gap-0.5 sm:gap-1">
+                            @if($document->status !== 'approved' && $document->status !== 'declined' && $document->status !== 'archived')
+                              <!-- Approve Button -->
+                              <button onclick="approveDocument({{ $document->id }})" 
+                                      class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:shadow-md" 
+                                      style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"
+                                      title="Approve">
+                                <i data-lucide="check" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                              </button>
+
+                              <!-- Decline Button -->
+                              <button onclick="declineDocument({{ $document->id }})" 
+                                      class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:shadow-md"
+                                      style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white;"
+                                      title="Decline">
+                                <i data-lucide="x" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                              </button>
+                            @endif
+
+                            <!-- AI Analysis - Hidden if Archived -->
+                            @if($document->status !== 'archived')
+                              <button onclick="aiAnalysis({{ $document->id }})" 
+                                      class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:shadow-md" 
+                                      style="background: linear-gradient(135deg, #F7B32B 0%, #F59E0B 100%); color: white;"
+                                      title="AI Analysis">
+                                <i data-lucide="brain" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                              </button>
+                            @endif
+
+
+
+                            <!-- View/Archive Button -->
+                            @if($document->status !== 'archived')
+                              <button onclick="archiveDocument({{ $document->id }})" 
+                                      class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:shadow-md bg-gray-100 text-gray-600 hover:bg-gray-200 hidden sm:flex"
+                                      title="Archive">
+                                <i data-lucide="archive" class="w-3 h-3 sm:w-4 sm:h-4"></i>
+                              </button>
+                            @endif
+                          </div>
+                        </td>
+                      </tr>
+                    @empty
+                      <tr>
+                        <td colspan="7" class="py-8 sm:py-16 text-center">
+                          <div class="flex flex-col items-center justify-center">
+                            <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                              <i data-lucide="folder-open" class="w-10 h-10 text-blue-300"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-700 mb-2">No Legal Documents Found</h3>
+                            <p class="text-gray-500 text-sm mb-4">Get started by creating your first document</p>
+                            <button onclick="showLegalTab('create')" class="btn btn-sm bg-blue-900 hover:bg-blue-800 text-white border-none">
+                              <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                              Create Document
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    @endforelse
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- MS Import (Simulate) Modal -->
+            <div id="simulate-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
+              <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeSimulateModal()"></div>
+              <div class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                  <!-- Modal Header -->
+                  <div class="bg-gradient-to-r from-[#001F54] to-[#003380] px-6 py-5 border-b border-white/10">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                          <i data-lucide="server" class="w-6 h-6 text-[#F7B32B]"></i>
+                        </div>
+                        <div>
+                          <h3 class="text-xl font-bold text-white uppercase">Microservice Import</h3>
+                          <p class="text-sm text-white/70 mt-0.5">External Integration Simulation</p>
+                        </div>
+                      </div>
+                      <button onclick="closeSimulateModal()" class="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                        <i data-lucide="x" class="w-5 h-5 text-white"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Modal Body -->
+                  <form id="simulate-document-form" class="p-6" onsubmit="handleSimulateSubmit(event)">
+                    @csrf
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <!-- Document Title -->
+                      <div class="md:col-span-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i data-lucide="file-text" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                          Document Title *
+                        </label>
+                        <input type="text" 
+                               name="title" 
+                               id="sim-title"
+                               required
+                               placeholder="e.g., Legal Agreement - Vendor X"
+                               class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#001F54] focus:border-transparent outline-none transition-all">
+                      </div>
+
+                      <!-- Category/Type -->
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i data-lucide="tag" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                          Document Type *
+                        </label>
+                        <select name="category" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                          <option value="contract">Contract</option>
+                          <option value="policy">Policy</option>
+                          <option value="legal_case">Legal Case</option>
+                          <option value="compliance">Compliance</option>
+                          <option value="agreement">Agreement</option>
+                        </select>
+                      </div>
+
+                      <!-- Department -->
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i data-lucide="building" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                          Department *
+                        </label>
+                        <select name="department" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                          <option value="Legal">Legal</option>
+                          <option value="Administrative">Administrative</option>
+                          <option value="HR">HR</option>
+                          <option value="Finance">Finance</option>
+                        </select>
+                      </div>
+
+                      <!-- Confidentiality -->
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i data-lucide="shield" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                          Confidentiality *
+                        </label>
+                        <select name="confidentiality_level" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                          <option value="internal">🏢 Internal</option>
+                          <option value="confidential">🔒 Confidential</option>
+                          <option value="restricted">⛔ Restricted</option>
+                        </select>
+                      </div>
+
+                      <!-- Retention -->
+                      <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                          <i data-lucide="calendar" class="w-4 h-4 inline-block mr-1 text-[#001F54]"></i>
+                          Retention Period *
+                        </label>
+                        <select name="retention_period" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                          <option value="5 Years">5 Years</option>
+                          <option value="7 Years" selected>7 Years</option>
+                          <option value="Permanent">Permanent</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3 mt-6 pt-6 border-t border-gray-100">
+                      <button type="button" onclick="closeSimulateModal()" class="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">
+                        Cancel
+                      </button>
+                      <button type="submit" id="simulate-submit-btn" class="flex-1 px-4 py-3 bg-[#001F54] text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="download-cloud" class="w-4 h-4"></i>
+                        <span>Sync Now</span>
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             </div>
-            <table class="table table-zebra w-full">
-              <thead>
-                <tr class="bg-gray-50">
-                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Document Information</th>
-                  <th class="text-center py-3 px-4 font-semibold text-gray-700 w-32">Type</th>
-                  <th class="text-center py-3 px-4 font-semibold text-gray-700 w-40">Uploaded By</th>
-                  <th class="text-center py-3 px-4 font-semibold text-gray-700 w-32">Department</th>
-                  <th class="text-center py-3 px-4 font-semibold text-gray-700 w-32">Status</th>
-                  <th class="text-center py-3 px-4 font-semibold text-gray-700 w-32">Date</th>
-                  <th class="text-center py-3 px-4 font-semibold text-gray-700 w-32">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                @forelse($documents as $index => $document)
-                  <tr class="hover:bg-gray-50 transition-colors duration-200" data-document-id="{{ $document->id }}">
-                    <!-- Document Information Column -->
-                    <td class="py-3 px-4">
-                      <div class="flex items-center space-x-3">
-                        <!-- Avatar -->
-                        <div class="avatar placeholder">
-                          <div class="bg-blue-900 text-white rounded-full w-8 h-8 flex items-center justify-center">
-                            @php
-                              $fileExtension = pathinfo($document->file_path ?? '', PATHINFO_EXTENSION);
-                              $iconColor = 'text-white';
-                              
-                              switch(strtolower($fileExtension)) {
-                                case 'pdf':
-                                  $iconColor = 'text-white';
-                                  break;
-                                case 'doc':
-                                case 'docx':
-                                  $iconColor = 'text-white';
-                                  break;
-                                case 'xls':
-                                case 'xlsx':
-                                  $iconColor = 'text-white';
-                                  break;
-                                case 'ppt':
-                                case 'pptx':
-                                  $iconColor = 'text-white';
-                                  break;
-                                default:
-                                  $iconColor = 'text-white';
-                              }
-                            @endphp
-                            <i data-lucide="file-text" class="w-4 h-4 {{ $iconColor }}"></i>
-                          </div>
-                        </div>
-                        
-                        <!-- Document Title -->
-                        <div>
-                          <h4 class="font-semibold text-gray-900 text-sm">{{ $document->title }}</h4>
-                          <p class="text-xs text-gray-500">{{ Str::limit($document->description, 40) }}</p>
-                          <p class="text-xs font-mono text-blue-600">{{ $document->legal_document_id ?? 'LD-' . now()->format('Y') . '-' . str_pad($document->id, 6, '0', STR_PAD_LEFT) }}</p>
-                        </div>
-                      </div>
-                    </td>
-                    
-                    <!-- Type Column -->
-                    <td class="py-3 px-4 text-center">
-                      <span class="text-sm font-medium text-gray-700">{{ ucfirst(str_replace('_', ' ', $document->category ?? 'General')) }}</span>
-                    </td>
-                    
-                    <!-- Uploaded By Column -->
-                    <td class="py-3 px-4 text-center">
-                      <span class="text-sm font-medium text-gray-700">{{ $document->uploader->employee_name ?? 'Unknown' }}</span>
-                    </td>
-                    
-                    <!-- Department Column -->
-                    <td class="py-3 px-4 text-center">
-                      <span class="text-sm font-medium text-gray-700">{{ $document->uploader->dept_name ?? 'N/A' }}</span>
-                    </td>
-                    
-                    <!-- Status Column -->
-                    <td class="py-3 px-4 text-center">
-                      @php
-                        $statusConfig = [
-                          'active' => ['class' => 'bg-green-100 text-green-800', 'icon' => 'check-circle', 'text' => 'Active'],
-                            'pending_review' => ['class' => 'bg-yellow-100 text-yellow-800', 'icon' => 'clock', 'text' => 'Pending Review'],
-                            'archived' => ['class' => 'bg-gray-100 text-gray-800', 'icon' => 'archive', 'text' => 'Archived'],
-                            'draft' => ['class' => 'bg-green-500 text-white', 'icon' => 'edit-3', 'text' => 'Draft'],
-                            'approved' => ['class' => 'bg-green-100 text-green-800', 'icon' => 'check-circle-2', 'text' => 'Approved'],
-                            'declined' => ['class' => 'bg-red-100 text-red-800', 'icon' => 'x-circle', 'text' => 'Declined']
-                          ];
-                          $status = $document->status ?? 'active';
-                          $config = $statusConfig[$status] ?? $statusConfig['active'];
-                        @endphp
-                      <div class="flex items-center justify-center space-x-1">
-                        <i data-lucide="{{ $config['icon'] }}" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out hover:text-accent cursor-pointer"></i>
-                        <span class="text-xs font-medium {{ $config['class'] }} px-2 py-1 rounded-full">{{ $config['text'] }}</span>
-                      </div>
-                    </td>
-                    
-                    <!-- Date Column -->
-                    <td class="py-3 px-4 text-center">
-                      <span class="text-sm text-gray-600">{{ $document->created_at->format('M d, Y') }}</span>
-                    </td>
-                    
-                    <!-- Actions Column -->
-                    <td class="py-3 px-4 text-center">
-                      <div class="flex items-center justify-center space-x-1">
-                        <!-- Approve Button -->
-                        @if($document->status !== 'approved' && $document->status !== 'declined')
-                          <button onclick="approveDocument({{ $document->id }})" 
-                                  class="p-1.5 rounded-lg transition-all duration-200 hover:scale-110" 
-                                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                                  title="Approve">
-                            <i data-lucide="check" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out cursor-pointer" style="fill: none;"></i>
-                          </button>
-                        @endif
-                        
-                        <!-- Decline Button -->
-                        @if($document->status !== 'approved' && $document->status !== 'declined')
-                          <button onclick="declineDocument({{ $document->id }})" 
-                                  class="p-1.5 rounded-lg transition-all duration-200 hover:scale-110"
-                                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                                  title="Decline">
-                            <i data-lucide="x" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out cursor-pointer" style="fill: none;"></i>
-                          </button>
-                        @endif
-                        
-                        <!-- AI Analysis Button -->
-                        <button onclick="aiAnalysis({{ $document->id }})" 
-                                class="p-2 rounded-lg transition-all duration-200 hover:scale-110 touch-manipulation"
-                                style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                                title="AI Analysis">
-                          <i data-lucide="brain" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out cursor-pointer" style="fill: none;"></i>
-                        </button>
-                        
-                        <!-- Archive Button (No Deletion, Archive Only) -->
-                        @if($document->status !== 'archived')
-                          <button onclick="archiveDocument({{ $document->id }})" 
-                                  class="p-2 rounded-lg transition-all duration-200 hover:scale-110 touch-manipulation"
-                                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                                  title="Archive Document">
-                            <i data-lucide="archive" class="text-lg md:text-xl lg:text-2xl transition-all duration-300 ease-in-out cursor-pointer" style="fill: none;"></i>
-                          </button>
-                        @else
-                          <span class="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">Archived</span>
-                        @endif
-                      </div>
-                    </td>
-                  </tr>
-                @empty
-                  <tr>
-                    <td colspan="7" class="py-12 text-center">
-                      <div class="flex flex-col items-center justify-center">
-                        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                          <i data-lucide="folder" class="w-10 h-10 text-gray-400"></i>
-                        </div>
-                        <h3 class="text-lg font-semibold text-gray-600 mb-2">No Legal Documents Found</h3>
-                        <p class="text-gray-500 text-sm">No documents available at the moment.</p>
-                      </div>
-                    </td>
-                  </tr>
-                @endforelse
-              </tbody>
-            </table>
-          </x-table-card>
 
           <!-- Mobile Card View -->
           <div class="lg:hidden space-y-4">
@@ -839,7 +1035,7 @@
                   <!-- Status Badge -->
                   @php
                     $status = $document->status ?? 'draft';
-                    $badgeClass = match($status) {
+                    $badgeClass = match ($status) {
                       'pending_review' => 'badge-warning',
                       'active' => 'badge-success',
                       'draft' => 'badge-info',
@@ -877,29 +1073,29 @@
                     <i data-lucide="brain" class="w-4 h-4 mr-1"></i>
                     <span class="hidden sm:inline">AI Analysis</span>
                   </button>
-                  
+
                   <!-- Download Button -->
                   <button onclick="downloadDocument({{ $document->id }})" class="btn btn-ghost btn-sm text-blue-600 hover:bg-blue-50">
                     <i data-lucide="download" class="w-4 h-4 mr-1"></i>
                     <span class="hidden sm:inline">Download</span>
                   </button>
-                  
+
                   <!-- Edit Button (only for draft documents) -->
                   @if(($document->status ?? 'draft') === 'draft')
-                  <a href="{{ route('legal.documents.draft') }}?edit={{ $document->id }}" class="btn btn-ghost btn-sm text-green-600 hover:bg-green-50">
-                    <i data-lucide="edit-3" class="w-4 h-4 mr-1"></i>
-                    <span class="hidden sm:inline">Edit</span>
-                  </a>
+                    <a href="{{ route('legal.documents.draft') }}?edit={{ $document->id }}" class="btn btn-ghost btn-sm text-green-600 hover:bg-green-50">
+                      <i data-lucide="edit-3" class="w-4 h-4 mr-1"></i>
+                      <span class="hidden sm:inline">Edit</span>
+                    </a>
                   @endif
-                  
+
                   <!-- Archive Button (No Deletion, Archive Only) -->
                   @if($document->status !== 'archived')
-                  <button onclick="archiveDocument({{ $document->id }})" class="btn btn-ghost btn-sm text-orange-600 hover:bg-orange-50">
-                    <i data-lucide="archive" class="w-4 h-4 mr-1"></i>
-                    <span class="hidden sm:inline">Archive</span>
-                  </button>
+                    <button onclick="archiveDocument({{ $document->id }})" class="btn btn-ghost btn-sm text-orange-600 hover:bg-orange-50">
+                      <i data-lucide="archive" class="w-4 h-4 mr-1"></i>
+                      <span class="hidden sm:inline">Archive</span>
+                    </button>
                   @else
-                  <span class="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">Archived</span>
+                    <span class="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">Archived</span>
                   @endif
                 </div>
               </div>
@@ -917,9 +1113,28 @@
           </div>
 
           <!-- Pagination -->
-          <x-table-card :pagination="$documents->hasPages() ? $documents->appends(['search' => $search ?? '', 'category' => $category ?? '', 'status' => $status ?? ''])->links() : null"></x-table-card>
+            <div class="mt-4 flex justify-end">
+              <div class="join">
+                <!-- Previous Button -->
+                @if($documents->onFirstPage())
+                  <button class="join-item btn btn-disabled">«</button>
+                @else
+                  <a href="{{ $documents->appends(request()->query())->previousPageUrl() }}" class="join-item btn">«</a>
+                @endif
+                
+                <!-- Current Page Display -->
+                <button class="join-item btn no-animation cursor-default hover:bg-base-200">Page {{ $documents->currentPage() }}</button>
+                
+                <!-- Next Button -->
+                @if($documents->hasMorePages())
+                  <a href="{{ $documents->appends(request()->query())->nextPageUrl() }}" class="join-item btn">»</a>
+                @else
+                  <button class="join-item btn btn-disabled">»</button>
+                @endif
+              </div>
+            </div>
           </div>
-        </div>
+        </div><!-- End Tab Content Container -->
       </main>
     </div>
   </div>
@@ -1366,11 +1581,14 @@
     }
 
     // File input change handler
-    document.getElementById('document_file').addEventListener('change', function(e) {
-      if (e.target.files.length > 0) {
-        updateFilePreview(e.target.files[0]);
-      }
-    });
+    const documentFileInput = document.getElementById('document_file');
+    if (documentFileInput) {
+      documentFileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+          updateFilePreview(e.target.files[0]);
+        }
+      });
+    }
 
     // Bulk Analysis Functions
     function startBulkAnalysis() {
@@ -1434,6 +1652,18 @@
             }
           });
 
+          // Check if response is OK and JSON
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error('Expected JSON response but received: ' + contentType);
+          }
+          
           const data = await response.json();
           
           if (data.success) {
@@ -1815,24 +2045,30 @@
      // Archive document function (No Deletion, Archive Only)
      function archiveDocument(documentId) {
        Swal.fire({
-         title: 'Confirm Archive',
+         title: 'Archive Document',
          html: `
-           <div class="text-left">
-             <div class="flex items-center justify-center mb-4">
-               <i data-lucide="help-circle" class="w-16 h-16 text-blue-500"></i>
+           <div class="text-center px-4">
+             <div class="mb-4 flex justify-center">
+               <div class="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-archive"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+               </div>
              </div>
-             <p class="text-gray-700 mb-2">Are you sure you want to archive this legal document?</p>
-             <p class="text-sm text-gray-600">It will be retained according to retention policy and cannot be deleted. The document will be marked for disposal after the retention period.</p>
+             <p class="text-gray-600 mb-2">Are you sure you want to archive this document?</p>
+             <p class="text-xs text-gray-500 max-w-sm mx-auto">This action will move the document to the archives. It will be retained according to the retention policy.</p>
            </div>
          `,
-         icon: 'question',
          showCancelButton: true,
-         confirmButtonText: 'ARCHIVE DOCUMENT',
-         cancelButtonText: 'CANCEL',
-         confirmButtonColor: '#ef4444',
-         cancelButtonColor: '#6b7280',
-         reverseButtons: true,
-         focusCancel: true,
+         confirmButtonText: 'Yes, Archive It',
+         cancelButtonText: 'Cancel',
+         confirmButtonColor: '#F7B32B',
+         cancelButtonColor: '#9CA3AF',
+         buttonsStyling: false,
+         customClass: {
+           popup: 'rounded-2xl border-0 shadow-xl',
+           confirmButton: 'btn btn-warning btn-sm text-white px-6 mx-1 rounded-lg hover:brightness-95',
+           cancelButton: 'btn btn-ghost btn-sm text-gray-500 px-6 mx-1 rounded-lg hover:bg-gray-100',
+           actions: 'gap-3 mt-2'
+         },
          showLoaderOnConfirm: true,
          preConfirm: () => {
            return fetch(`/legal/documents/${documentId}/archive-only`, {
@@ -1871,26 +2107,66 @@
        }).then((result) => {
          if (result.isConfirmed && result.value) {
            Swal.fire({
-             title: 'Archived!',
-             html: `
-               <div class="text-center">
-                 <i data-lucide="check-circle" class="w-16 h-16 text-green-500 mx-auto mb-4"></i>
-                 <p class="text-gray-700 mb-2 font-semibold">Document has been archived successfully!</p>
-                 <p class="text-sm text-gray-600">Redirecting to Archived Documents...</p>
-               </div>
-             `,
+             title: 'Archived Successfully',
+             text: 'Standard retention policies now apply.',
              icon: 'success',
+             iconColor: '#10B981', // Emerald green
              showConfirmButton: false,
-             timer: 2000,
+             timer: 1500,
+             customClass: {
+               popup: 'rounded-2xl border-0 shadow-xl pb-6',
+               title: 'text-xl font-bold text-gray-800 mt-2',
+               htmlContainer: 'text-sm text-gray-500'
+             },
+             timerProgressBar: true,
              didOpen: () => {
                lucide.createIcons();
              }
            }).then(() => {
-             // Longer delay to ensure database transaction is committed, then redirect
-             setTimeout(() => {
-               // Redirect without any filter parameters that might interfere
-               window.location.href = '/document/archived?archived=' + documentId;
-             }, 1500);
+             // Remove the archived document from the current table/card view
+             const row = document.querySelector(`tr[data-document-id="${documentId}"]`);
+             
+             // Track previous status to update counts
+             let isApproved = false;
+             let isPending = false;
+             
+             const statusSource = row || document.querySelector(`div[data-document-id="${documentId}"]`);
+             if (statusSource) {
+               const badge = statusSource.querySelector('.badge, .rounded-full');
+               if (badge) {
+                 const statusText = badge.textContent.trim().toLowerCase();
+                 if (statusText.includes('approved') || statusText.includes('active')) isApproved = true;
+                 if (statusText.includes('pending')) isPending = true;
+               }
+             }
+
+             // Remove all instances (table row + mobile card)
+             const elementsToRemove = document.querySelectorAll(`[data-document-id="${documentId}"]`);
+             elementsToRemove.forEach(element => element.remove());
+
+             // Update empty state if needed
+             if (typeof updateTableState === 'function') {
+               updateTableState();
+             }
+
+             // Update counts for the cards
+             if (isApproved) {
+               const approvedCountEl = document.getElementById('approved-docs-count');
+               if (approvedCountEl) {
+                 let count = parseInt(approvedCountEl.innerText.replace(/,/g, '')) || 0;
+                 approvedCountEl.innerText = Math.max(0, count - 1);
+               }
+             }
+             
+             if (isPending) {
+               const pendingCountEl = document.getElementById('pending-docs-count');
+               if (pendingCountEl) {
+                 let count = parseInt(pendingCountEl.innerText.replace(/,/g, '')) || 0;
+                 pendingCountEl.innerText = Math.max(0, count - 1);
+               }
+             }
+
+             // Optional: keep total count unchanged since it may include archived documents.
            });
          }
        });
@@ -2016,63 +2292,16 @@
        });
      }
      
-     // Toast notification function - uses global showNotification with progress bar
+     // Toast notification function - uses global showNotification
      function showToast(message, type = 'info', duration = 3000) {
-       // Use global showNotification if available (has progress bar), otherwise use local implementation
-       if (typeof window.showNotification !== 'undefined' && window.showNotification.toString().indexOf('progressBar') !== -1) {
+       // Use global showNotification if available (Soliera theme), otherwise use local fallback
+       if (typeof window.showNotification === 'function') {
          window.showNotification(message, type, duration);
          return;
        }
        
-       // Fallback to local implementation with progress bar
-       if (!document.getElementById('notification-progress-style')) {
-         const style = document.createElement('style');
-         style.id = 'notification-progress-style';
-         style.textContent = `
-           @keyframes progressBar {
-             from { width: 100%; }
-             to { width: 0%; }
-           }
-           @keyframes slideInRight {
-             from { transform: translateX(100%); opacity: 0; }
-             to { transform: translateX(0); opacity: 1; }
-           }
-         `;
-         document.head.appendChild(style);
-       }
-
-       const notification = document.createElement('div');
-       const alertType = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-       notification.className = `alert alert-${alertType} fixed bottom-4 right-4 z-[9999] max-w-sm shadow-lg relative overflow-hidden`;
-       notification.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; max-width: 24rem; animation: slideInRight 0.3s ease-out;';
-       
-       const iconMap = { 'success': 'check-circle', 'error': 'alert-circle', 'warning': 'alert-triangle', 'info': 'info' };
-       const icon = iconMap[type] || 'info';
-       
-       notification.innerHTML = `
-         <div class="flex items-center gap-2 px-4 py-3">
-           <i data-lucide="${icon}" class="w-5 h-5"></i>
-           <span>${message}</span>
-         </div>
-         <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-           <div class="notification-progress h-full bg-white/50" style="width: 100%; animation: progressBar ${duration}ms linear forwards;"></div>
-         </div>
-       `;
-       
-       document.body.appendChild(notification);
-       notification.offsetHeight;
-       
-       if (window.lucide && window.lucide.createIcons) {
-         window.lucide.createIcons();
-       }
-       
-       setTimeout(() => {
-         notification.style.opacity = '0';
-         notification.style.transition = 'opacity 0.3s ease-out';
-         setTimeout(() => {
-           if (notification.parentNode) notification.remove();
-         }, 300);
-       }, duration);
+       // Fallback to simple alert if global function not available
+       alert(message);
      }
      
      // Function to update card counts after deletion
@@ -2386,7 +2615,8 @@
       // Update filters if they're active
       if (document.getElementById('searchInput').value || 
           document.getElementById('categoryFilter').value || 
-          document.getElementById('statusFilter').value) {
+          document.getElementById('statusFilter').value ||
+          document.getElementById('originFilter').value) {
         filterDocuments();
       }
       
@@ -2805,7 +3035,7 @@
       }
     };
 
-    // Load monitoring summary with enhanced analytics
+    // Load monitoring summary (now only used for counts and export meta; UI cards removed)
     function loadMonitoringSummary(){
       const p = MON.params();
       const q = new URLSearchParams(p).toString();
@@ -2816,52 +3046,31 @@
           'Accept': 'application/json'
         }
       })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) {
+          return r.text().then(text => {
+            throw new Error(`HTTP error! status: ${r.status}`);
+          });
+        }
+        const contentType = r.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return r.json();
+        } else {
+          return r.text().then(text => {
+            throw new Error('Expected JSON response but received: ' + contentType);
+          });
+        }
+      })
       .then(d => {
         if(!d.success) {
           console.error('Failed to load monitoring summary:', d.message);
           return;
         }
-        
-          const c = d.counts || {};
-        const analytics = d.analytics || {};
-        
-        // Update KPI cards
-        const set = (id, val) => { 
-          const el = document.getElementById(id); 
-          if(el) el.textContent = val ?? 0; 
-        };
-        
-          set('mon-total', c.total);
-          set('mon-pending', c.pending);
-          set('mon-approved', c.approved);
-          set('mon-expiring', c.expiring);
-        
-        // Update change indicators
-        const setChange = (id, val) => {
-          const el = document.getElementById(id);
-          if(el) {
-            el.textContent = val || '+0%';
-            el.className = val && val.startsWith('+') ? 'text-green-600 font-medium' : 
-                          val && val.startsWith('-') ? 'text-red-600 font-medium' : 
-                          'text-gray-600 font-medium';
-          }
-        };
-        
-        setChange('mon-total-change', analytics.total_change);
-        setChange('mon-approved-change', analytics.approval_rate);
-        setChange('mon-pending-change', c.pending);
-        setChange('mon-expiring-change', c.expiring);
-        
-        // Update last updated time
-        const lastUpdated = document.getElementById('lastUpdated');
-        if(lastUpdated) {
-          lastUpdated.textContent = new Date().toLocaleTimeString();
-        }
+        // Currently no header cards to update; keep hook for future use.
+        console.debug('Monitoring summary loaded', d.counts || {});
       })
       .catch(error => {
         console.error('Error loading monitoring summary:', error);
-        showToast('Failed to load monitoring data', 'error');
       });
     }
 
@@ -2893,7 +3102,21 @@
           'Accept': 'application/json'
         }
       })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) {
+          return r.text().then(text => {
+            throw new Error(`HTTP error! status: ${r.status}`);
+          });
+        }
+        const contentType = r.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return r.json();
+        } else {
+          return r.text().then(text => {
+            throw new Error('Expected JSON response but received: ' + contentType);
+          });
+        }
+      })
       .then(d => {
         if(!d.success) {
           throw new Error(d.message || 'Failed to load monitoring data');
@@ -3270,9 +3493,21 @@
       }
     });
 
-    function viewDocument(id){
-      window.location.href = `/legal/documents/${id}`;
+    function toggleRequestedDocs() {
+      const currentOrigin = '{{ $origin }}';
+      const targetOrigin = currentOrigin === 'legal_submission' ? '' : 'legal_submission';
+      
+      const url = new URL(window.location.href);
+      if (targetOrigin) {
+        url.searchParams.set('origin', targetOrigin);
+      } else {
+        url.searchParams.delete('origin');
+      }
+      url.searchParams.set('tab', 'documents');
+      window.location.href = url.toString();
     }
+
+
     
     
     
@@ -3280,6 +3515,7 @@
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
       const categoryFilter = document.getElementById('categoryFilter').value;
       const statusFilter = document.getElementById('statusFilter').value;
+      const originFilter = document.getElementById('originFilter').value;
       
       const rows = document.querySelectorAll('tbody tr[data-document-id]');
       
@@ -3297,16 +3533,24 @@
         
         // Category filter
         if (categoryFilter && showRow) {
-          const category = row.querySelector('td:nth-child(2) .badge')?.textContent?.toLowerCase() || '';
-          if (category !== categoryFilter.replace('_', ' ')) {
+          const category = row.dataset.category;
+          if (category !== categoryFilter) {
             showRow = false;
           }
         }
         
         // Status filter
         if (statusFilter && showRow) {
-          const status = row.querySelector('td:nth-child(3) .badge')?.textContent?.toLowerCase() || '';
-          if (status !== statusFilter.replace('_', ' ')) {
+          const status = row.dataset.status;
+          if (status !== statusFilter) {
+            showRow = false;
+          }
+        }
+
+        // Origin filter
+        if (originFilter && showRow) {
+          const origin = row.dataset.origin;
+          if (origin !== originFilter) {
             showRow = false;
           }
         }
@@ -3323,6 +3567,15 @@
       document.getElementById('searchInput').value = '';
       document.getElementById('categoryFilter').value = '';
       document.getElementById('statusFilter').value = '';
+      document.getElementById('originFilter').value = '';
+      
+      const btn = document.getElementById('requestedDocsBtn');
+      if (btn) {
+        btn.classList.replace('from-blue-600', 'from-[#F7B32B]');
+        btn.classList.replace('to-blue-700', 'to-[#f59e0b]');
+        btn.classList.add('text-gray-800');
+        btn.classList.remove('text-white');
+      }
       
       // Show all rows
       const rows = document.querySelectorAll('tbody tr[data-document-id]');
@@ -3340,6 +3593,7 @@
       const searchInput = document.getElementById('searchInput');
       const categoryFilter = document.getElementById('categoryFilter');
       const statusFilter = document.getElementById('statusFilter');
+      const originFilter = document.getElementById('originFilter');
       
       if (searchInput) {
         searchInput.addEventListener('input', filterDocuments);
@@ -3350,11 +3604,32 @@
       if (statusFilter) {
         statusFilter.addEventListener('change', filterDocuments);
       }
+      const currentOrigin = document.getElementById('originFilter').value;
+      if (currentOrigin === 'legal_submission') {
+        const btn = document.getElementById('requestedDocsBtn');
+        if (btn) {
+          btn.classList.replace('from-[#F7B32B]', 'from-blue-600');
+          btn.classList.replace('to-[#f59e0b]', 'to-blue-700');
+          btn.classList.remove('text-gray-800');
+          btn.classList.add('text-white');
+        }
+      }
     });
 
-    document.getElementById('document_file').addEventListener('change', validateFile);
-    document.getElementById('uploadForm').addEventListener('submit', validateFile);
-    document.getElementById('uploadSubmitBtn').addEventListener('click', validateFile);
+    // Safely bind upload validators only if the elements exist (to avoid errors on Monitoring tab)
+    const uploadFileInput = document.getElementById('document_file');
+    const uploadFormEl = document.getElementById('uploadForm');
+    const uploadSubmitBtn = document.getElementById('uploadSubmitBtn');
+
+    if (uploadFileInput) {
+      uploadFileInput.addEventListener('change', validateFile);
+    }
+    if (uploadFormEl) {
+      uploadFormEl.addEventListener('submit', validateFile);
+    }
+    if (uploadSubmitBtn) {
+      uploadSubmitBtn.addEventListener('click', validateFile);
+    }
   </script>
   <script>
     function showLegalTab(name) {
@@ -3365,24 +3640,39 @@
       const nav2 = document.getElementById('nav-create');
       const nav3 = document.getElementById('nav-monitor');
       if (!createTab || !docsTab) return;
-      
-      // Reset all navigation buttons
-      [nav1, nav2, nav3].forEach(btn => {
-        if (btn && btn.classList) {
-          btn.classList.remove('text-blue-600', 'text-blue-800', 'font-semibold');
-          btn.classList.add('text-gray-600');
+
+      // Helper function to set tab inactive state
+      function setTabInactive(btn) {
+        if (!btn) return;
+        btn.classList.remove('bg-[#001F54]', 'text-white', 'shadow-md');
+        btn.classList.add('bg-white', 'text-gray-600', 'hover:bg-gray-50', 'border', 'border-gray-200');
+        const iconBox = btn.querySelector('div');
+        if (iconBox) {
+          iconBox.classList.remove('bg-white/20');
+          iconBox.classList.add('bg-[#001F54]');
         }
-      });
+      }
       
+      // Helper function to set tab active state
+      function setTabActive(btn) {
+        if (!btn) return;
+        btn.classList.remove('bg-white', 'text-gray-600', 'hover:bg-gray-50', 'border', 'border-gray-200');
+        btn.classList.add('bg-[#001F54]', 'text-white', 'shadow-md');
+        const iconBox = btn.querySelector('div');
+        if (iconBox) {
+          iconBox.classList.remove('bg-[#001F54]');
+          iconBox.classList.add('bg-white/20');
+        }
+      }
+
+      // Reset all navigation buttons
+      [nav1, nav2, nav3].forEach(btn => setTabInactive(btn));
+
       if (name === 'create') {
         createTab.classList.remove('hidden');
         docsTab.classList.add('hidden');
         if (monTab) monTab.classList.add('hidden');
-        if (nav2 && nav2.classList) {
-          nav2.classList.remove('text-gray-600');
-          nav2.classList.add('text-blue-600', 'font-semibold');
-        }
-        // Reflect in URL so we can return to Create tab after redirects
+        setTabActive(nav2);
         try {
           const url = new URL(window.location.href);
           url.searchParams.set('tab', 'create');
@@ -3392,24 +3682,23 @@
         docsTab.classList.add('hidden');
         createTab.classList.add('hidden');
         if (monTab) monTab.classList.remove('hidden');
-        if (nav3 && nav3.classList) {
-          nav3.classList.remove('text-gray-600');
-          nav3.classList.add('text-blue-600', 'font-semibold');
-        }
+        setTabActive(nav3);
         try {
           const url = new URL(window.location.href);
           url.searchParams.set('tab', 'monitor');
           window.history.replaceState({}, '', url);
         } catch(e) {}
+        try {
+          loadMonitoringSummary();
+          loadMonitoringList();
+        } catch (e) {
+          console.error('Failed to load monitoring data on tab switch:', e);
+        }
       } else {
         docsTab.classList.remove('hidden');
         createTab.classList.add('hidden');
         if (monTab) monTab.classList.add('hidden');
-        if (nav1) {
-          nav1.classList.remove('text-gray-600');
-          nav1.classList.add('text-blue-800', 'font-semibold');
-        }
-        // Reflect in URL
+        setTabActive(nav1);
         try {
           const url = new URL(window.location.href);
           url.searchParams.delete('tab');
@@ -3429,7 +3718,18 @@
           // Defer to ensure DOM is ready
           setTimeout(() => showLegalTab('create'), 0);
         } else if (tabParam === 'monitor' || hashTab === 'monitor') {
-          setTimeout(() => showLegalTab('monitor'), 0);
+          setTimeout(() => {
+            showLegalTab('monitor');
+            // Ensure monitoring data loads even on direct link to monitor tab
+            try {
+              loadMonitoringSummary();
+              loadMonitoringList();
+            } catch (e) {
+              console.error('Failed to load monitoring data on initial load:', e);
+            }
+          }, 0);
+        } else {
+          // Default tab still documents; no monitoring load needed
         }
       } catch(e) {}
     })();
@@ -3450,8 +3750,8 @@
             <textarea id="approvalNotes" class="textarea textarea-bordered" placeholder="Add approval notes..."></textarea>
           </div>
           <div class="modal-action">
-            <button class="btn" onclick="closeApprovalModal()">Cancel</button>
-            <button class="btn btn-success" onclick="confirmApproval(${documentId})">
+            <button id="approve-cancel-btn" class="btn" type="button">Cancel</button>
+            <button id="approve-confirm-btn" class="btn btn-success" type="button">
               <i data-lucide="check" class="w-4 h-4 mr-2"></i>
               Approve
             </button>
@@ -3461,6 +3761,32 @@
       
       document.body.appendChild(modal);
       lucide.createIcons();
+      
+      // Attach event listeners immediately - buttons are clickable right away
+      const cancelBtn = document.getElementById('approve-cancel-btn');
+      const confirmBtn = document.getElementById('approve-confirm-btn');
+      
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeApprovalModal();
+        }, { once: false });
+      }
+      
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Disable button immediately to prevent double-clicks
+          if (this.disabled) return;
+          this.disabled = true;
+          this.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Approving...';
+          
+          confirmApproval(documentId);
+        }, { once: false });
+      }
     }
 
     function closeApprovalModal() {
@@ -3471,31 +3797,89 @@
     }
 
     function confirmApproval(documentId) {
-      const notes = document.getElementById('approvalNotes').value;
+      const notesElement = document.getElementById('approvalNotes');
+      const notes = notesElement ? notesElement.value : '';
+      const confirmBtn = document.getElementById('approve-confirm-btn');
       
       fetch(`/legal/documents/${documentId}/approve-doc`, {
         method: 'POST',
         headers: {
           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           notes: notes
         })
       })
-      .then(response => response.json())
+      .then(response => {
+        // Check if response is OK
+        if (!response.ok) {
+          // Try to get error message from response
+          return response.text().then(text => {
+            try {
+              const json = JSON.parse(text);
+              throw new Error(json.message || `HTTP error! status: ${response.status}`);
+            } catch (e) {
+              if (e instanceof SyntaxError) {
+                // Response is HTML, not JSON
+                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+              }
+              throw e;
+            }
+          });
+        }
+        
+        // Check content type before parsing
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return response.json();
+        } else {
+          // If not JSON, read as text first
+          return response.text().then(text => {
+            throw new Error('Expected JSON response but received: ' + contentType);
+          });
+        }
+      })
       .then(data => {
         if (data.success) {
           closeApprovalModal();
-          showToast('Document approved successfully!', 'success');
-          location.reload();
+          if (typeof window.showNotification === 'function') {
+            window.showNotification('Document approved successfully!', 'success', 3000);
+          } else {
+            showToast('Document approved successfully!', 'success');
+          }
+          setTimeout(() => {
+            location.reload();
+          }, 1000);
         } else {
-          showToast('Error: ' + data.message, 'error');
+          // Re-enable button on error
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 mr-2"></i> Approve';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+          }
+          if (typeof window.showNotification === 'function') {
+            window.showNotification('Error: ' + (data.message || 'Unknown error'), 'error', 5000);
+          } else {
+            showToast('Error: ' + (data.message || 'Unknown error'), 'error');
+          }
         }
       })
       .catch(error => {
-        console.error('Error:', error);
-        showToast('An error occurred while approving the document.', 'error');
+        console.error('Error approving document:', error);
+        // Re-enable button on error
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 mr-2"></i> Approve';
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        if (typeof window.showNotification === 'function') {
+          window.showNotification('An error occurred while approving the document: ' + error.message, 'error', 5000);
+        } else {
+          showToast('An error occurred while approving the document: ' + error.message, 'error');
+        }
       });
     }
 
@@ -3515,8 +3899,8 @@
             <textarea id="declineReason" class="textarea textarea-bordered" placeholder="Enter reason for declining..." required></textarea>
           </div>
           <div class="modal-action">
-            <button class="btn" onclick="closeDeclineModal()">Cancel</button>
-            <button class="btn btn-error" onclick="confirmDecline(${documentId})">
+            <button id="decline-cancel-btn" class="btn" type="button">Cancel</button>
+            <button id="decline-confirm-btn" class="btn btn-error" type="button">
               <i data-lucide="x" class="w-4 h-4 mr-2"></i>
               Decline
             </button>
@@ -3526,6 +3910,32 @@
       
       document.body.appendChild(modal);
       lucide.createIcons();
+      
+      // Attach event listeners immediately - buttons are clickable right away
+      const cancelBtn = document.getElementById('decline-cancel-btn');
+      const confirmBtn = document.getElementById('decline-confirm-btn');
+      
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeDeclineModal();
+        }, { once: false });
+      }
+      
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Disable button immediately to prevent double-clicks
+          if (this.disabled) return;
+          this.disabled = true;
+          this.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Declining...';
+          
+          confirmDecline(documentId);
+        }, { once: false });
+      }
     }
 
     function closeDeclineModal() {
@@ -3536,10 +3946,22 @@
     }
 
     function confirmDecline(documentId) {
-      const reason = document.getElementById('declineReason').value.trim();
+      const reasonElement = document.getElementById('declineReason');
+      const reason = reasonElement ? reasonElement.value.trim() : '';
+      const confirmBtn = document.getElementById('decline-confirm-btn');
       
       if (!reason) {
-        showToast('Please provide a reason for declining the document.', 'error');
+        // Re-enable button if validation fails
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = '<i data-lucide="x" class="w-4 h-4 mr-2"></i> Decline';
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        if (typeof window.showNotification === 'function') {
+          window.showNotification('Please provide a reason for declining the document.', 'error', 5000);
+        } else {
+          showToast('Please provide a reason for declining the document.', 'error');
+        }
         return;
       }
       
@@ -3547,25 +3969,81 @@
         method: 'POST',
         headers: {
           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           reason: reason
         })
       })
-      .then(response => response.json())
+      .then(response => {
+        // Check if response is OK
+        if (!response.ok) {
+          // Try to get error message from response
+          return response.text().then(text => {
+            try {
+              const json = JSON.parse(text);
+              throw new Error(json.message || `HTTP error! status: ${response.status}`);
+            } catch (e) {
+              if (e instanceof SyntaxError) {
+                // Response is HTML, not JSON
+                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+              }
+              throw e;
+            }
+          });
+        }
+        
+        // Check content type before parsing
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return response.json();
+        } else {
+          // If not JSON, read as text first
+          return response.text().then(text => {
+            throw new Error('Expected JSON response but received: ' + contentType);
+          });
+        }
+      })
       .then(data => {
         if (data.success) {
           closeDeclineModal();
-          showToast('Document declined successfully!', 'success');
-          location.reload();
+          if (typeof window.showNotification === 'function') {
+            window.showNotification('Document declined successfully!', 'success', 3000);
+          } else {
+            showToast('Document declined successfully!', 'success');
+          }
+          setTimeout(() => {
+            location.reload();
+          }, 1000);
         } else {
-          showToast('Error: ' + data.message, 'error');
+          // Re-enable button on error
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i data-lucide="x" class="w-4 h-4 mr-2"></i> Decline';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+          }
+          if (typeof window.showNotification === 'function') {
+            window.showNotification('Error: ' + (data.message || 'Unknown error'), 'error', 5000);
+          } else {
+            showToast('Error: ' + (data.message || 'Unknown error'), 'error');
+          }
         }
       })
       .catch(error => {
-        console.error('Error:', error);
-        showToast('An error occurred while declining the document.', 'error');
+        console.error('Error declining document:', error);
+        // Re-enable button on error
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = '<i data-lucide="x" class="w-4 h-4 mr-2"></i> Decline';
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        if (typeof window.showNotification === 'function') {
+          window.showNotification('An error occurred while declining the document: ' + error.message, 'error', 5000);
+        } else {
+          showToast('An error occurred while declining the document: ' + error.message, 'error');
+        }
       });
     }
 
@@ -3707,7 +4185,291 @@
       }
     }
   </style>
+  <!-- Document Upload Modal -->
+  <div id="uploadDocumentModal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeUploadModal()"></div>
+    <div class="relative w-full max-w-xl p-4 sm:p-6 bg-white rounded-2xl shadow-2xl">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+            <i data-lucide="upload-cloud"></i>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-gray-900">Upload Legal Document</h3>
+            <p class="text-sm text-gray-500">Associate a file with a case or document</p>
+          </div>
+        </div>
+        <button onclick="closeUploadModal()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+        </button>
+      </div>
+
+      <form id="uploadDocumentForm" onsubmit="handleUploadSubmit(event)" class="space-y-6">
+        @csrf
+        <!-- Select Document/Case Search -->
+        <div class="space-y-2">
+          <label class="text-sm font-semibold text-gray-700">Search Case or Document</label>
+          <div class="relative">
+            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+            <input type="text" id="docSearchInput" oninput="searchDocumentsDropdown(this.value)" 
+                   placeholder="Type case title, number, or document ID..." 
+                   class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
+          </div>
+          <div id="searchResults" class="hidden mt-2 max-h-48 overflow-y-auto bg-white border border-gray-100 rounded-xl shadow-lg divide-y divide-gray-50">
+            <!-- Results will be injected here -->
+          </div>
+          <input type="hidden" name="document_id" id="selectedDocumentId">
+          <div id="selectedDocumentDisplay" class="hidden mt-2 p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="check-circle" class="w-4 h-4 text-blue-600"></i>
+              <span id="selectedDocumentText" class="text-sm font-medium text-blue-800"></span>
+            </div>
+            <button type="button" onclick="clearSelectedDocument()" class="text-blue-600 hover:text-blue-800 p-1">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- File Upload Area -->
+        <div class="space-y-2">
+          <label class="text-sm font-semibold text-gray-700">File Attachment</label>
+          <div id="dropArea" class="relative group">
+            <input type="file" name="document_file" id="documentFile" class="hidden" onchange="handleFileSelect(this)" accept=".pdf,.doc,.docx,.jpg,.png">
+            <label for="documentFile" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 group-hover:bg-blue-50/50 group-hover:border-blue-400 transition-all cursor-pointer">
+              <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                <div class="w-12 h-12 mb-3 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                  <i data-lucide="file-up"></i>
+                </div>
+                <p class="mb-2 text-sm text-gray-700"><span class="font-bold">Click to upload</span> or drag and drop</p>
+                <p class="text-xs text-gray-500">PDF, DOC, DOCX, JPG, PNG (Max. 10MB)</p>
+              </div>
+            </label>
+          </div>
+          <div id="filePreview" class="hidden mt-2 p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-white rounded-lg shadow-sm">
+                <i data-lucide="file" class="w-5 h-5 text-blue-600"></i>
+              </div>
+              <div>
+                <p id="fileName" class="text-sm font-medium text-gray-900 truncate max-w-[200px]"></p>
+                <p id="fileSize" class="text-xs text-gray-500"></p>
+              </div>
+            </div>
+            <button type="button" onclick="clearFile()" class="p-2 hover:bg-gray-200 rounded-lg transition-colors">
+              <i data-lucide="trash-2" class="w-4 h-4 text-red-500"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+          <button type="button" onclick="closeUploadModal()" class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
+          <button type="submit" id="submitUploadBtn" class="flex-1 px-4 py-2.5 bg-[#001F54] text-white font-semibold rounded-xl hover:bg-blue-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Upload Document</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function openUploadModal() {
+      document.getElementById('uploadDocumentModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      lucide.createIcons();
+    }
+
+    function closeUploadModal() {
+      document.getElementById('uploadDocumentModal').classList.add('hidden');
+      document.body.style.overflow = 'auto';
+      document.getElementById('uploadDocumentForm').reset();
+      clearSelectedDocument();
+      clearFile();
+    }
+
+    let searchTimeout;
+    function searchDocumentsDropdown(query) {
+      clearTimeout(searchTimeout);
+      const resultsDiv = document.getElementById('searchResults');
+      
+      if (query.length < 2) {
+        resultsDiv.classList.add('hidden');
+        return;
+      }
+
+      searchTimeout = setTimeout(() => {
+        fetch(`{{ route('legal.documents.search_dropdown') }}?query=${encodeURIComponent(query)}`)
+          .then(res => res.json())
+          .then(data => {
+            resultsDiv.innerHTML = '';
+            if (data.length > 0) {
+              data.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors';
+                div.innerHTML = `<p class="text-sm font-medium text-gray-900">${item.text}</p>`;
+                div.onclick = () => selectDocument(item);
+                resultsDiv.appendChild(div);
+              });
+              resultsDiv.classList.remove('hidden');
+            } else {
+              resultsDiv.innerHTML = '<div class="px-4 py-3 text-sm text-gray-500 italic">No results found</div>';
+              resultsDiv.classList.remove('hidden');
+            }
+          });
+      }, 300);
+    }
+
+    function selectDocument(item) {
+      document.getElementById('selectedDocumentId').value = item.id;
+      document.getElementById('selectedDocumentText').textContent = item.text;
+      document.getElementById('selectedDocumentDisplay').classList.remove('hidden');
+      document.getElementById('docSearchInput').parentElement.classList.add('hidden');
+      document.getElementById('searchResults').classList.add('hidden');
+      lucide.createIcons();
+    }
+
+    function clearSelectedDocument() {
+      document.getElementById('selectedDocumentId').value = '';
+      document.getElementById('selectedDocumentDisplay').classList.add('hidden');
+      document.getElementById('docSearchInput').parentElement.classList.remove('hidden');
+      document.getElementById('docSearchInput').value = '';
+    }
+
+    function handleFileSelect(input) {
+      const file = input.files[0];
+      if (file) {
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+        document.getElementById('filePreview').classList.remove('hidden');
+        document.getElementById('dropArea').classList.add('hidden');
+        lucide.createIcons();
+      }
+    }
+
+    function clearFile() {
+      document.getElementById('documentFile').value = '';
+      document.getElementById('filePreview').classList.add('hidden');
+      document.getElementById('dropArea').classList.remove('hidden');
+    }
+
+    async function handleUploadSubmit(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+      const submitBtn = document.getElementById('submitUploadBtn');
+
+      if (!formData.get('document_file').name) {
+          Swal.fire({ icon: 'warning', title: 'Missing File', text: 'Please select a file to upload.' });
+          return;
+      }
+      if (!formData.get('document_id')) {
+          Swal.fire({ icon: 'warning', title: 'Selection Required', text: 'Please select a case or document.' });
+          return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin mr-2"></i>Uploading...';
+      lucide.createIcons();
+
+      try {
+        const response = await fetch(`{{ route('legal.documents.upload') }}`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+          }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          closeUploadModal();
+          Swal.fire({
+            icon: 'success',
+            title: 'Uploaded!',
+            text: 'Document has been associated successfully.',
+            timer: 2000,
+            showConfirmButton: false
+          }).then(() => {
+            window.location.reload();
+          });
+        } else {
+          throw new Error(result.message || 'Upload failed');
+        }
+      } catch (error) {
+        Swal.fire({ icon: 'error', title: 'Error', text: error.message });
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Upload Document';
+        lucide.createIcons();
+      }
+    }
+  </script>
+
+    <!-- Simulate Scripts -->
+    <script>
+      function openSimulateModal() {
+        console.log('Opening MS Import Modal...');
+        const modal = document.getElementById('simulate-modal');
+        if (modal) {
+          modal.classList.remove('hidden');
+          document.body.style.overflow = 'hidden';
+          document.getElementById('simulate-document-form').reset();
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+          console.error('Modal element not found!');
+        }
+      }
+
+      function closeSimulateModal() {
+        document.getElementById('simulate-modal').classList.add('hidden');
+        document.body.style.overflow = 'auto';
+      }
+
+      function handleSimulateSubmit(event) {
+        event.preventDefault();
+        const submitBtn = document.getElementById('simulate-submit-btn');
+        const originalBtnContent = submitBtn.innerHTML;
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Syncing...';
+
+        const formData = new FormData(event.target);
+        const data = Object.fromEntries(formData.entries());
+        
+        // Match DocumentImportLog requirements
+        data.source_system = data.department + '_Microservice';
+        data.external_reference_id = 'LGL-MS-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+        data.status = 'pending_review';
+        data.source = 'legal_submission'; // Explicitly set source for Legal Documents filter
+
+        fetch('{{ route("api.external.documents.import") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+          if (result.success) {
+            closeSimulateModal();
+            Swal.fire({
+              icon: 'success',
+              title: 'Import Successful',
+              text: 'Document has been synced from the microservice.',
+              confirmButtonColor: '#001F54'
+            }).then(() => window.location.reload());
+          } else {
+            throw new Error(result.message || 'Import failed');
+          }
+        })
+        .catch(error => {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnContent;
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+          Swal.fire({ icon: 'error', title: 'Import Failed', text: error.message });
+        });
+      }
+    </script>
 </body>
 </html>
-
-

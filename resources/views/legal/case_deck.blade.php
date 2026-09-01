@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Legal Cases Dashboard - Soliera</title>
+  <title>Legal | Case Deck</title>
+  @include('partials.favicon')
   <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  @vite(['resources/css/soliera.css'])
-  
+  @vite(['resources/css/app.css', 'resources/css/soliera.css', 'resources/js/app.js'])
+
   <style>
     /* CSS Variables for consistent styling */
     :root {
@@ -23,56 +25,61 @@
       --color-danger-red: #dc2626;
       --color-button-secondary: #E6940F;
     }
-    
+
     /* Force button primary to use orange-yellow */
     .btn.btn-primary {
       background-color: #F7A923 !important;
       border-color: #F7A923 !important;
       color: #2C3E50 !important;
     }
-    
+
     .btn.btn-primary:hover {
       background-color: #E6940F !important;
       border-color: #E6940F !important;
     }
-    
+
     /* SweetAlert2 Custom Styling */
-    .swal2-popup { 
-      font-family: inherit; 
-      border-radius: 12px !important; 
+    .swal2-popup {
+      font-family: inherit;
+      border-radius: 12px !important;
     }
-    .swal2-confirm { 
-      background-color: #ef4444 !important; 
-      border: none !important; 
-      padding: 12px 24px !important; 
-      border-radius: 8px !important; 
-      font-weight: 600 !important; 
-      color: white !important; 
-      margin-right: 8px !important; 
+
+    .swal2-confirm {
+      background-color: #ef4444 !important;
+      border: none !important;
+      padding: 12px 24px !important;
+      border-radius: 8px !important;
+      font-weight: 600 !important;
+      color: white !important;
+      margin-right: 8px !important;
     }
-    .swal2-cancel { 
-      background-color: #6b7280 !important; 
-      border: none !important; 
-      padding: 12px 24px !important; 
-      border-radius: 8px !important; 
-      font-weight: 600 !important; 
-      color: white !important; 
-      margin-left: 8px !important; 
+
+    .swal2-cancel {
+      background-color: #6b7280 !important;
+      border: none !important;
+      padding: 12px 24px !important;
+      border-radius: 8px !important;
+      font-weight: 600 !important;
+      color: white !important;
+      margin-left: 8px !important;
     }
-    .swal2-actions { 
-      gap: 10px !important; 
-      margin-top: 20px !important; 
+
+    .swal2-actions {
+      gap: 10px !important;
+      margin-top: 20px !important;
     }
-    .swal2-title { 
-      font-size: 20px !important; 
-      font-weight: 600 !important; 
-      margin-bottom: 16px !important; 
+
+    .swal2-title {
+      font-size: 20px !important;
+      font-weight: 600 !important;
+      margin-bottom: 16px !important;
     }
-    .swal2-content { 
-      font-size: 16px !important; 
-      line-height: 1.5 !important; 
+
+    .swal2-content {
+      font-size: 16px !important;
+      line-height: 1.5 !important;
     }
-    
+
     /* Modal styling */
     .modal {
       display: none;
@@ -85,13 +92,13 @@
       background-color: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(4px);
     }
-    
+
     .modal.modal-open {
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    
+
     .modal-box {
       background: white;
       border-radius: 12px;
@@ -100,45 +107,50 @@
       overflow-y: auto;
       animation: modalSlideIn 0.3s ease-out;
     }
-    
+
     @keyframes modalSlideIn {
       from {
         opacity: 0;
         transform: translateY(-20px) scale(0.95);
       }
+
       to {
         opacity: 1;
         transform: translateY(0) scale(1);
       }
     }
-    
+
     /* Form styling */
     .form-control {
       margin-bottom: 1rem;
     }
-    
+
     .label {
       margin-bottom: 0.5rem;
     }
-    
+
     .label-text {
       font-weight: 600;
       color: #374151;
     }
-    
-    .input, .select, .textarea {
+
+    .input,
+    .select,
+    .textarea {
       border: 1px solid #d1d5db;
       border-radius: 6px;
       padding: 0.75rem;
       transition: border-color 0.2s ease;
     }
-    
-    .input:focus, .select:focus, .textarea:focus {
+
+    .input:focus,
+    .select:focus,
+    .textarea:focus {
       outline: none;
       border-color: #3b82f6;
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
-    
+
     /* Select element styling */
     .select {
       appearance: none;
@@ -148,17 +160,17 @@
       background-size: 1.5em 1.5em;
       padding-right: 2.5rem;
     }
-    
+
     /* File upload zone styling */
     #uploadZone {
       transition: all 0.2s ease;
     }
-    
+
     #uploadZone:hover {
       border-color: #3b82f6;
       background-color: #eff6ff;
     }
-    
+
     /* Loading spinner */
     .loading {
       display: inline-block;
@@ -169,18 +181,25 @@
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-    
+
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
   </style>
 </head>
+
 <body class="bg-base-100">
+  @include('partials.page-loader')
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     @include('partials.sidebarr')
-    
+
     <!-- Main content -->
     <div class="flex flex-col flex-1 overflow-hidden">
       <!-- Header -->
@@ -206,56 +225,81 @@
           </div>
         @endif
 
-        <!-- Legal Cases Content -->
-        <div class="pb-5 border-b border-base-300 animate-fadeIn">
-          <h1 class="text-2xl font-semibold bg-white bg-clip-text text-[#191970]" style="color: var(--color-charcoal-ink);">Violation & Compliance Cases</h1>
+        <!-- Page Header -->
+        <div class="mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="shield-alert" class="w-6 h-6 text-[#F7B32B]"></i>
+              </div>
+              <div>
+                <h1 class="text-2xl font-bold text-gray-800">Violation & Compliance Cases</h1>
+                <p class="text-gray-500 text-sm">Track and manage employee violations and compliance issues</p>
+              </div>
+            </div>
+            @if(auth()->user()->role === 'Administrator')
+              <button onclick="openAddCaseModal()"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F7B32B] text-[#001F54] hover:bg-[#f5a623] transition-all shadow-sm">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                Report Incident
+              </button>
+            @endif
+          </div>
         </div>
-        
-        <!-- Action Buttons -->
-        <div class="flex justify-end mt-6 mb-8">
-          @if(auth()->user()->role === 'Administrator')
-          <button onclick="openAddCaseModal()" class="btn btn-primary">
-            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-            Report Violation
-          </button>
-          @endif
-        </div>
-          
 
-
-        <!-- Status Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <!-- Total Cases -->
-          <x-stat-card 
-            title="All Cases" 
-            :value="$stats['total_cases'] ?? 0" 
-            icon="fa-building" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">All Cases</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $stats['total_cases'] ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="briefcase" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
 
-          <!-- Approved Cases -->
-          <x-stat-card 
-            title="Completed" 
-            :value="$stats['approved_cases'] ?? 0" 
-            icon="fa-check-circle" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
+          <!-- Completed Cases -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $stats['approved_cases'] ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="check-circle" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
 
-          <!-- Pending Cases -->
-          <x-stat-card 
-            title="Awaiting Review" 
-            :value="$stats['pending_cases'] ?? 0" 
-            icon="fa-clock" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
+          <!-- Awaiting Review -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Awaiting Review</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $stats['pending_cases'] ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="clock" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
 
-          <!-- Declined Cases -->
-          <x-stat-card 
-            title="Not Approved" 
-            :value="$stats['declined_cases'] ?? 0" 
-            icon="fa-times-circle" 
-            iconColor="text-yellow-400" 
-            bgColor="bg-blue-900" />
+          <!-- Not Approved -->
+          <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Not Approved</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ $stats['declined_cases'] ?? 0 }}</p>
+              </div>
+              <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center">
+                <i data-lucide="x-circle" class="w-5 h-5 text-[#F7B32B]"></i>
+              </div>
+            </div>
+          </div>
         </div>
 
 
@@ -263,206 +307,295 @@
 
 
         <!-- Cases Table -->
-        <x-table-card :title="'Legal Cases'" :pagination="(isset($cases) && $cases->hasPages()) ? $cases->links() : null">
-          <div class="p-6">
-            <div class="flex items-center justify-between mb-6">
-              <h3 class="text-lg font-semibold text-gray-900">Legal Cases</h3>
-              <div class="text-sm text-gray-500">
-                Showing {{ $cases->count() ?? 0 }} of {{ $stats['total_cases'] ?? 0 }} cases
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <!-- Table Header -->
+          <div class="bg-[#001F54] px-6 py-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <h3 class="text-lg font-semibold text-white flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <i data-lucide="briefcase" class="w-4 h-4 text-[#F7B32B]"></i>
+                </div>
+                <div>
+                  <span>Legal Cases</span>
+                  <p class="text-sm text-white/70 font-normal">{{ $cases->count() ?? 0 }} of
+                    {{ $stats['total_cases'] ?? 0 }} cases
+                  </p>
+                </div>
+              </h3>
+              <div class="flex items-center gap-3">
+                <!-- Search Field -->
+                <div class="relative w-full sm:w-64">
+                  <span class="absolute inset-y-0 left-3 flex items-center text-gray-400 pointer-events-none">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                  </span>
+                  <input type="text" id="caseSearchInput" placeholder="Search cases..."
+                    class="w-full pl-10 pr-4 py-2 bg-white text-gray-800 rounded-lg border-0 text-sm focus:ring-2 focus:ring-blue-300 placeholder-gray-400">
+                </div>
+
+                <!-- Priority Filter Toggle (Icon-only) -->
+                <div class="dropdown dropdown-end">
+                  <button id="priorityFilterBtn" tabindex="0"
+                    class="btn btn-xs sm:btn-sm bg-gradient-to-r from-[#F7B32B] to-[#f59e0b] text-gray-800 border-none hover:shadow-md transition-all flex items-center justify-center w-8 sm:w-10"
+                    title="Filter by Priority">
+                    <i data-lucide="filter" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
+                  </button>
+                  <ul tabindex="0"
+                    class="dropdown-content z-[30] menu p-2 shadow-xl bg-base-100 rounded-xl w-52 text-xs sm:text-sm border border-gray-100 mt-2">
+                    <div class="px-4 py-2 border-b border-gray-50 mb-1">
+                      <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Priority Type</span>
+                    </div>
+                    <li><a onclick="setPriorityFilter('')" class="hover:bg-gray-50 flex items-center gap-3 py-2.5">
+                        <div class="w-2 h-2 rounded-full bg-gray-300"></div> All Priorities
+                      </a></li>
+                    <li><a onclick="setPriorityFilter('urgent')" class="hover:bg-red-50 flex items-center gap-3 py-2.5">
+                        <div class="w-2 h-2 rounded-full bg-red-500"></div> Urgent
+                      </a></li>
+                    <li><a onclick="setPriorityFilter('high')"
+                        class="hover:bg-orange-50 flex items-center gap-3 py-2.5">
+                        <div class="w-2 h-2 rounded-full bg-orange-500"></div> High
+                      </a></li>
+                    <li><a onclick="setPriorityFilter('medium')"
+                        class="hover:bg-amber-50 flex items-center gap-3 py-2.5">
+                        <div class="w-2 h-2 rounded-full bg-amber-500"></div> Medium
+                      </a></li>
+                    <li><a onclick="setPriorityFilter('low')"
+                        class="hover:bg-emerald-50 flex items-center gap-3 py-2.5">
+                        <div class="w-2 h-2 rounded-full bg-emerald-500"></div> Low
+                      </a></li>
+                  </ul>
+                </div>
+                <input type="hidden" id="priorityFilterValue" value="">
               </div>
             </div>
-            
-            <!-- Proper HTML Table -->
-              <table class="table table-zebra w-full">
-                <thead>
-                  <tr class="bg-gray-50">
-                    <th class="text-left py-4 px-4 font-semibold text-gray-700 w-16">#</th>
-                    <th class="text-left py-4 px-4 font-semibold text-gray-700">Case Information</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700 w-32">Type</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700 w-40">Employee Involved</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700 w-32">Incident Date</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700 w-32">Status</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700 w-24">Priority</th>
-                    <th class="text-center py-4 px-4 font-semibold text-gray-700 w-32">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @forelse($cases ?? collect() as $index => $case)
-                    <tr class="hover:bg-gray-50 transition-colors duration-200" data-case-id="{{ $case->id }}">
-                      <!-- ID Column -->
-                      <td class="py-4 px-4">
-                        <div class="text-sm font-medium text-gray-500">
-                          #{{ $index + 1 }}
-                        </div>
-                      </td>
-                      
-                      <!-- Case Information Column -->
-                      <td class="py-4 px-4">
-                        <div class="flex items-center space-x-3">
-                          <!-- Avatar -->
-                          <div class="avatar placeholder">
-                            <div class="bg-blue-900 text-white rounded-full w-10 h-10 flex items-center justify-center">
-                              <span class="text-sm font-semibold">
-                                {{ substr($case->case_title ?? 'UC', 0, 2) }}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <!-- Case Title -->
-                          <div>
-                            <h4 class="font-semibold text-gray-900">{{ $case->case_title ?? 'Untitled Case' }}</h4>
-                            <p class="text-sm text-gray-500">#{{ $case->case_number ?? 'LC-2025-0000' }}</p>
-                          </div>
-                        </div>
-                      </td>
-                      
-                      <!-- Type Column -->
-                      <td class="py-4 px-4 text-center">
-                        @if($case->case_type)
-                          @php
-                            $violationTypes = [
-                              'theft' => 'Theft',
-                              'hr_policy_violation' => 'HR Policy',
-                              'hr_policy' => 'HR Policy',
-                              'workplace_harassment' => 'Harassment',
-                              'harassment' => 'Harassment',
-                              'fraud' => 'Fraud',
-                              'safety_violation' => 'Safety',
-                              'safety' => 'Safety',
-                              'insubordination' => 'Insubordination',
-                              'attendance_violation' => 'Attendance',
-                              'attendance' => 'Attendance',
-                              'confidentiality_breach' => 'Confidentiality',
-                              'confidentiality' => 'Confidentiality',
-                              'property_damage' => 'Property Damage',
-                              'property' => 'Property Damage',
-                              'facility_damage' => 'Facility Damage',
-                              'guest_complaint' => 'Guest Complaint',
-                              'complaint' => 'Guest Complaint',
-                              'regulatory_violation' => 'Regulatory',
-                              'regulatory' => 'Regulatory',
-                              'violation' => 'Policy Violation',
-                              'other' => 'Other'
-                            ];
-                            $displayType = $violationTypes[$case->case_type] ?? ucfirst(str_replace('_', ' ', $case->case_type));
-                          @endphp
-                          <span class="text-sm font-medium text-gray-700">{{ $displayType }}</span>
-                        @else
-                          <span class="text-sm text-gray-400">Not specified</span>
-                        @endif
-                      </td>
-                      
-                      <!-- Employee Involved Column -->
-                      <td class="py-4 px-4 text-center">
-                        @if($case->employee_involved)
-                          <span class="text-sm font-medium text-gray-700">{{ $case->employee_involved }}</span>
-                        @else
-                          <span class="text-sm text-gray-400">Not specified</span>
-                        @endif
-                      </td>
-                      
-                      <!-- Incident Date Column -->
-                      <td class="py-4 px-4 text-center">
-                        @if($case->incident_date)
-                          <span class="text-sm text-gray-600">{{ \Carbon\Carbon::parse($case->incident_date)->format('M d, Y') }}</span>
-                        @else
-                          <span class="text-sm text-gray-400">Not specified</span>
-                        @endif
-                      </td>
-                      
-                      <!-- Status Column -->
-                      <td class="py-4 px-4 text-center">
-                        @php
-                          $statusConfig = [
-                            'pending' => ['class' => 'bg-green-100 text-green-800', 'icon' => 'clock', 'text' => 'Pending'],
-                            'ongoing' => ['class' => 'bg-blue-100 text-blue-800', 'icon' => 'play-circle', 'text' => 'Ongoing'],
-                            'completed' => ['class' => 'bg-green-500 text-white', 'icon' => 'check-circle', 'text' => 'Completed'],
-                            'rejected' => ['class' => 'bg-red-100 text-red-800', 'icon' => 'x-circle', 'text' => 'Rejected'],
-                            'active' => ['class' => 'bg-blue-100 text-blue-800', 'icon' => 'play-circle', 'text' => 'Active'],
-                            'on_hold' => ['class' => 'bg-orange-100 text-orange-800', 'icon' => 'pause-circle', 'text' => 'On Hold'],
-                            'escalated' => ['class' => 'bg-purple-100 text-purple-800', 'icon' => 'arrow-up-circle', 'text' => 'Escalated']
-                          ];
-                          $status = $statusConfig[$case->status] ?? ['class' => 'bg-gray-100 text-gray-800', 'icon' => 'help-circle', 'text' => ucfirst($case->status)];
-                        @endphp
-                        <div class="flex items-center justify-center space-x-1">
-                          <i data-lucide="{{ $status['icon'] }}" class="w-4 h-4"></i>
-                          <span class="text-sm font-medium {{ $status['class'] }} px-2 py-1 rounded-full">{{ $status['text'] }}</span>
-                        </div>
-                      </td>
-                      
-                      <!-- Priority Column -->
-                      <td class="py-4 px-4 text-center">
-                        @php
-                          $priority = $case->priority ?? 'medium';
-                          $priorityConfig = [
-                            'urgent' => ['class' => 'bg-red-100 text-red-800', 'text' => 'Urgent'],
-                            'high' => ['class' => 'bg-orange-100 text-orange-800', 'text' => 'High'],
-                            'medium' => ['class' => 'bg-yellow-100 text-yellow-800', 'text' => 'Medium'],
-                            'low' => ['class' => 'bg-green-100 text-green-800', 'text' => 'Low']
-                          ];
-                          $priorityInfo = $priorityConfig[$priority] ?? ['class' => 'bg-gray-100 text-gray-800', 'text' => ucfirst($priority)];
-                        @endphp
-                        <span class="text-xs font-medium {{ $priorityInfo['class'] }} px-2 py-1 rounded-full">{{ $priorityInfo['text'] }}</span>
-                      </td>
-                      
-                      <!-- Actions Column -->
-                      <td class="py-4 px-4 text-center">
-                        <div class="flex items-center justify-center space-x-2">
-                          <!-- Review Button -->
-                          <a href="{{ route('legal.cases.review', $case->id ?? 1) }}" 
-                             class="p-2 rounded-lg transition-all duration-200 hover:scale-110" 
-                             style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                             title="Review Case">
-                            <i data-lucide="search" class="w-4 h-4" style="fill: none;"></i>
-                          </a>
-                          
-                          <!-- Delete Button -->
-                          <button onclick="deleteCase({{ $case->id ?? 1 }})" 
-                                  class="p-2 rounded-lg transition-all duration-200 hover:scale-110"
-                                  style="background: #F7A923; color: #1f2937; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                                  title="Delete Case">
-                            <i data-lucide="trash-2" class="w-4 h-4" style="fill: none;"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  @empty
-                    <tr>
-                      <td colspan="8" class="py-12 text-center">
-                        <div class="flex flex-col items-center justify-center">
-                          <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                            <i data-lucide="shield-alert" class="w-10 h-10 text-gray-400"></i>
-                          </div>
-                          <h3 class="text-lg font-semibold text-gray-600 mb-2">No Violation Cases Found</h3>
-                          <p class="text-gray-500 text-sm mb-4">Track employee violations, compliance issues, and legal actions</p>
-                          @if(auth()->user()->role === 'Administrator')
-                          <button onclick="openAddCaseModal()" class="btn btn-primary">
-                            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                            Report Violation
-                          </button>
-                          @endif
-                        </div>
-                      </td>
-                    </tr>
-                  @endforelse
-                </tbody>
-              </table>
           </div>
-        </x-table-card>
+
+          <!-- Table -->
+          <div class="overflow-x-auto">
+            <table class="table w-full">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100">
+                  <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">#
+                  </th>
+                  <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Case
+                    Information</th>
+                  <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
+                    Type</th>
+                  <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-36">
+                    Person Involved</th>
+                  <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
+                    Incident Date</th>
+                  <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
+                    Status</th>
+                  <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
+                    Priority</th>
+                  <th class="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
+                    Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                @forelse($cases ?? collect() as $index => $case)
+                  <tr class="hover:bg-gray-50/50 transition-colors duration-200" data-case-id="{{ $case->id }}"
+                    data-priority="{{ strtolower($case->priority ?? 'medium') }}">
+                    <!-- ID Column -->
+                    <td class="py-3 px-4">
+                      <span class="text-sm font-medium text-gray-400">#{{ $index + 1 }}</span>
+                    </td>
+
+                    <!-- Case Information Column -->
+                    <td class="py-3 px-4">
+                      <div class="flex items-center gap-3">
+                        <!-- Case Icon -->
+                        <div class="w-10 h-10 rounded-lg bg-[#001F54] flex items-center justify-center flex-shrink-0">
+                          <span class="text-sm font-bold text-[#F7B32B]">
+                            {{ strtoupper(substr($case->case_title ?? 'UC', 0, 2)) }}
+                          </span>
+                        </div>
+
+                        <!-- Case Info -->
+                        <div class="min-w-0">
+                          <h4 class="font-medium text-gray-800 text-sm truncate max-w-[200px]">
+                            @php
+                              $displayTitle = $case->case_title ?? 'Untitled Case';
+                              if ($case->case_type === 'visitor_violation') {
+                                // Strip name from title if it follows "Visitor Violation - Name" pattern
+                                $displayTitle = preg_replace('/(\s*[\-\–\—]\s*).*$/u', '', $displayTitle);
+                              }
+                            @endphp
+                            {{ $displayTitle }}
+                          </h4>
+                          <p class="text-xs text-gray-400">#{{ $case->case_number ?? 'LC-2025-0000' }}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <!-- Type Column -->
+                    <td class="py-4 px-4 text-center">
+                      @if($case->case_type)
+                        @php
+                          $violationTypes = [
+                            'theft' => 'Theft',
+                            'hr_policy_violation' => 'HR Policy',
+                            'hr_policy' => 'HR Policy',
+                            'workplace_harassment' => 'Harassment',
+                            'harassment' => 'Harassment',
+                            'fraud' => 'Fraud',
+                            'safety_violation' => 'Safety',
+                            'safety' => 'Safety',
+                            'insubordination' => 'Insubordination',
+                            'attendance_violation' => 'Attendance',
+                            'attendance' => 'Attendance',
+                            'confidentiality_breach' => 'Confidentiality',
+                            'confidentiality' => 'Confidentiality',
+                            'property_damage' => 'Property Damage',
+                            'property' => 'Property Damage',
+                            'facility_damage' => 'Facility Damage',
+                            'guest_complaint' => 'Guest Complaint',
+                            'complaint' => 'Guest Complaint',
+                            'regulatory_violation' => 'Regulatory',
+                            'regulatory' => 'Regulatory',
+                            'violation' => 'Policy Violation',
+                            'visitor_violation' => 'Visitor violation',
+                            'other' => 'Other'
+                          ];
+                          $displayType = $violationTypes[$case->case_type] ?? ucfirst(str_replace('_', ' ', $case->case_type));
+                        @endphp
+                        <span
+                          class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {{ $displayType }}
+                        </span>
+                      @else
+                        <span class="text-xs text-gray-400">Not specified</span>
+                      @endif
+                    </td>
+
+                    <!-- Person Involved Column -->
+                    <td class="py-4 px-4 text-center">
+                      @if($case->employee_involved)
+                        <span class="text-sm text-gray-700">{{ $case->employee_involved }}</span>
+                      @elseif($case->visitor)
+                        <span class="text-sm text-gray-700">{{ $case->visitor->name }}</span>
+                      @else
+                        <span class="text-xs text-gray-400">Not specified</span>
+                      @endif
+                    </td>
+
+                    <!-- Incident Date Column -->
+                    <td class="py-4 px-4 text-center">
+                      @if($case->incident_date)
+                        <span
+                          class="text-sm text-gray-600">{{ \Carbon\Carbon::parse($case->incident_date)->format('M d, Y') }}</span>
+                      @else
+                        <span class="text-xs text-gray-400">—</span>
+                      @endif
+                    </td>
+
+                    <!-- Status Column -->
+                    <td class="py-4 px-4 text-center">
+                      @php
+                        $statusConfig = [
+                          'pending' => ['bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'icon' => 'clock', 'label' => 'Pending'],
+                          'ongoing' => ['bg' => 'bg-blue-50', 'text' => 'text-blue-700', 'border' => 'border-blue-200', 'icon' => 'play-circle', 'label' => 'Ongoing'],
+                          'completed' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'icon' => 'check-circle', 'label' => 'Completed'],
+                          'awaiting_review' => ['bg' => 'bg-indigo-50', 'text' => 'text-indigo-700', 'border' => 'border-indigo-200', 'icon' => 'clock', 'label' => 'Awaiting Review'],
+                          'rejected' => ['bg' => 'bg-red-50', 'text' => 'text-red-700', 'border' => 'border-red-200', 'icon' => 'x-circle', 'label' => 'Rejected'],
+                          'active' => ['bg' => 'bg-blue-50', 'text' => 'text-blue-700', 'border' => 'border-blue-200', 'icon' => 'play-circle', 'label' => 'Active'],
+                          'on_hold' => ['bg' => 'bg-orange-50', 'text' => 'text-orange-700', 'border' => 'border-orange-200', 'icon' => 'pause-circle', 'label' => 'On Hold'],
+                          'escalated' => ['bg' => 'bg-purple-50', 'text' => 'text-purple-700', 'border' => 'border-purple-200', 'icon' => 'arrow-up-circle', 'label' => 'Escalated']
+                        ];
+                        $status = $statusConfig[$case->status] ?? ['bg' => 'bg-gray-50', 'text' => 'text-gray-600', 'border' => 'border-gray-200', 'icon' => 'help-circle', 'label' => ucfirst($case->status)];
+                      @endphp
+                      <span
+                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {{ $status['bg'] }} {{ $status['text'] }} border {{ $status['border'] }}">
+                        <i data-lucide="{{ $status['icon'] }}" class="w-3.5 h-3.5"></i>
+                        {{ $status['label'] }}
+                      </span>
+                    </td>
+
+                    <!-- Priority Column -->
+                    <td class="py-4 px-4 text-center">
+                      @php
+                        $priority = $case->priority ?? 'medium';
+                        $priorityConfig = [
+                          'urgent' => ['bg' => 'bg-red-50', 'text' => 'text-red-700', 'border' => 'border-red-200', 'label' => 'Urgent'],
+                          'high' => ['bg' => 'bg-orange-50', 'text' => 'text-orange-700', 'border' => 'border-orange-200', 'label' => 'High'],
+                          'medium' => ['bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'label' => 'Medium'],
+                          'low' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'border' => 'border-emerald-200', 'label' => 'Low']
+                        ];
+                        $priorityInfo = $priorityConfig[$priority] ?? ['bg' => 'bg-gray-50', 'text' => 'text-gray-600', 'border' => 'border-gray-200', 'label' => ucfirst($priority)];
+                      @endphp
+                      <span
+                        class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $priorityInfo['bg'] }} {{ $priorityInfo['text'] }} border {{ $priorityInfo['border'] }}">
+                        {{ $priorityInfo['label'] }}
+                      </span>
+                    </td>
+
+                    <!-- Actions Column -->
+                    <td class="py-4 px-4">
+                      <div class="flex items-center justify-center gap-1">
+                        <!-- Review Button -->
+                        <a href="{{ route('legal.cases.review', $case->id ?? 1) }}"
+                          class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:shadow-md"
+                          style="background: linear-gradient(135deg, #F7A923 0%, #E6940F 100%); color: #1f2937;"
+                          title="Review Case">
+                          <i data-lucide="search" class="w-4 h-4"></i>
+                        </a>
+
+                        <!-- Delete Button -->
+                        <button onclick="deleteCase({{ $case->id ?? 1 }})"
+                          class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:shadow-md bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600"
+                          title="Delete Case">
+                          <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                @empty
+                  <tr>
+                    <td colspan="8" class="py-16 text-center">
+                      <div class="flex flex-col items-center justify-center">
+                        <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                          <i data-lucide="shield-check" class="w-10 h-10 text-blue-300"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">No Violation Cases Found</h3>
+                        <p class="text-gray-500 text-sm mb-4">Track employee violations and compliance issues</p>
+                        @if(auth()->user()->role === 'Administrator')
+                          <button onclick="openAddCaseModal()"
+                            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#F7B32B] text-[#001F54] hover:bg-[#f5a623] transition-all text-sm font-medium">
+                            <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                            Report Incident
+                          </button>
+                        @endif
+                      </div>
+                    </td>
+                  </tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          @if(isset($cases) && $cases->hasPages())
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-100">
+              {{ $cases->links() }}
+            </div>
+          @endif
+        </div>
       </main>
     </div>
   </div>
 
   <!-- Add New Case Modal -->
   <div id="addCaseModal" class="modal">
-    <div class="modal-box w-11/12 max-w-5xl bg-white text-gray-800 rounded-xl shadow-2xl" onclick="event.stopPropagation()">
+    <div class="modal-box w-11/12 max-w-5xl bg-white text-gray-800 rounded-xl shadow-2xl"
+      onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-6">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
             <i data-lucide="shield-alert" class="w-6 h-6 text-red-600"></i>
           </div>
           <div>
-        <h2 class="text-2xl font-bold text-gray-800" style="color: var(--color-charcoal-ink);">Report Violation / Compliance Issue</h2>
+            <h2 class="text-2xl font-bold text-gray-800" style="color: var(--color-charcoal-ink);">Report Incident /
+              Compliance Issue</h2>
             <p class="text-sm text-gray-500">Submit a new legal case for review and investigation</p>
           </div>
         </div>
@@ -473,7 +606,7 @@
 
       <form action="{{ route('legal.store') }}" method="POST" id="addCaseForm">
         @csrf
-        
+
         <!-- Form Sections -->
         <div class="space-y-8">
           <!-- Basic Information Section -->
@@ -482,15 +615,16 @@
               <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
               <h3 class="text-lg font-semibold text-gray-800">Basic Information</h3>
             </div>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <!-- Case Title -->
               <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Case Title*
                 </label>
-                <input type="text" name="case_title" id="caseTitle" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                       value="{{ old('case_title') }}" placeholder="Enter case title" required>
+                <input type="text" name="case_title" id="caseTitle"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value="{{ old('case_title') }}" placeholder="Enter case title" required>
                 <p class="mt-1 text-sm text-gray-500">
                   Enter a descriptive title for the legal case
                 </p>
@@ -501,7 +635,8 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Violation Template
                 </label>
-                <select id="violationTemplate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <select id="violationTemplate"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                   <option value="">Select a template (optional)</option>
                   <option value="theft_template">Theft / Stealing Template</option>
                   <option value="hr_policy_template">HR Policy Violation Template</option>
@@ -522,19 +657,30 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Violation Type*
                 </label>
-                <select name="case_type" id="caseType" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                <select name="case_type" id="caseType"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required>
                   <option value="">Select violation type</option>
                   <option value="theft" {{ old('case_type') == 'theft' ? 'selected' : '' }}>Theft / Stealing</option>
-                  <option value="hr_policy_violation" {{ old('case_type') == 'hr_policy_violation' ? 'selected' : '' }}>HR Policy Violation</option>
-                  <option value="workplace_harassment" {{ old('case_type') == 'workplace_harassment' ? 'selected' : '' }}>Workplace Harassment</option>
-                  <option value="fraud" {{ old('case_type') == 'fraud' ? 'selected' : '' }}>Fraud / Misrepresentation</option>
-                  <option value="safety_violation" {{ old('case_type') == 'safety_violation' ? 'selected' : '' }}>Safety Violation</option>
-                  <option value="insubordination" {{ old('case_type') == 'insubordination' ? 'selected' : '' }}>Insubordination</option>
-                  <option value="attendance_violation" {{ old('case_type') == 'attendance_violation' ? 'selected' : '' }}>Attendance Violation</option>
+                  <option value="hr_policy_violation" {{ old('case_type') == 'hr_policy_violation' ? 'selected' : '' }}>HR
+                    Policy Violation</option>
+                  <option value="workplace_harassment" {{ old('case_type') == 'workplace_harassment' ? 'selected' : '' }}>
+                    Workplace Harassment</option>
+                  <option value="fraud" {{ old('case_type') == 'fraud' ? 'selected' : '' }}>Fraud / Misrepresentation
+                  </option>
+                  <option value="safety_violation" {{ old('case_type') == 'safety_violation' ? 'selected' : '' }}>Safety
+                    Violation</option>
+                  <option value="insubordination" {{ old('case_type') == 'insubordination' ? 'selected' : '' }}>
+                    Insubordination</option>
+                  <option value="attendance_violation" {{ old('case_type') == 'attendance_violation' ? 'selected' : '' }}>
+                    Attendance Violation</option>
                   <option value="confidentiality_breach" {{ old('case_type') == 'confidentiality_breach' ? 'selected' : '' }}>Confidentiality Breach</option>
-                  <option value="property_damage" {{ old('case_type') == 'property_damage' ? 'selected' : '' }}>Property Damage</option>
-                  <option value="guest_complaint" {{ old('case_type') == 'guest_complaint' ? 'selected' : '' }}>Guest Complaint</option>
-                  <option value="regulatory_violation" {{ old('case_type') == 'regulatory_violation' ? 'selected' : '' }}>Regulatory Violation</option>
+                  <option value="property_damage" {{ old('case_type') == 'property_damage' ? 'selected' : '' }}>Property
+                    Damage</option>
+                  <option value="guest_complaint" {{ old('case_type') == 'guest_complaint' ? 'selected' : '' }}>Guest
+                    Complaint</option>
+                  <option value="regulatory_violation" {{ old('case_type') == 'regulatory_violation' ? 'selected' : '' }}>
+                    Regulatory Violation</option>
                   <option value="other" {{ old('case_type') == 'other' ? 'selected' : '' }}>Other Violation</option>
                 </select>
                 <p class="mt-1 text-sm text-gray-500">
@@ -547,7 +693,9 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Priority*
                 </label>
-                <select name="priority" id="priority" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                <select name="priority" id="priority"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required>
                   <option value="">Select priority</option>
                   <option value="low" {{ old('priority') == 'low' ? 'selected' : '' }}>Low</option>
                   <option value="medium" {{ old('priority') == 'medium' ? 'selected' : '' }}>Medium</option>
@@ -567,17 +715,20 @@
               <i data-lucide="alert-triangle" class="w-5 h-5 text-orange-600"></i>
               <h3 class="text-lg font-semibold text-gray-800">Violation Details</h3>
             </div>
-            
+
             <div class="space-y-6">
               <!-- Violation Description -->
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Violation Description*
                 </label>
-                <textarea name="case_description" id="caseDescription" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" 
-                          rows="4" placeholder="Describe the violation in detail..." required>{{ old('case_description') }}</textarea>
+                <textarea name="case_description" id="caseDescription"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  rows="4" placeholder="Describe the violation in detail..."
+                  required>{{ old('case_description') }}</textarea>
                 <p class="mt-1 text-sm text-gray-500">
-                  Provide detailed description of the violation, including what happened, when, where, and who was involved
+                  Provide detailed description of the violation, including what happened, when, where, and who was
+                  involved
                 </p>
               </div>
             </div>
@@ -589,15 +740,15 @@
               <i data-lucide="map-pin" class="w-5 h-5 text-green-600"></i>
               <h3 class="text-lg font-semibold text-gray-800">Incident Information</h3>
             </div>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <!-- Employee Involved -->
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                  Employee Involved
+                  Person Involved
                 </label>
-                <input type="text" name="employee_involved" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                       value="{{ old('employee_involved') }}" placeholder="Enter employee name or ID">
+                <input type="text" name="employee_involved"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value="{{ old('employee_involved') }}" placeholder="Enter employee name or ID">
                 <p class="mt-1 text-sm text-gray-500">
                   Name or employee ID of the person involved in the violation
                 </p>
@@ -608,8 +759,9 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Incident Date
                 </label>
-                <input type="datetime-local" name="incident_date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                       value="{{ old('incident_date') }}">
+                <input type="datetime-local" name="incident_date"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value="{{ old('incident_date') }}">
                 <p class="mt-1 text-sm text-gray-500">
                   When did the violation occur?
                 </p>
@@ -620,34 +772,19 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   Location
                 </label>
-                <input type="text" name="incident_location" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                       value="{{ old('incident_location') }}" placeholder="e.g., Hotel Lobby, Restaurant, Room 205">
+                <input type="text" name="incident_location"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value="{{ old('incident_location') }}" placeholder="e.g., Hotel Lobby, Restaurant, Room 205">
                 <p class="mt-1 text-sm text-gray-500">
                   Where did the violation occur?
                 </p>
               </div>
 
-              <!-- Assigned To -->
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                  Assigned To
-                </label>
-                <select name="assigned_to" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                  <option value="">Select assignee</option>
-                  <option value="legal_team" {{ old('assigned_to') == 'legal_team' ? 'selected' : '' }}>Legal Team</option>
-                  <option value="hr_team" {{ old('assigned_to') == 'hr_team' ? 'selected' : '' }}>HR Team</option>
-                  <option value="security_team" {{ old('assigned_to') == 'security_team' ? 'selected' : '' }}>Security Team</option>
-                  <option value="management" {{ old('assigned_to') == 'management' ? 'selected' : '' }}>Management</option>
-                  <option value="external_counsel" {{ old('assigned_to') == 'external_counsel' ? 'selected' : '' }}>External Counsel</option>
-                </select>
-                <p class="mt-1 text-sm text-gray-500">
-                  Assign the case to the appropriate team
-                </p>
-              </div>
+
             </div>
           </div>
         </div>
-              
+
         <!-- Submit Button -->
         <div class="mt-8 pt-6 border-t border-gray-200">
           <div class="flex items-center justify-between">
@@ -661,7 +798,7 @@
               </button>
               <button type="submit" class="btn btn-primary bg-red-600 hover:bg-red-700 text-white">
                 <i data-lucide="shield-alert" class="w-5 h-5 mr-2"></i>
-                Report Violation
+                Report Incident
               </button>
             </div>
           </div>
@@ -672,7 +809,7 @@
 
 
   @include('partials.soliera_js')
-  
+
   <style>
     /* Ensure modal is properly centered */
     .modal {
@@ -680,78 +817,83 @@
       align-items: center;
       justify-content: center;
     }
-    
+
     .modal-box {
       margin: auto;
       max-height: 90vh;
       overflow-y: auto;
     }
   </style>
-  
+
   <script>
     // Initialize Lucide icons
     lucide.createIcons();
-    
+
     // Role-based access control
     const userRole = '{{ auth()->user()->role }}';
-    
 
-    
 
-    
+
+
+
+    function setPriorityFilter(value) {
+      document.getElementById('priorityFilterValue').value = value;
+      const btn = document.getElementById('priorityFilterBtn');
+      if (!btn) return;
+
+      if (value) {
+        btn.classList.replace('from-[#F7B32B]', 'from-blue-600');
+        btn.classList.replace('to-[#f59e0b]', 'to-blue-700');
+        btn.classList.add('text-white');
+        btn.classList.remove('text-gray-800');
+      } else {
+        btn.classList.replace('from-blue-600', 'from-[#F7B32B]');
+        btn.classList.replace('to-blue-700', 'to-[#f59e0b]');
+        btn.classList.remove('text-white');
+        btn.classList.add('text-gray-800');
+      }
+      filterCases();
+    }
+
     // Search and filter functionality
     function filterCases() {
-      const searchTerm = document.getElementById('caseSearch')?.value?.toLowerCase() || '';
-      const priorityFilter = document.getElementById('priorityFilter')?.value || '';
-      
-      const rows = document.querySelectorAll('tbody tr');
-      
+      const searchTerm = document.getElementById('caseSearchInput')?.value?.toLowerCase() || '';
+      const priorityFilter = document.getElementById('priorityFilterValue')?.value || '';
+
+      const rows = document.querySelectorAll('tbody tr[data-case-id]');
+
       rows.forEach(row => {
-        if (!row) return; // Null check
-        
         let showRow = true;
-        
+
         // Search filter
         if (searchTerm) {
-          const titleElement = row.querySelector('td:first-child h4');
-          const descriptionElement = row.querySelector('td:first-child p');
-          const title = titleElement?.textContent?.toLowerCase() || '';
-          const description = descriptionElement?.textContent?.toLowerCase() || '';
-          if (!title.includes(searchTerm) && !description.includes(searchTerm)) {
+          const title = row.querySelector('td:nth-child(2) h4')?.textContent?.toLowerCase() || '';
+          const subtitle = row.querySelector('td:nth-child(2) p')?.textContent?.toLowerCase() || '';
+          const employee = row.querySelector('td:nth-child(4)')?.textContent?.toLowerCase() || '';
+          if (!title.includes(searchTerm) && !subtitle.includes(searchTerm) && !employee.includes(searchTerm)) {
             showRow = false;
           }
         }
-        
+
         // Priority filter
         if (priorityFilter && showRow) {
-          const priorityElement = row.querySelector('td:nth-child(2) .badge');
-          const priority = priorityElement?.textContent?.toLowerCase() || '';
-          if (!priority.includes(priorityFilter)) {
+          const priority = row.dataset.priority;
+          if (priority !== priorityFilter) {
             showRow = false;
           }
         }
-        
+
         // Show/hide row
         row.style.display = showRow ? '' : 'none';
       });
     }
-    
+
     function clearFilters() {
-      const caseSearch = document.getElementById('caseSearch');
-      const priorityFilter = document.getElementById('priorityFilter');
-      
+      const caseSearch = document.getElementById('caseSearchInput');
       if (caseSearch) caseSearch.value = '';
-      if (priorityFilter) priorityFilter.value = '';
-      
-      // Show all rows
-      const rows = document.querySelectorAll('tbody tr');
-      rows.forEach(row => {
-        if (row) { // Null check
-          row.style.display = '';
-        }
-      });
+      setPriorityFilter('');
     }
-    
+
     // Case actions
     function deleteCase(caseId) {
       Swal.fire({
@@ -775,32 +917,32 @@
               'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             }
           })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              showEnhancedToast('Legal case deleted successfully!', 'success', 'check-circle', 'The case has been permanently removed from the system.');
-              // Remove the row from the table
-              const row = document.querySelector(`tr[data-case-id="${caseId}"]`);
-              if (row) {
-                row.remove();
-              } else {
-                // Fallback: find row by looking for the delete button with the caseId
-                const deleteButton = document.querySelector(`button[onclick="deleteCase(${caseId})"]`);
-                if (deleteButton) {
-                  const tableRow = deleteButton.closest('tr');
-                  if (tableRow) {
-                    tableRow.remove();
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                showEnhancedToast('Legal case deleted successfully!', 'success', 'check-circle', 'The case has been permanently removed from the system.');
+                // Remove the row from the table
+                const row = document.querySelector(`tr[data-case-id="${caseId}"]`);
+                if (row) {
+                  row.remove();
+                } else {
+                  // Fallback: find row by looking for the delete button with the caseId
+                  const deleteButton = document.querySelector(`button[onclick="deleteCase(${caseId})"]`);
+                  if (deleteButton) {
+                    const tableRow = deleteButton.closest('tr');
+                    if (tableRow) {
+                      tableRow.remove();
+                    }
                   }
                 }
+              } else {
+                showEnhancedToast('Error deleting case: ' + (data.message || 'Unknown error'), 'error', 'alert-circle', 'Please try again or contact support if the issue persists.');
               }
-            } else {
-              showEnhancedToast('Error deleting case: ' + (data.message || 'Unknown error'), 'error', 'alert-circle', 'Please try again or contact support if the issue persists.');
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            showEnhancedToast('Error deleting case: ' + error.message, 'error', 'alert-circle', 'Please try again or contact support if the issue persists.');
-          });
+            })
+            .catch(error => {
+              console.error('Error:', error);
+              showEnhancedToast('Error deleting case: ' + error.message, 'error', 'alert-circle', 'Please try again or contact support if the issue persists.');
+            });
         }
       });
     }
@@ -866,11 +1008,11 @@
     };
 
     // Event listeners
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       // Violation template handler
       const templateSelect = document.getElementById('violationTemplate');
       if (templateSelect) {
-        templateSelect.addEventListener('change', function() {
+        templateSelect.addEventListener('change', function () {
           const template = violationTemplates[this.value];
           if (template) {
             document.getElementById('caseTitle').value = template.title;
@@ -882,44 +1024,41 @@
       }
 
       // Search and filter event listeners
-      const caseSearch = document.getElementById('caseSearch');
-      const priorityFilter = document.getElementById('priorityFilter');
-      
+      const caseSearch = document.getElementById('caseSearchInput');
       if (caseSearch) caseSearch.addEventListener('input', filterCases);
-      if (priorityFilter) priorityFilter.addEventListener('change', filterCases);
-      
+
       // File input change event listener
       const fileInput = document.getElementById('legal_document');
       if (fileInput) {
-        fileInput.addEventListener('change', function(e) {
+        fileInput.addEventListener('change', function (e) {
           if (e.target.files.length > 0) {
             updateFilePreview(e.target.files[0]);
             analyzeDocument(e.target.files[0]);
           }
         });
       }
-      
+
       // Form submission handler
       const addCaseForm = document.getElementById('addCaseForm');
       if (addCaseForm) {
-        addCaseForm.addEventListener('submit', function(e) {
+        addCaseForm.addEventListener('submit', function (e) {
           e.preventDefault();
           handleFormSubmission();
         });
       }
     });
-    
+
     // Handle form submission
     function handleFormSubmission() {
       const form = document.getElementById('addCaseForm');
       const formData = new FormData(form);
-      
+
       // Show loading state
       const submitBtn = form.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
       submitBtn.innerHTML = '<i class="loading loading-spinner"></i> Creating Case...';
       submitBtn.disabled = true;
-      
+
       fetch(form.action, {
         method: 'POST',
         body: formData,
@@ -927,99 +1066,51 @@
           'X-Requested-With': 'XMLHttpRequest'
         }
       })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          // Show success message
-          showToast('Legal case created successfully!', 'success');
-          // Close modal
-          closeAddCaseModal();
-          // Reload page to show new case
-          setTimeout(() => window.location.reload(), 1000);
-        } else {
-          throw new Error(data.message || 'Failed to create case');
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showToast('Error creating case: ' + error.message, 'error');
-        // Restore submit button
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-      });
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Show success message
+            showToast('Legal case created successfully!', 'success');
+            // Close modal
+            closeAddCaseModal();
+            // Reload page to show new case
+            setTimeout(() => window.location.reload(), 1000);
+          } else {
+            throw new Error(data.message || 'Failed to create case');
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          showToast('Error creating case: ' + error.message, 'error');
+          // Restore submit button
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+        });
     }
 
-    
-    // Enhanced toast notification function - uses global showNotification with progress bar
+
+    // Enhanced toast notification function - uses global showNotification
     function showEnhancedToast(title, type = 'info', icon = 'info', description = '') {
-      // Use global showNotification if available, otherwise use local implementation with progress bar
+      // Use global showNotification if available (Soliera theme)
       const message = description ? `${title}: ${description}` : title;
       const duration = type === 'error' ? 6000 : 4000;
-      
-      if (typeof window.showNotification !== 'undefined' && window.showNotification.toString().indexOf('progressBar') !== -1) {
+
+      if (typeof window.showNotification === 'function') {
         window.showNotification(message, type, duration);
         return;
       }
-      
-      // Fallback to local implementation with progress bar
-      if (!document.getElementById('notification-progress-style')) {
-        const style = document.createElement('style');
-        style.id = 'notification-progress-style';
-        style.textContent = `
-          @keyframes progressBar {
-            from { width: 100%; }
-            to { width: 0%; }
-          }
-          @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-        `;
-        document.head.appendChild(style);
-      }
 
-      const notification = document.createElement('div');
-      const alertType = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-      notification.className = `alert alert-${alertType} fixed bottom-4 right-4 z-[9999] max-w-sm shadow-lg relative overflow-hidden`;
-      notification.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; max-width: 24rem; animation: slideInRight 0.3s ease-out;';
-      
-      const iconMap = { 'success': 'check-circle', 'error': 'alert-circle', 'warning': 'alert-triangle', 'info': 'info' };
-      const finalIcon = icon || iconMap[type] || 'info';
-      
-      notification.innerHTML = `
-        <div class="flex items-center gap-2 px-4 py-3">
-          <i data-lucide="${finalIcon}" class="w-5 h-5"></i>
-          <div class="flex-1">
-            <div class="font-semibold text-sm">${title}</div>
-            ${description ? `<div class="text-xs opacity-90 mt-1">${description}</div>` : ''}
-          </div>
-        </div>
-        <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-          <div class="notification-progress h-full bg-white/50" style="width: 100%; animation: progressBar ${duration}ms linear forwards;"></div>
-        </div>
-      `;
-      
-      document.body.appendChild(notification);
-      notification.offsetHeight;
-      
-      if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-      }
-      
-      setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transition = 'opacity 0.3s ease-out';
-        setTimeout(() => {
-          if (notification.parentNode) {
-            notification.remove();
-          }
-        }, 300);
-      }, duration);
+      // Fallback to simple alert if global function not available
+      alert(message);
     }
 
     // Legacy toast function for backward compatibility
-    function showToast(message, type = 'info') {
-      showEnhancedToast(message, type);
+    function showToast(message, type = 'info', duration = 3000) {
+      if (typeof window.showNotification === 'function') {
+        window.showNotification(message, type, duration);
+        return;
+      }
+      alert(message);
     }
 
     // Modal functions for Add New Case
@@ -1028,7 +1119,7 @@
       if (modal && modal.classList) {
         modal.classList.add('modal-open');
         document.body.style.overflow = 'hidden';
-        
+
         // Initialize Lucide icons in modal
         lucide.createIcons();
       }
@@ -1040,13 +1131,13 @@
         modal.classList.remove('modal-open');
         document.body.style.overflow = 'auto';
       }
-      
+
       // Reset form
       const form = document.getElementById('addCaseForm');
       if (form) {
         form.reset();
       }
-      
+
       // Hide file preview and AI analysis
       const filePreview = document.getElementById('filePreview');
       const aiAnalysis = document.getElementById('aiAnalysis');
@@ -1066,7 +1157,7 @@
       const form = document.getElementById('addCaseForm');
       const formData = new FormData(form);
       const requiredFields = ['case_title', 'case_type', 'priority', 'case_description'];
-      
+
       // Validate required fields
       let isValid = true;
       requiredFields.forEach(fieldName => {
@@ -1080,18 +1171,18 @@
           }
         }
       });
-      
+
       if (!isValid) {
         showToast('Please fill in all required fields', 'error');
         return;
       }
-      
+
       // Show loading state
       const submitBtn = form.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
       submitBtn.innerHTML = '<i class="loading loading-spinner"></i> Submitting...';
       submitBtn.disabled = true;
-      
+
       // Submit form
       fetch(form.action, {
         method: 'POST',
@@ -1100,33 +1191,33 @@
           'X-Requested-With': 'XMLHttpRequest'
         }
       })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          closeAddCaseModal();
-          setTimeout(() => window.location.reload(), 1000);
-        } else {
-          throw new Error(data.message || 'Failed to submit report');
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showToast('Error submitting report: ' + error.message, 'error');
-      })
-      .finally(() => {
-        // Reset button state
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-      });
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            closeAddCaseModal();
+            setTimeout(() => window.location.reload(), 1000);
+          } else {
+            throw new Error(data.message || 'Failed to submit report');
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          showToast('Error submitting report: ' + error.message, 'error');
+        })
+        .finally(() => {
+          // Reset button state
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+        });
     }
 
     // Event listeners for modal
-    document.addEventListener('DOMContentLoaded', function() {
-      
+    document.addEventListener('DOMContentLoaded', function () {
+
       // Form submission handler
       const addCaseForm = document.getElementById('addCaseForm');
       if (addCaseForm) {
-        addCaseForm.addEventListener('submit', function(e) {
+        addCaseForm.addEventListener('submit', function (e) {
           e.preventDefault();
           handleFormSubmission();
         });
@@ -1135,7 +1226,7 @@
       // Close modal when clicking outside
       const modal = document.getElementById('addCaseModal');
       if (modal) {
-        modal.addEventListener('click', function(e) {
+        modal.addEventListener('click', function (e) {
           if (e.target === modal) {
             closeAddCaseModal();
           }
@@ -1159,4 +1250,5 @@
     });
   </script>
 </body>
+
 </html>
